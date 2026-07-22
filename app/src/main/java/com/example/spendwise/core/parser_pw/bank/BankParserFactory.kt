@@ -1,7 +1,7 @@
 package com.example.spendwise.core.parser_pw.bank
 
 import com.example.spendwise.core.parser_pw.ParsedTransaction
-import com.example.spendwise.core.parser_pw.bank.AccessBankParser
+import com.example.spendwise.core.parser_pw.bank.BankParserFactory.parse
 
 
 /**

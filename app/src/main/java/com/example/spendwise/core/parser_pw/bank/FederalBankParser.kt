@@ -1,8 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
-
 import com.example.spendwise.core.parser_pw.MandateInfo
 import com.example.spendwise.core.parser_pw.ParsedTransaction
 import com.example.spendwise.core.parser_pw.TransactionType
@@ -616,11 +614,6 @@ class FederalBankParser : BaseIndianBankParser() {
         }
 
         return null
-    }
-
-    override fun extractBalance(message: String): BigDecimal? {
-        // Don't extract credit limit as balance
-        return super.extractBalance(message)
     }
 
     override fun extractTransactionType(message: String): TransactionType? {

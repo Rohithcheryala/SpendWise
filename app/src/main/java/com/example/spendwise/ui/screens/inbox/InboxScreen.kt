@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.inbox
 
+
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -38,11 +39,8 @@ import com.example.spendwise.core.extensions.toFormattedDateTime
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.mapper.SmsMessage
 import com.example.spendwise.viewmodel.InboxViewModel
-
-
 import java.time.Instant
 import java.time.ZoneId
-import kotlin.text.orEmpty
 
 @Composable
 fun InboxScreen(
@@ -85,7 +83,7 @@ fun InboxScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(items= state.messages) { message: SmsMessage ->
+                items(items = state.messages) { message: SmsMessage ->
                     InboxMessageItem(
                         sms = message,
                         onClick = null
@@ -209,7 +207,7 @@ private fun InboxList(
     ) {
         items(
             count = messages.size,
-        ) { it ->
+        ) {
             val sms = messages[it]
 
             val parsed = remember(sms) {

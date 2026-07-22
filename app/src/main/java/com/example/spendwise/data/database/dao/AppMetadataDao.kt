@@ -18,7 +18,7 @@ interface AppMetadataDao {
     @Query("SELECT * FROM app_metadata LIMIT 1")
     suspend fun get(): AppMetadataEntity?
 
-    @Insert(onConflict = OnConflictStrategy.Companion.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(metadata: AppMetadataEntity): Long
 
     @Update

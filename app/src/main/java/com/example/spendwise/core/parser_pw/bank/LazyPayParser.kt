@@ -20,7 +20,7 @@ class LazyPayParser : BankParser() {
                 normalizedSender.contains("LAZYPAY")
     }
 
-    override fun extractMerchant(message: String, sender: String): String? {
+    override fun extractMerchant(message: String, sender: String): String {
         // Pattern 1: "for txn TXN512924131 on [MERCHANT] was successful"
         val onMerchantPattern =
             Regex("""on\s+([^.]+?)\s+was\s+successful""", RegexOption.IGNORE_CASE)

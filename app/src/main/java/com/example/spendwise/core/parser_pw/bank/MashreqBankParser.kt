@@ -1,7 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
 import com.example.spendwise.core.parser_pw.ParsedTransaction
 import com.example.spendwise.core.parser_pw.TransactionType
 import java.math.BigDecimal
@@ -317,7 +316,7 @@ class MashreqBankParser : UAEBankParser() {
         return super.isTransactionMessage(message)
     }
 
-    override fun extractCurrency(message: String): String? {
+    override fun extractCurrency(message: String): String {
         // Extract currency from the transaction context
         val currencyPatterns = listOf(
             // "for AED 5.99"

@@ -1,8 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
-
 import com.example.spendwise.core.parser_pw.CompiledPatterns
 import com.example.spendwise.core.parser_pw.ParsedTransaction
 import com.example.spendwise.core.parser_pw.TransactionType
@@ -120,7 +118,7 @@ open class FABParser : UAEBankParser() {
 
         for (pattern in patterns) {
             pattern.find(message)?.let { match ->
-                val currencyCode = match.groupValues[1].uppercase()
+                match.groupValues[1].uppercase()
                 var amountStr = match.groupValues[2].replace(",", "")
 
                 // Handle asterisks as placeholders - replace with 0s or treat as missing amount
@@ -152,11 +150,6 @@ open class FABParser : UAEBankParser() {
         }
 
         return super.extractAmount(message)
-    }
-
-    override fun extractTransactionType(message: String): TransactionType? {
-        // Use base class implementation which covers all FAB patterns
-        return super.extractTransactionType(message)
     }
 
     override fun extractMerchant(message: String, sender: String): String? {
@@ -359,7 +352,7 @@ open class FABParser : UAEBankParser() {
 
     //Added public getter for test case
     fun shouldParseTransactionMessage(message: String): Boolean {
-        return isTransactionMessage(message);
+        return isTransactionMessage(message)
     }
 
     // Format transfer merchant information based on extracted accounts

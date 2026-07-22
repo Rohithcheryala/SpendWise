@@ -1,14 +1,11 @@
 package com.example.spendwise.data.repository
 
 
-
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.entity.TransactionEntity
 import java.util.Date
 import javax.inject.Inject
-import kotlin.collections.forEach
-import kotlin.collections.mapNotNull
 
 class TransactionRepository @Inject constructor(
     private val transactionDao: TransactionDao,
@@ -25,7 +22,7 @@ class TransactionRepository @Inject constructor(
     suspend fun syncFromSms(fromDate: Date) {
         val messages = smsRepository.readSince(fromDate.time)
 
-        val parsedTransactions = messages.mapNotNull { sms ->
+        messages.mapNotNull { sms ->
             val parser = BankParserFactory.getParser(sms.address ?: return@mapNotNull null)
 
             parser?.parse(
@@ -50,4 +47,5 @@ class TransactionRepository @Inject constructor(
 //            }
 //        }
 //    }
-}}
+    }
+}

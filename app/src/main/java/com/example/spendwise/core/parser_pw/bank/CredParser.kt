@@ -44,7 +44,7 @@ class CredParser : BankParser() {
         return super.extractAmount(message)
     }
 
-    override fun extractMerchant(message: String, sender: String): String? {
+    override fun extractMerchant(message: String, sender: String): String {
         // Extract the credit card name after "towards your"
         val towardsPattern = Regex(
             """towards\s+your\s+(.+?)\s+Credit\s+Card""",

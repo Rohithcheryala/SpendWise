@@ -69,7 +69,7 @@ class OldHickoryParser : BankParser() {
         }
     }
 
-    override fun extractMerchant(message: String, sender: String): String? {
+    override fun extractMerchant(message: String, sender: String): String {
         // For credit union alerts, the merchant/account info is usually not specified
         // The message is about which account was affected, not where money was spent
 

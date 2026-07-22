@@ -35,7 +35,7 @@ class EmiratesNBDParser : UAEBankParser() {
     // extractAmount is now handled by UAEBankParser which supports multi-currency patterns
 
     override fun extractMerchant(message: String, sender: String): String? {
-        val lowerMessage = message.lowercase()
+        message.lowercase()
 
         // Pattern: "at MERCHANT_NAME. Avl" or "at MERCHANT_NAME$"
         val atPattern = Regex("""at\s+(.+?)(?:\.\s*Avl|$)""", RegexOption.IGNORE_CASE)

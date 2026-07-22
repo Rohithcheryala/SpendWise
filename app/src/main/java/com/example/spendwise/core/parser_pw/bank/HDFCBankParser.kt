@@ -1,8 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
-
 import com.example.spendwise.core.parser_pw.CompiledPatterns
 import com.example.spendwise.core.parser_pw.MandateInfo
 import com.example.spendwise.core.parser_pw.TransactionType
@@ -432,11 +430,6 @@ class HDFCBankParser : BaseIndianBankParser() {
 
         // Fall back to base class patterns for Rs format
         return super.extractBalance(message)
-    }
-
-    override fun cleanMerchantName(merchant: String): String {
-        // Use parent class implementation which already uses CompiledPatterns
-        return super.cleanMerchantName(merchant)
     }
 
 

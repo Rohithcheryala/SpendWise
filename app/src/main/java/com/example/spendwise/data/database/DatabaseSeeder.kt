@@ -1,9 +1,6 @@
 package com.example.spendwise.data.database
 
 
-
-
-
 import com.example.spendwise.data.mapper.AppMetadata
 import com.example.spendwise.data.mapper.Category
 import com.example.spendwise.data.repository.AppMetadataRepository

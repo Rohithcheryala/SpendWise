@@ -34,7 +34,7 @@ fun OnboardingNavGraph(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
             ) { results ->
                 // results: Map<String, Boolean> — each permission -> granted?
-                val allGranted = results.values.all { it }
+                results.values.all { it }
                 viewModel.completeScan()
             }
 

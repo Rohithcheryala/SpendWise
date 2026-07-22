@@ -188,7 +188,7 @@ class LivBankParser : UAEBankParser() {
                 super.containsCardPurchase(message)
     }
 
-    override fun extractCurrency(message: String): String? {
+    override fun extractCurrency(message: String): String {
         // Extract currency from the transaction context for Liv Bank
         val currencyPatterns = listOf(
             // "Purchase of CURRENCY amount"

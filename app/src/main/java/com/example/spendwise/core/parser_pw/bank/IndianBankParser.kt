@@ -1,7 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
 import com.example.spendwise.core.parser_pw.MandateInfo
 import com.example.spendwise.core.parser_pw.TransactionType
 import java.math.BigDecimal

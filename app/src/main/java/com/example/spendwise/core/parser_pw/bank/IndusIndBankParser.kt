@@ -150,7 +150,7 @@ class IndusIndBankParser : BaseIndianBankParser() {
         return super.isTransactionMessage(message)
     }
 
-    override fun extractAmount(message: String): java.math.BigDecimal? {
+    override fun extractAmount(message: String): BigDecimal? {
         // Prefer transaction amount tied to action verbs to avoid picking Available Balance
         val verbAmountPattern = Regex(
             """(?:INR|Rs\.?|₹)\s*([0-9,]+(?:\.\d{2})?)\s+(?:debited|credited|spent|withdrawn|paid|purchase)""",
@@ -159,7 +159,7 @@ class IndusIndBankParser : BaseIndianBankParser() {
         verbAmountPattern.find(message)?.let { match ->
             val amt = match.groupValues[1].replace(",", "")
             return try {
-                java.math.BigDecimal(amt)
+                BigDecimal(amt)
             } catch (_: NumberFormatException) {
                 null
             }
@@ -259,7 +259,7 @@ class IndusIndBankParser : BaseIndianBankParser() {
         return null
     }
 
-    override fun extractBalance(message: String): java.math.BigDecimal? {
+    override fun extractBalance(message: String): BigDecimal? {
         // Pattern: "Avl BAL of INR 1,234.56"
         val pattern1 = Regex(
             """Avl\s*BAL\s+of\s+INR\s*([0-9,]+(?:\.\d{2})?)""",
@@ -268,7 +268,7 @@ class IndusIndBankParser : BaseIndianBankParser() {
         pattern1.find(message)?.let { match ->
             val balanceStr = match.groupValues[1].replace(",", "")
             return try {
-                java.math.BigDecimal(balanceStr)
+                BigDecimal(balanceStr)
             } catch (_: NumberFormatException) {
                 null
             }
@@ -282,7 +282,7 @@ class IndusIndBankParser : BaseIndianBankParser() {
         pattern2.find(message)?.let { match ->
             val balanceStr = match.groupValues[1].replace(",", "")
             return try {
-                java.math.BigDecimal(balanceStr)
+                BigDecimal(balanceStr)
             } catch (_: NumberFormatException) {
                 null
             }

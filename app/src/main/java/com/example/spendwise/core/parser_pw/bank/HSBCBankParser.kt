@@ -1,7 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
 import com.example.spendwise.core.parser_pw.ParsedTransaction
 import com.example.spendwise.core.parser_pw.TransactionType
 import java.math.BigDecimal
@@ -361,13 +360,8 @@ class HSBCBankParser : BankParser() {
         }
 
         // Check for pattern: "credited to... of [PERSON NAME]" (beneficiary name)
-        if (lowerMessage.contains("credited to") &&
-            Regex("""A/c\s+[X\d]+\s+of\s+\w+""", RegexOption.IGNORE_CASE).containsMatchIn(message)
-        ) {
-            return true
-        }
-
-        return false
+        return lowerMessage.contains("credited to") &&
+                Regex("""A/c\s+[X\d]+\s+of\s+\w+""", RegexOption.IGNORE_CASE).containsMatchIn(message)
     }
 
     override fun isTransactionMessage(message: String): Boolean {

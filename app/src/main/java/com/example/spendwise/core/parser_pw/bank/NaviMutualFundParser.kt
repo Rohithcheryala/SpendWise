@@ -74,7 +74,7 @@ class NaviMutualFundParser : BankParser() {
         return null
     }
 
-    override fun extractTransactionType(message: String): TransactionType? {
+    override fun extractTransactionType(message: String): TransactionType {
         // Unit allotment from an AMC is always an investment outflow.
         return TransactionType.INVESTMENT
     }

@@ -432,7 +432,7 @@ class ADCBParser : FABParser() {
     }
 
     // Override currency extraction for ADCB's multi-currency support
-    override fun extractCurrency(message: String): String? {
+    override fun extractCurrency(message: String): String {
         // Extract currency from the transaction context, not balance info
         // Focus on the same contexts as extractAmount to ensure consistency
 

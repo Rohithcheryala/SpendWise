@@ -1,6 +1,5 @@
 package com.example.spendwise.core.parser_pw
 
-import com.example.spendwise.core.parser_pw.md5Hex
 import java.math.BigDecimal
 import java.math.RoundingMode
 

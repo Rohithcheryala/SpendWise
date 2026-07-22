@@ -1,9 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
-
-
 import com.example.spendwise.core.parser_pw.CompiledPatterns
 import com.example.spendwise.core.parser_pw.Constants
 import com.example.spendwise.core.parser_pw.ParsedTransaction
@@ -436,7 +433,7 @@ abstract class BankParser {
             Regex("""(?:^|\s)Limit:?\s*$cur\s*([0-9,]+(?:\.\d{2})?)""", RegexOption.IGNORE_CASE)
         )
 
-        for ((index, pattern) in creditLimitPatterns.withIndex()) {
+        for ((_, pattern) in creditLimitPatterns.withIndex()) {
             pattern.find(message)?.let { match ->
                 val limitStr = match.groupValues[1].replace(",", "")
                 return try {
@@ -499,11 +496,7 @@ abstract class BankParser {
         // Check for masked card number patterns (e.g., "XXXX1234", "*1234", "ending 1234")
         // BUT only if we haven't already excluded it as an account transaction
         val maskedCardRegex = Regex("""(?:xx|XX|\*{2,})?\d{4}""")
-        if (lowerMessage.contains("ending") && maskedCardRegex.containsMatchIn(message)) {
-            return true
-        }
-
-        return false
+        return lowerMessage.contains("ending") && maskedCardRegex.containsMatchIn(message)
     }
 
     /**

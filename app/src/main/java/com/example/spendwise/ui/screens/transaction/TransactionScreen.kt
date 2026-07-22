@@ -32,7 +32,6 @@ import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionSummaryCard
 import com.example.spendwise.ui.components.TransactionTypeSelector
 import java.time.LocalDate
-import kotlin.text.orEmpty
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -265,7 +264,6 @@ enum class TransactionMode {
     CREATE,
     EDIT
 }
-
 
 
 enum class TransactionType {

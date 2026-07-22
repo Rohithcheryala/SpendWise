@@ -1,7 +1,6 @@
 package com.example.spendwise.core.parser_pw.bank
 
 
-
 import com.example.spendwise.core.parser_pw.ParsedTransaction
 import com.example.spendwise.core.parser_pw.TransactionType
 import java.math.BigDecimal
@@ -67,7 +66,7 @@ class SouthIndianBankParser : BaseIndianBankParser() {
         val balance = extractBalance(smsBody)
 
         // Parse date/time from message if available, otherwise use SMS timestamp
-        val dateTime = extractDateTime(smsBody)
+        extractDateTime(smsBody)
             ?: Instant.ofEpochMilli(timestamp)
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime()

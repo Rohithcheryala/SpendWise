@@ -68,7 +68,7 @@ class FaysalBankParser : BankParser() {
         }
     }
 
-    override fun extractMerchant(message: String, sender: String): String? {
+    override fun extractMerchant(message: String, sender: String): String {
         val cardPattern =
             Regex("""debit card purchase at\s+(.+?)\s+from""", RegexOption.IGNORE_CASE)
         cardPattern.find(message)?.let { match ->

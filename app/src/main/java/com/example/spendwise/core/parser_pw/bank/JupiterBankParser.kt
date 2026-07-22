@@ -61,10 +61,6 @@ class JupiterBankParser : BankParser() {
         return super.extractAmount(message)
     }
 
-    override fun extractMerchant(message: String, sender: String): String? {
-        return super.extractMerchant(message, sender)
-    }
-
     override fun extractTransactionType(message: String): TransactionType? {
         val lowerMessage = message.lowercase()
 

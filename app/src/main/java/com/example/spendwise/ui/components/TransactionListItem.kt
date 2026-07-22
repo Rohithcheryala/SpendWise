@@ -28,9 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import kotlin.collections.forEach
-import kotlin.collections.isNotEmpty
-import kotlin.to
 
 @Composable
 fun TransactionListItem(
@@ -208,7 +205,7 @@ enum class TransactionDirection {
 @Preview(showBackground = true)
 @Composable
 fun JustPreview() {
-    Column() {
+    Column {
         TransactionListItem(
             title = "Cotton Dhora",
             account = "HDFC Savings",

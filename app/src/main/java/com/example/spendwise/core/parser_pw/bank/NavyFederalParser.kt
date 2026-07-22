@@ -115,10 +115,7 @@ class NavyFederalParser : BankParser() {
 
         if (nfcuTransactionKeywords.any { lowerMessage.contains(it) }) {
             // Exclude declined transactions
-            if (lowerMessage.contains("was declined")) {
-                return false
-            }
-            return true
+            return !lowerMessage.contains("was declined")
         }
 
         return super.isTransactionMessage(message)

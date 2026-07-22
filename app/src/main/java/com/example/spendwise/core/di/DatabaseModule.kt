@@ -3,7 +3,7 @@ package com.example.spendwise.core.di
 
 import android.content.Context
 import androidx.room.Room
-import com.example.spendwise.core.database.AppDatabase
+import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.dao.AppMetadataDao
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.TransactionDao

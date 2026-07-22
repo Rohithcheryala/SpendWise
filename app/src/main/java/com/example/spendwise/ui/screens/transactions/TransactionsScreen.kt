@@ -290,7 +290,7 @@ fun DateRangeField(
     onClick: () -> Unit
 ) {
 
-    Column() {
+    Column {
 
         Text(
             "Date Range",
