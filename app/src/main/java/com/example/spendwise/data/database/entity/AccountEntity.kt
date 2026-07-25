@@ -43,11 +43,11 @@ data class AccountEntity(
     val isActive: Boolean,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: LocalDateTime,
+    val createdAt: Long,
 
     @ColumnInfo(name = "closed_at")
-    val closedAt: LocalDateTime? = null,
+    val closedAt: Long? = null,
 
     @ColumnInfo(name = "reconciled_through")
-    val reconciledThrough: LocalDate? = null
+    val reconciledThrough: Long? = null
 )

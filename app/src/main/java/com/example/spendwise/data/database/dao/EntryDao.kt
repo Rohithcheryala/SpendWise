@@ -38,8 +38,8 @@ interface EntryDao {
         ORDER BY occurred_on DESC, happened_at DESC
     """)
     fun getBetweenDates(
-        startDate: LocalDate,
-        endDate: LocalDate
+        startDate: Long,
+        endDate: Long
     ): Flow<List<EntryEntity>>
 
     @Query("""

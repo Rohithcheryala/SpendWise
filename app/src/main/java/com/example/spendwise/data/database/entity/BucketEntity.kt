@@ -39,7 +39,7 @@ data class BucketEntity(
     val sortOrder: Int = 0,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: LocalDateTime,
+    val createdAt: Long,
 
     @ColumnInfo(name = "manual_allocation_paise")
     val manualAllocationPaise: Long = 0

@@ -12,7 +12,6 @@ import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.EntryDao
 import com.example.spendwise.data.database.dao.EntryLineDao
 import com.example.spendwise.data.database.dao.EntryProvenanceDao
-import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AppMetadataEntity
 import com.example.spendwise.data.database.entity.BucketEntity
@@ -23,16 +22,23 @@ import com.example.spendwise.data.database.entity.CounterpartyEntity
 import com.example.spendwise.data.database.entity.EntryEntity
 import com.example.spendwise.data.database.entity.EntryLineEntity
 import com.example.spendwise.data.database.entity.EntryProvenanceEntity
-import com.example.spendwise.data.database.entity.TransactionEntity
 
 
 @Database(
     entities = [
-        AccountEntity::class, AppMetadataEntity::class, BucketEntity::class, BudgetEntity::class,
-        CategoryEntity::class, CounterpartyEntity::class, CounterpartyAliasEntity::class,
-        EntryEntity::class, EntryLineEntity::class, EntryProvenanceEntity::class, TransactionEntity::class
+        AccountEntity::class,
+        AppMetadataEntity::class,
+        BucketEntity::class,
+        BudgetEntity::class,
+        CategoryEntity::class,
+        CounterpartyEntity::class,
+        CounterpartyAliasEntity::class,
+        EntryEntity::class,
+        EntryLineEntity::class,
+        EntryProvenanceEntity::class,
+//        TransactionEntity::class
     ],
-    version = 9
+    version = 10
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -44,7 +50,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun BudgetDao(): BudgetDao
 
-    abstract fun categoryDao(): CategoryDao
+    abstract fun CategoryDao(): CategoryDao
 
     abstract fun CounterpartyDao(): CounterpartyDao
 
@@ -55,10 +61,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun EntryLineDao(): EntryLineDao
 
     abstract fun EntryProvenanceDao(): EntryProvenanceDao
-    abstract fun transactionDao(): TransactionDao
 
-
-    abstract fun appMetadataDao(): AppMetadataDao
-
-
+//    abstract fun transactionDao(): TransactionDao
 }

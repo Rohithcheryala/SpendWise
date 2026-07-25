@@ -12,10 +12,10 @@ class CategoryRepository @Inject constructor(
     private val dao: CategoryDao
 ) {
 
-    fun observeCategories() =
-        dao.observeAll().map { list ->
-            list.map { it.toDomain() }
-        }
+//    fun observeCategories() =
+//        dao.observeAll().map { list ->
+//            list.map { it.toDomain() }
+//        }
 
     suspend fun getCategory(id: Long) =
         dao.getById(id)?.toDomain()

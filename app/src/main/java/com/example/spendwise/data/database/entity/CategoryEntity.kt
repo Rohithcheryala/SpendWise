@@ -39,5 +39,5 @@ data class CategoryEntity(
     val icon: String? = null,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: LocalDateTime
+    val createdAt: Long
 )

@@ -33,11 +33,11 @@ data class BudgetEntity(
     val amountPaise: Long,
 
     @ColumnInfo(name = "effective_from")
-    val effectiveFrom: LocalDate,
+    val effectiveFrom: Long,
 
     @ColumnInfo(name = "effective_to")
-    val effectiveTo: LocalDate? = null,
+    val effectiveTo: Long? = null,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: LocalDateTime
+    val createdAt: Long
 )

@@ -41,10 +41,10 @@ data class EntryEntity(
 
 
     @ColumnInfo(name = "occurred_on")
-    val occurredOn: LocalDate,
+    val occurredOn: Long,
 
     @ColumnInfo(name = "happened_at")
-    val happenedAt: LocalDateTime? = null,
+    val happenedAt: Long? = null,
 
     @ColumnInfo(name = "counterparty_id")
     val counterpartyId: Long? = null,
@@ -64,11 +64,11 @@ data class EntryEntity(
     val linkedEntryId: Long? = null,
 
     @ColumnInfo(name = "voided_at")
-    val voidedAt: LocalDateTime? = null,
+    val voidedAt: Long? = null,
 
     @ColumnInfo(name = "voided_reason")
     val voidedReason: String? = null,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: LocalDateTime
+    val createdAt: Long
 )

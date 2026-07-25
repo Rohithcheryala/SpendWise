@@ -9,7 +9,7 @@ plugins {
 android {
     namespace = "com.example.spendwise"
 
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.spendwise"

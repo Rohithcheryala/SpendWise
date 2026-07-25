@@ -41,13 +41,13 @@ data class CounterpartyEntity(
     val notes: String? = null,
 
     @ColumnInfo(name = "first_seen")
-    val firstSeen: LocalDate? = null,
+    val firstSeen: Long? = null,
 
     @ColumnInfo(name = "last_seen")
-    val lastSeen: LocalDate? = null,
+    val lastSeen: Long? = null,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: LocalDateTime,
+    val createdAt: Long,
 
     @ColumnInfo(name = "default_category_id")
     val defaultCategoryId: Long? = null

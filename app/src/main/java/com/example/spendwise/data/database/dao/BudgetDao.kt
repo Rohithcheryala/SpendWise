@@ -37,7 +37,7 @@ interface BudgetDao {
         WHERE effective_from <= :date
           AND (effective_to IS NULL OR effective_to >= :date)
     """)
-    fun getActiveBudgets(date: LocalDate): Flow<List<BudgetEntity>>
+    fun getActiveBudgets(date: Long): Flow<List<BudgetEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(budget: BudgetEntity): Long

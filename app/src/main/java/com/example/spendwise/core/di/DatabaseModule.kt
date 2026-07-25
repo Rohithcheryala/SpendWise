@@ -6,7 +6,6 @@ import androidx.room.Room
 import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.dao.AppMetadataDao
 import com.example.spendwise.data.database.dao.CategoryDao
-import com.example.spendwise.data.database.dao.TransactionDao
 
 
 import dagger.Module
@@ -27,14 +26,14 @@ object DatabaseModule {
             .fallbackToDestructiveMigration(true)
             .build()
 
-    @Provides
-    fun provideTransactionDao(db: AppDatabase): TransactionDao = db.transactionDao()
+//    @Provides
+//    fun provideTransactionDao(db: AppDatabase): TransactionDao = db.transactionDao()
 
     @Provides
-    fun provideCategoryDao(db: AppDatabase): CategoryDao = db.categoryDao()
+    fun provideCategoryDao(db: AppDatabase): CategoryDao = db.CategoryDao()
 
     @Provides
-    fun provideAppMetadataDao(db: AppDatabase): AppMetadataDao = db.appMetadataDao()
+    fun provideAppMetadataDao(db: AppDatabase): AppMetadataDao = db.AppMetadataDao()
 
     // add one @Provides per DAO as you add tables:
     // fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()
