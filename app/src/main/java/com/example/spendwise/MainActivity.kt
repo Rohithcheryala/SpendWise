@@ -1,6 +1,7 @@
 package com.example.spendwise
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,6 +37,7 @@ fun AppRoot() {
     val isOnboardingComplete by onboardingViewModel.isOnboardingComplete
         .collectAsStateWithLifecycle()
 
+    Log.d("isOnboardingComplete", "AppRoot: $isOnboardingComplete", )
     if (isOnboardingComplete || true) {
         SpendwiseAppComposable()
     } else {

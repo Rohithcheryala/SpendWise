@@ -12,6 +12,7 @@ import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.EntryDao
 import com.example.spendwise.data.database.dao.EntryLineDao
 import com.example.spendwise.data.database.dao.EntryProvenanceDao
+import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AppMetadataEntity
 import com.example.spendwise.data.database.entity.BucketEntity
@@ -22,6 +23,7 @@ import com.example.spendwise.data.database.entity.CounterpartyEntity
 import com.example.spendwise.data.database.entity.EntryEntity
 import com.example.spendwise.data.database.entity.EntryLineEntity
 import com.example.spendwise.data.database.entity.EntryProvenanceEntity
+import com.example.spendwise.data.database.entity.TransactionEntity
 
 
 @Database(
@@ -36,9 +38,9 @@ import com.example.spendwise.data.database.entity.EntryProvenanceEntity
         EntryEntity::class,
         EntryLineEntity::class,
         EntryProvenanceEntity::class,
-//        TransactionEntity::class
+        TransactionEntity::class
     ],
-    version = 10
+    version = 11
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -62,5 +64,5 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun EntryProvenanceDao(): EntryProvenanceDao
 
-//    abstract fun transactionDao(): TransactionDao
+    abstract fun transactionDao(): TransactionDao
 }

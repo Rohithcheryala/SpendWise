@@ -6,11 +6,18 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
+import com.example.spendwise.data.repository.CategoryRepository
+import com.example.spendwise.data.repository.InboxRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import javax.inject.Inject
 
-class BudgetViewModel : ViewModel() {
+@HiltViewModel
+class BudgetViewModel @Inject constructor(
+    private val repository: CategoryRepository
+) : ViewModel() {
 
     data class UiState(
         val month: String = "July 2026",

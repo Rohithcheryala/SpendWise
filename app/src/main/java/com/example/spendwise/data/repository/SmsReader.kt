@@ -9,7 +9,7 @@ class SmsReader @Inject constructor(
     private val source: SmsContentResolverSource
 ) {
 
-    suspend fun read(
+     fun read(
         request: SmsReadRequest
     ): List<SmsMessage> {
 

@@ -1,6 +1,7 @@
 package com.example.spendwise.ui.screens.onboarding
 
 
+import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ fun WelcomeScreen(
     onGetStarted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    Log.d("TAG", "WelcomeScreen: rendered")
 
     Scaffold(
         modifier = modifier

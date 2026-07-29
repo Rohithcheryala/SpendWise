@@ -42,6 +42,8 @@ class OnboardingViewModel @Inject constructor(
     fun completeScan() = repository.update { it.copy(smsScanCompleted = true) }
     fun completeAccounts() = repository.update { it.copy(accountsSelected = true) }
 
+    fun completeOnboarding() = repository.update { it.copy(permissionGranted = true, smsScanCompleted = true, accountsSelected = true) }
+
     private fun computeStep(state: OnboardingState): OnboardingStep = when {
         !state.welcomeSeen -> OnboardingStep.Welcome
         !state.profileCompleted -> OnboardingStep.Profile

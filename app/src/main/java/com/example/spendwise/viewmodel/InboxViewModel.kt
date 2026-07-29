@@ -15,6 +15,13 @@ import javax.inject.Inject
 class InboxViewModel @Inject constructor(
     private val repository: InboxRepository
 ) : ViewModel() {
+
+    data class InboxUiState(
+        val isLoading: Boolean = true,
+        val messages: List<SmsMessage> = emptyList(),
+        val error: String? = null
+    )
+
     var uiState by mutableStateOf(InboxUiState())
         private set
 
@@ -51,11 +58,3 @@ class InboxViewModel @Inject constructor(
     }
 }
 
-data class InboxUiState(
-
-    val isLoading: Boolean = true,
-
-    val messages: List<SmsMessage> = emptyList(),
-
-    val error: String? = null
-)

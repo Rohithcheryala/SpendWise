@@ -1,19 +1,25 @@
 package com.example.spendwise.ui.screens.onboarding
 
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.viewmodel.OnboardingViewModel
 
 
 @Composable
 fun OnboardingNavGraph(
-    viewModel: OnboardingViewModel
+    viewModel: OnboardingViewModel = hiltViewModel()
 ) {
+    val step by viewModel.currentStep.collectAsState()
 
-    when (viewModel.currentStep) {
+    when (step) {
 
         OnboardingStep.Welcome -> {
+            Log.d("TAG", "OnboardingNavGraph: inside welcome branch case")
             WelcomeScreen(
                 onGetStarted = {
                     viewModel.completeWelcome()
@@ -45,9 +51,10 @@ fun OnboardingNavGraph(
                             android.Manifest.permission.READ_SMS,
                         )
                     )
+                    viewModel.completeOnboarding()
                 },
                 onSkip = {
-                    viewModel.completeWelcome()
+                    viewModel.completeAccounts()
                 }
             )
         }

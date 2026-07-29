@@ -38,6 +38,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.core.extensions.toFormattedDateTime
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.mapper.SmsMessage
+import com.example.spendwise.ui.components.TransactionDirection
+import com.example.spendwise.ui.components.TransactionListItem
 import com.example.spendwise.viewmodel.InboxViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -84,9 +86,18 @@ fun InboxScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(items = state.messages) { message: SmsMessage ->
-                    InboxMessageItem(
-                        sms = message,
-                        onClick = null
+//                    InboxMessageItem(
+//                        sms = message,
+//                        onClick = null
+//                    )
+                    TransactionListItem(
+                        title = message.address!!,
+                        account = "AC"+message.address!!,
+                        time = message.date.toFormattedDateTime(),
+                        amount = message.body!!.length.toString(),
+                        direction = TransactionDirection.EXPENSE,
+                        tags = emptyList(),
+//                        onClick = () -> {}
                     )
                 }
             }
@@ -140,154 +151,13 @@ fun InboxMessageItem(
     }
 }
 
-@Composable
-fun InboxScreenLegacy(
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
 
-    var hasPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.READ_SMS
-            ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
 
-    var messages by remember { mutableStateOf(emptyList<SmsMessage>()) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasPermission = granted
-    }
 
-    LaunchedEffect(Unit) {
-        if (!hasPermission) {
-            permissionLauncher.launch(Manifest.permission.READ_SMS)
-        }
-    }
 
-//    LaunchedEffect(hasPermission) {
-//        if (hasPermission) {
-//            messages = withContext(Dispatchers.IO) {
-//                readAllSms(context)
-//            }
-//        }
-//    }
 
-    when {
-        !hasPermission -> {
-            PermissionRequiredScreen(modifier)
-        }
 
-        messages.isEmpty() -> {
-            EmptyInboxScreen(modifier)
-        }
-
-        else -> {
-            InboxList(
-                modifier = modifier,
-                messages = messages
-            )
-        }
-    }
-}
-
-@Composable
-private fun InboxList(
-    messages: List<SmsMessage>,
-    modifier: Modifier = Modifier
-) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(16.dp)
-    ) {
-        items(
-            count = messages.size,
-        ) {
-            val sms = messages[it]
-
-            val parsed = remember(sms) {
-                BankParserFactory
-                    .getParser(sms.address.orEmpty())
-                    ?.parse(
-                        sms.body.orEmpty(),
-                        sms.address!!,
-                        sms.date
-                    )
-            }
-
-            SmsItem(
-                sms = sms,
-                parsed = parsed
-            )
-        }
-    }
-}
-
-@Composable
-private fun SmsItem(
-    sms: SmsMessage,
-    parsed: Any?,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor =
-                if (parsed != null)
-                    Color.Green.copy(alpha = 0.08f)
-                else
-                    Color.Red.copy(alpha = 0.08f)
-        )
-    ) {
-
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-
-            Text(
-                text = sms.address.orEmpty(),
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = sms.body.orEmpty()
-            )
-
-            Spacer(
-                Modifier.height(
-                    8.dp
-                )
-            )
-
-            Text(
-                text = Instant.ofEpochMilli(sms.date)
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDateTime()
-                    .toString(),
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyInboxScreen(
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("No messages found.")
-    }
-}
 
 @Composable
 private fun PermissionRequiredScreen(

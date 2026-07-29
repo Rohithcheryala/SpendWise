@@ -43,7 +43,10 @@ fun BudgetCategoryCard(
                 },
 
                 supportingContent = {
-                    Text(category.icon.toString())
+                    Icon(
+                        imageVector = category.icon,
+                        contentDescription = null,
+                    )
                 },
 
                 trailingContent = {
