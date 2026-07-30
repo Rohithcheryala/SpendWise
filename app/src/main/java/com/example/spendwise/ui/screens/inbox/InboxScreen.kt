@@ -1,10 +1,6 @@
 package com.example.spendwise.ui.screens.inbox
 
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,35 +13,145 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.core.extensions.toFormattedDateTime
-import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.mapper.SmsMessage
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionListItem
 import com.example.spendwise.viewmodel.InboxViewModel
-import java.time.Instant
-import java.time.ZoneId
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
+    modifier: Modifier = Modifier,
+    viewModel: InboxViewModel = hiltViewModel()
+) {
+    val state = viewModel.uiState
+
+    Scaffold(
+        modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Inbox")
+
+                        if (!state.isLoading) {
+                            Text(
+                                text = "${state.messages.size} pending",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { /* TODO Filter */ }) {
+                        Icon(
+                            Icons.Outlined.FilterList,
+                            contentDescription = "Filter"
+                        )
+                    }
+
+                    IconButton(onClick = { /* TODO Refresh */ }) {
+                        Icon(
+                            Icons.Outlined.Refresh,
+                            contentDescription = "Refresh"
+                        )
+                    }
+                }
+            )
+        }
+    ) { padding ->
+
+        when {
+
+            state.isLoading -> {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            state.error != null -> {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(state.error)
+                }
+            }
+
+            state.messages.isEmpty() -> {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No transactions to review.")
+                }
+            }
+
+            else -> {
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 12.dp,
+                        bottom = 16.dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+
+                    items(state.messages) { message ->
+
+                        TransactionListItem(
+                            title = message.address.orEmpty(),
+                            account = "AC${message.address.orEmpty()}",
+                            time = message.date.toFormattedDateTime(),
+                            amount = message.body.orEmpty().length.toString(),
+                            direction = TransactionDirection.EXPENSE,
+                            tags = emptyList()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InboxScreenLegacy(
     modifier: Modifier = Modifier,
     viewModel: InboxViewModel = hiltViewModel()
 ) {
@@ -92,11 +198,11 @@ fun InboxScreen(
 //                    )
                     TransactionListItem(
                         title = message.address!!,
-                        account = "AC"+message.address!!,
+                        account = "AC" + message.address!!,
                         time = message.date.toFormattedDateTime(),
                         amount = message.body!!.length.toString(),
                         direction = TransactionDirection.EXPENSE,
-                        tags = emptyList(),
+                        tags = arrayListOf("tag", "check"),
 //                        onClick = () -> {}
                     )
                 }
@@ -150,13 +256,6 @@ fun InboxMessageItem(
         }
     }
 }
-
-
-
-
-
-
-
 
 
 @Composable

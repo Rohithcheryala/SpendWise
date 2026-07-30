@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,11 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,12 +29,132 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.core.extensions.div
 
 @Composable
 fun TransactionListItem(
+    title: String,
+    account: String?,
+    time: String,
+    amount: String,
+    direction: TransactionDirection,
+    modifier: Modifier = Modifier,
+    tags: List<String> = emptyList(),
+    onClick: (() -> Unit)? = null,
+) {
+    val clickable = if (onClick != null) {
+        Modifier.clickable(onClick = onClick)
+    } else {
+        Modifier
+    }
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(clickable),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 1.dp
+        )
+    ) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            TransactionDirectionIcon(direction)
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    AmountText(
+                        amount = amount,
+                        direction = direction
+                    )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                    Text(
+                        text = time,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (!account.isNullOrBlank()) {
+
+                        Spacer(Modifier.width(6.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.outlineVariant,
+                                    CircleShape
+                                )
+                        )
+
+                        Spacer(Modifier.width(6.dp))
+
+                        Text(
+                            text = account,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (tags.isNotEmpty()) {
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        tags.forEach {
+                            MetadataChip(it)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TransactionListItemLegacy(
     title: String,
     account: String?,
     time: String,
@@ -127,18 +251,40 @@ private fun AmountText(
     modifier: Modifier = Modifier
 ) {
 
-    val prefix = when (direction) {
-        TransactionDirection.EXPENSE -> "−"
-        TransactionDirection.INCOME -> "+"
-        TransactionDirection.TRANSFER -> ""
+    val (prefix, color) = when (direction) {
+
+        TransactionDirection.EXPENSE ->
+            "−" to MaterialTheme.colorScheme.error / 1.75f
+
+        TransactionDirection.INCOME ->
+            "+" to Color(0xFF22C55E) / 1.5f
+
+        TransactionDirection.TRANSFER ->
+            "" to MaterialTheme.colorScheme.primary
     }
 
-    Text(
-        text = prefix + amount,
+    Column(
         modifier = modifier,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onSurface
-    )
+        horizontalAlignment = Alignment.End
+    ) {
+
+        Text(
+            text = prefix + amount,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+
+//        Text(
+//            text = when (direction) {
+//                TransactionDirection.EXPENSE -> "Expense"
+//                TransactionDirection.INCOME -> "Income"
+//                TransactionDirection.TRANSFER -> "Transfer"
+//            },
+//            style = MaterialTheme.typography.labelSmall,
+//            color = MaterialTheme.colorScheme.onSurfaceVariant
+//        )
+    }
 }
 
 @Composable
