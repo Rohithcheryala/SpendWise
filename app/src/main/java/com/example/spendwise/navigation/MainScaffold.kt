@@ -1,5 +1,6 @@
 package com.example.spendwise.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -67,6 +68,15 @@ fun MainScaffold(
     val currentDestination = Destination.fromRoute(
         backStackEntry?.destination?.route
     ) ?: Destination.BUDGET
+
+    BackHandler(
+        enabled = drawerState.isOpen
+    ) {
+        scope.launch {
+            drawerState.close()
+        }
+    }
+
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         ModalNavigationDrawer(
