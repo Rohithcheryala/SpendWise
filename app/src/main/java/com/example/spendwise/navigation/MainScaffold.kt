@@ -69,14 +69,6 @@ fun MainScaffold(
         backStackEntry?.destination?.route
     ) ?: Destination.BUDGET
 
-    BackHandler(
-        enabled = drawerState.isOpen
-    ) {
-        scope.launch {
-            drawerState.close()
-        }
-    }
-
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         ModalNavigationDrawer(

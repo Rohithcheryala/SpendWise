@@ -1,6 +1,7 @@
 package com.example.spendwise.data.repository
 
 
+import com.example.spendwise.core.messages.MessageReader
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.entity.TransactionEntity
@@ -9,7 +10,7 @@ import javax.inject.Inject
 
 class TransactionRepository @Inject constructor(
     private val transactionDao: TransactionDao,
-    private val smsRepository: SmsRepository,
+    private val messageReader: MessageReader,
     private val bankParserFactory: BankParserFactory
 ) {
 
@@ -20,7 +21,7 @@ class TransactionRepository @Inject constructor(
     }
 
     suspend fun syncFromSms(fromDate: Date) {
-        val messages = smsRepository.readSince(fromDate.time)
+        val messages = messageReader.readSince(fromDate.time)
 
         messages.mapNotNull { sms ->
             val parser = BankParserFactory.getParser(sms.address ?: return@mapNotNull null)

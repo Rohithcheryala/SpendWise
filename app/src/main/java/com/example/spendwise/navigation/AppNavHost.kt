@@ -6,6 +6,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navigation
+import com.example.spendwise.ui.screens.budget.BudgetScreen
+import com.example.spendwise.ui.screens.friends.FriendsScreen
+import com.example.spendwise.ui.screens.inbox.InboxScreen
 import com.example.spendwise.ui.screens.transaction.TransactionScreen
 import com.example.spendwise.viewmodel.TransactionViewModel
 
@@ -35,6 +39,7 @@ fun AppNavHost(
             )
         }
     }
+
 }
 
 

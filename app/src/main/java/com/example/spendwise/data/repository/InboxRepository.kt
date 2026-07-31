@@ -3,13 +3,12 @@ package com.example.spendwise.data.repository
 
 import android.content.ContentResolver
 import android.provider.Telephony
-import com.example.spendwise.data.database.dao.AppMetadataDao
+import com.example.spendwise.core.messages.MessageReader
 import com.example.spendwise.data.mapper.SmsMessage
-import com.example.spendwise.data.mapper.SmsReadRequest
 import javax.inject.Inject
 
 class InboxRepository @Inject constructor(
-    private val smsReader: SmsReader,
+    private val messageReader: MessageReader,
     private val appMetadataRepository: AppMetadataRepository,
     private val transactionRepository: TransactionRepository,
     private val contentResolver: ContentResolver

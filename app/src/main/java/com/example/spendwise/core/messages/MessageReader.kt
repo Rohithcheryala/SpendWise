@@ -1,18 +1,18 @@
-package com.example.spendwise.data.repository
-
+package com.example.spendwise.core.messages
 
 import android.content.ContentResolver
 import android.provider.Telephony
 import com.example.spendwise.data.mapper.SmsMessage
+import java.time.Instant
 import javax.inject.Inject
 
-class SmsContentResolverSource @Inject constructor(
+class MessageReader @Inject constructor(
     private val contentResolver: ContentResolver
 ) {
 
     fun read(
         from: Long,
-        to: Long
+        to: Long = Instant.now().toEpochMilli()
     ): List<SmsMessage> {
 
         val projection = arrayOf(
@@ -65,4 +65,12 @@ class SmsContentResolverSource @Inject constructor(
 
         return messages
     }
+
+    fun readSince(
+        from: Long
+    ): List<SmsMessage> {
+
+        return this.read(from)
+    }
 }
+

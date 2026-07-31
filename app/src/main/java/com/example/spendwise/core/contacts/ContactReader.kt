@@ -1,20 +1,23 @@
 package com.example.spendwise.core.contacts
 
-
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.net.Uri.parse
 import android.provider.ContactsContract
+import android.provider.Telephony
+import com.example.spendwise.data.mapper.SmsMessage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-class AndroidContactProvider @Inject constructor(
-    @ApplicationContext
-    private val context: Context
-) : ContactProvider {
 
-    override suspend fun getContacts(): List<Contact> =
+class ContactReader @Inject constructor(
+    private val contentResolver: ContentResolver,
+) {
+
+     suspend fun getContacts(): List<Contact> =
         withContext(Dispatchers.IO) {
 
             val contacts = mutableListOf<Contact>()
@@ -26,7 +29,7 @@ class AndroidContactProvider @Inject constructor(
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI
             )
 
-            context.contentResolver.query(
+            contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 projection,
                 null,

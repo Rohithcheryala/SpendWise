@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.core.contacts.ContactProvider
+import com.example.spendwise.core.contacts.ContactReader
 import com.example.spendwise.ui.screens.friends.FriendUi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -14,7 +14,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FriendsViewModel @Inject constructor(
-    private val contactProvider: ContactProvider
+    private val contactReader: ContactReader
 ) : ViewModel() {
 
     data class UiState(
@@ -37,7 +37,7 @@ class FriendsViewModel @Inject constructor(
 
         try {
 
-            val contacts = contactProvider.getContacts()
+            val contacts = contactReader.getContacts()
 
             uiState = uiState.copy(
                 isLoading = false,
