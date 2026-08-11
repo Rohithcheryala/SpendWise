@@ -1,7 +1,13 @@
 package com.example.spendwise.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class Screen(
@@ -10,6 +16,12 @@ enum class Screen(
     val icon: ImageVector,
     val contentDescription: String
 ) {
-    Transaction("transaction", "Transaction", Icons.Filled.AccountBalanceWallet, "Transaction"),
-    Transactions("transactions", "Transactions", Icons.Filled.AccountBalanceWallet, "Transactions"),
+    Transactions("transactions", "Transactions", Icons.AutoMirrored.Filled.List, "All Transactions"),
+    Transaction("transaction", "Transaction Detail", Icons.Filled.ReceiptLong, "Transaction Detail"),
+    Accounts("accounts", "Accounts", Icons.Filled.AccountBalance, "Accounts & Cards"),
+    Categories("categories", "Categories", Icons.Filled.Category, "Categories"),
+    Friends("friends", "Friends & Split", Icons.Filled.Group, "Friends"),
+    Inbox("inbox", "Buffer Inbox", Icons.Filled.Inbox, "Inbox"),
+    Settings("settings", "Settings", Icons.Filled.Settings, "Settings"),
 }
+

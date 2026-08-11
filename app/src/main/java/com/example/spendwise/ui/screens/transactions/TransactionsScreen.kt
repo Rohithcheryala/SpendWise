@@ -2,11 +2,13 @@ package com.example.spendwise.ui.screens.transactions
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -17,7 +19,11 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
@@ -25,20 +31,29 @@ import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.components.TransactionDirection
@@ -49,37 +64,85 @@ import java.time.LocalDate
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
-    state: TransactionFilterState,
-    transactions: List<TransactionUi>,
-    onEvent: (TransactionEvent) -> Unit,
+    state: TransactionFilterState = TransactionFilterState(),
+    transactions: List<TransactionUi> = defaultTransactions,
+    onNavigateBack: (() -> Unit)? = null,
+    onTransactionClick: ((Long) -> Unit)? = null,
+    onAddTransactionClick: (() -> Unit)? = null,
+    onEvent: (TransactionEvent) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true
-    )
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredTransactions = transactions.filter {
+        searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || (it.account?.contains(searchQuery, ignoreCase = true) == true)
+    }
 
     Scaffold(
         modifier = modifier,
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { onEvent(TransactionEvent.OpenFilters) },
-                icon = {
-                    Icon(Icons.Rounded.FilterList, null)
+        topBar = {
+            TopAppBar(
+                title = { Text("Transactions", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    if (onNavigateBack != null) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
                 },
-                text = {
-                    if (state.activeFilterCount == 0) {
-                        Text("Filters")
-                    } else {
-                        Text("Filters (${state.activeFilterCount})")
+                actions = {
+                    IconButton(onClick = { onEvent(TransactionEvent.OpenFilters) }) {
+                        Icon(Icons.Rounded.FilterList, contentDescription = "Filters")
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            if (onAddTransactionClick != null) {
+                FloatingActionButton(
+                    onClick = onAddTransactionClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Transaction")
+                }
+            }
         }
     ) { padding ->
 
         LazyColumn(
-            modifier = Modifier.padding(padding)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search transactions...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    singleLine = true
+                )
+            }
 
             item {
                 ActiveFilterRow(
@@ -90,20 +153,44 @@ fun TransactionsScreen(
                 )
             }
 
-            items(
-                items = transactions,
-                key = { transaction -> transaction.id }
-            ) {
-
-                TransactionListItem(
-                    title = it.title,
-                    account = it.account,
-                    time = it.time,
-                    amount = it.amount,
-                    direction = it.direction,
-                    tags = it.tags
-                )
-                HorizontalDivider()
+            if (filteredTransactions.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "No transactions found",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Try clearing your search or filters",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(
+                    items = filteredTransactions,
+                    key = { transaction -> transaction.id }
+                ) { item ->
+                    TransactionListItem(
+                        title = item.title,
+                        account = item.account,
+                        time = item.time,
+                        amount = item.amount,
+                        direction = item.direction,
+                        tags = item.tags,
+                        onClick = { onTransactionClick?.invoke(item.id) }
+                    )
+                }
             }
         }
     }
@@ -329,26 +416,23 @@ fun ActiveFilterRow(
     filters: List<String>,
     onRemove: (String) -> Unit
 ) {
-
     if (filters.isEmpty()) return
 
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-
-        items(filters.size) {
-
+        items(filters.size) { index ->
+            val filterText = filters[index]
             InputChip(
                 selected = true,
-                onClick = { },
+                onClick = { onRemove(filterText) },
                 label = {
-//                    Text(it)
+                    Text(filterText)
                 },
                 trailingIcon = {
                     Icon(
                         Icons.Rounded.Close,
-                        null,
+                        contentDescription = "Remove",
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -356,6 +440,44 @@ fun ActiveFilterRow(
         }
     }
 }
+
+val defaultTransactions = listOf(
+    TransactionUi(
+        id = 1,
+        title = "Cotton Dhora",
+        account = "HDFC Savings",
+        amount = "₹10,000",
+        time = "11:24 AM",
+        direction = TransactionDirection.INCOME,
+        tags = listOf("Repayment")
+    ),
+    TransactionUi(
+        id = 2,
+        title = "BHIM / Swiggy",
+        account = "HDFC Savings",
+        amount = "₹450",
+        time = "10:43 AM",
+        direction = TransactionDirection.EXPENSE,
+        tags = listOf("Food")
+    ),
+    TransactionUi(
+        id = 3,
+        title = "Amazon Shopping",
+        account = "ICICI Credit Card",
+        amount = "₹2,529.90",
+        time = "Yesterday • 9:41 PM",
+        direction = TransactionDirection.EXPENSE,
+        tags = listOf("Shopping", "Electronics")
+    ),
+    TransactionUi(
+        id = 4,
+        title = "Monthly Salary",
+        account = "HDFC Savings",
+        amount = "₹85,000",
+        time = "01 Aug • 8:30 AM",
+        direction = TransactionDirection.INCOME
+    )
+)
 
 data class TransactionUi(
     val id: Long,
@@ -444,25 +566,6 @@ sealed interface TransactionEvent {
         val filter: String
     ) : TransactionEvent
 }
-
-// ----future
-//Looking at your previous messages, your app is Compose-first, not React. I wouldn't pass a generic TransactionFilterState around.
-//
-//Instead I'd split it into two reusable models:
-//data class TransactionFilters(
-//    val status: TransactionStatus? = null,
-//    val category: CategoryUi? = null,
-//    val fromAccount: AccountUi? = null,
-//    val toAccount: AccountUi? = null,
-//    val tags: List<TagUi> = emptyList(),
-//    val dateRange: ClosedRange<LocalDate>? = null
-//)
-//
-//data class TransactionsUiState(
-//    val transactions: List<TransactionUi> = emptyList(),
-//    val filters: TransactionFilters = TransactionFilters(),
-//    val isFilterSheetVisible: Boolean = false
-//)
 
 @Preview(
     name = "Transactions",

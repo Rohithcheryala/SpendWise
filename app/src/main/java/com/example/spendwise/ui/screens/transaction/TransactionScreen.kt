@@ -1,26 +1,36 @@
 package com.example.spendwise.ui.screens.transaction
 
-
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.components.AmountSection
@@ -41,6 +51,10 @@ fun TransactionScreen(
     onUpdateState: ((TransactionUiState) -> TransactionUiState) -> Unit,
     onEvent: (TransactionUiEvent) -> Unit,
 ) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var activePickerType by remember { mutableStateOf<PickerType?>(null) }
+    var showAddTagDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -51,8 +65,9 @@ fun TransactionScreen(
                         text = if (uiState.mode == TransactionMode.CREATE) {
                             "New Transaction"
                         } else {
-                            "Transaction"
-                        }
+                            "Transaction Details"
+                        },
+                        fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
@@ -62,7 +77,7 @@ fun TransactionScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
@@ -88,14 +103,14 @@ fun TransactionScreen(
 
         LazyColumn(
             modifier = Modifier
-                .padding(innerPadding)
-                .imePadding(),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .fillMaxSize()
+                .padding(innerPadding),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = 16.dp,
-                bottom = 120.dp
+                top = 12.dp,
+                bottom = 24.dp
             )
         ) {
 
@@ -114,16 +129,9 @@ fun TransactionScreen(
                     amount = uiState.amount,
                     onDirectionChange = { newDirection ->
                         onUpdateState { current -> current.copy(direction = newDirection) }
-//                        onEvent(
-////                            onUpdateState { it.copy(direction = it.direction) }
-//                            TransactionUiEvent.DirectionChanged(it)
-//                        )
                     },
                     onAmountChange = { newAmount ->
                         onUpdateState { current -> current.copy(amount = newAmount) }
-//                        onEvent(
-//                            TransactionUiEvent.AmountChanged(it)
-//                        )
                     }
                 )
             }
@@ -133,10 +141,7 @@ fun TransactionScreen(
                     label = "Date",
                     value = uiState.date.toString(),
                     onClick = {
-//                        TODO Date
-//                        onEvent(
-//                            TransactionUiEvent.DateClicked
-//                        )
+                        showDatePicker = true
                     }
                 )
             }
@@ -146,9 +151,6 @@ fun TransactionScreen(
                     selected = uiState.type,
                     onSelected = { newType: TransactionType ->
                         onUpdateState { current -> current.copy(type = newType) }
-//                        onEvent(
-//                            TransactionUiEvent.TypeChanged(it)
-//                        )
                     }
                 )
             }
@@ -156,11 +158,9 @@ fun TransactionScreen(
             item {
                 DropdownField(
                     label = "Account",
-                    value = uiState.account?.label.orEmpty(),
+                    value = uiState.account?.label.orEmpty().ifBlank { "Select Account" },
                     onClick = {
-                        onEvent(
-                            TransactionUiEvent.AccountClicked
-                        )
+                        activePickerType = PickerType.ACCOUNT
                     }
                 )
             }
@@ -173,9 +173,7 @@ fun TransactionScreen(
                         value = uiState.counterparty?.label.orEmpty(),
                         placeholder = "Optional",
                         onClick = {
-                            onEvent(
-                                TransactionUiEvent.CounterpartyClicked
-                            )
+                            activePickerType = PickerType.COUNTERPARTY
                         }
                     )
                 }
@@ -183,11 +181,9 @@ fun TransactionScreen(
                 item {
                     DropdownField(
                         label = "Category",
-                        value = uiState.category?.label.orEmpty(),
+                        value = uiState.category?.label.orEmpty().ifBlank { "Select Category" },
                         onClick = {
-                            onEvent(
-                                TransactionUiEvent.CategoryClicked
-                            )
+                            activePickerType = PickerType.CATEGORY
                         }
                     )
                 }
@@ -195,15 +191,13 @@ fun TransactionScreen(
                 item {
                     TagSection(
                         tags = uiState.tags,
-                        onRemove = {
-                            onEvent(
-                                TransactionUiEvent.RemoveTag(it)
-                            )
+                        onRemove = { tagId ->
+                            onUpdateState { current ->
+                                current.copy(tags = current.tags.filter { it.id != tagId })
+                            }
                         },
                         onAddClick = {
-                            onEvent(
-                                TransactionUiEvent.AddTagClicked
-                            )
+                            showAddTagDialog = true
                         }
                     )
                 }
@@ -212,20 +206,163 @@ fun TransactionScreen(
             item {
                 NotesSection(
                     note = uiState.note,
-                    onValueChange = {
-                        onEvent(
-                            TransactionUiEvent.NoteChanged(it)
-                        )
+                    onValueChange = { newNote ->
+                        onUpdateState { current -> current.copy(note = newNote) }
                     }
                 )
             }
+        }
+    }
 
-            item {
-                HorizontalDivider()
+    if (showDatePicker) {
+        val datePickerState = androidx.compose.material3.rememberDatePickerState(
+            initialSelectedDateMillis = System.currentTimeMillis()
+        )
+        androidx.compose.material3.DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val selectedDate = java.time.Instant.ofEpochMilli(millis)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDate()
+                            onUpdateState { it.copy(date = selectedDate) }
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            androidx.compose.material3.DatePicker(state = datePickerState)
+        }
+    }
+
+    val currentPicker = activePickerType
+    if (currentPicker != null) {
+        val (title, options) = when (currentPicker) {
+            PickerType.ACCOUNT -> "Select Account" to (if (uiState.accounts.isNotEmpty()) uiState.accounts else listOf(DropdownOption("1", "HDFC Savings"), DropdownOption("2", "SBI Savings"), DropdownOption("3", "ICICI Credit Card"), DropdownOption("4", "Cash")))
+            PickerType.CATEGORY -> "Select Category" to (if (uiState.categories.isNotEmpty()) uiState.categories else listOf(DropdownOption("1", "Food & Dining"), DropdownOption("2", "Groceries"), DropdownOption("3", "Rent & Utilities"), DropdownOption("4", "Transportation"), DropdownOption("5", "Shopping"), DropdownOption("6", "Unclassified")))
+            PickerType.COUNTERPARTY -> "Select Counterparty" to (if (uiState.counterparties.isNotEmpty()) uiState.counterparties else listOf(DropdownOption("1", "Starbucks"), DropdownOption("2", "Swiggy"), DropdownOption("3", "Amazon"), DropdownOption("4", "Uber"), DropdownOption("5", "Rahul Sharma")))
+        }
+
+        OptionPickerBottomSheet(
+            title = title,
+            options = options,
+            onDismiss = { activePickerType = null },
+            onSelect = { option ->
+                onUpdateState { current ->
+                    when (currentPicker) {
+                        PickerType.ACCOUNT -> current.copy(account = option)
+                        PickerType.CATEGORY -> current.copy(category = option)
+                        PickerType.COUNTERPARTY -> current.copy(counterparty = option)
+                    }
+                }
+                activePickerType = null
+            }
+        )
+    }
+
+    if (showAddTagDialog) {
+        AddTagDialog(
+            onDismiss = { showAddTagDialog = false },
+            onAdd = { tagLabel ->
+                onUpdateState { current ->
+                    current.copy(tags = current.tags + TagUiModel(System.currentTimeMillis().toString(), tagLabel))
+                }
+                showAddTagDialog = false
+            }
+        )
+    }
+}
+
+private enum class PickerType {
+    ACCOUNT, CATEGORY, COUNTERPARTY
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OptionPickerBottomSheet(
+    title: String,
+    options: List<DropdownOption>,
+    onDismiss: () -> Unit,
+    onSelect: (DropdownOption) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(24.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+
+            options.forEach { option ->
+                androidx.compose.material3.OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(option) },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = option.label,
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }
 }
+
+@Composable
+private fun AddTagDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit
+) {
+    var tagText by remember { mutableStateOf("") }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Tag") },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = tagText,
+                onValueChange = { tagText = it },
+                label = { Text("Tag Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(
+                onClick = { onAdd(tagText.trim()) },
+                enabled = tagText.isNotBlank()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
 
 @Preview(showBackground = true)
 @Composable

@@ -1,13 +1,8 @@
 package com.example.spendwise.core.contacts
 
 import android.content.ContentResolver
-import android.content.Context
 import android.net.Uri
-import android.net.Uri.parse
 import android.provider.ContactsContract
-import android.provider.Telephony
-import com.example.spendwise.data.mapper.SmsMessage
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject

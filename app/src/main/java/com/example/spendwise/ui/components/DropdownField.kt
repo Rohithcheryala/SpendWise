@@ -1,19 +1,27 @@
 package com.example.spendwise.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DropdownField(
     label: String,
@@ -23,69 +31,53 @@ fun DropdownField(
     placeholder: String? = null,
     enabled: Boolean = true,
 ) {
-    ExposedDropdownMenuBox(
-        expanded = false,
-        onExpandedChange = {
-            if (enabled) onClick()
-        },
-        modifier = modifier
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
+        )
 
-        OutlinedTextField(
+        Surface(
             modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth(),
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            singleLine = true,
-            label = {
-                Text(label)
-            },
-            placeholder = placeholder?.let {
-                {
-                    Text(it)
+                .fillMaxWidth()
+                .clickable(enabled = enabled, onClick = onClick),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val displayText = value.ifBlank { placeholder.orEmpty() }
+                val textColor = if (value.isNotBlank()) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
                 }
-            },
-            trailingIcon = {
+
+                Text(
+                    text = displayText,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = textColor,
+                    fontWeight = if (value.isNotBlank()) FontWeight.Medium else FontWeight.Normal,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
                 Icon(
-                    imageVector = Icons.Outlined.ArrowDropDown,
-                    contentDescription = null
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        )
-    }
-}
-
-@Composable
-fun SelectionField(
-    label: String,
-    value: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String? = null,
-    trailingContent: @Composable (() -> Unit)? = null,
-) {
-    OutlinedTextField(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        value = value,
-        onValueChange = {},
-        readOnly = true,
-        singleLine = true,
-        label = {
-            Text(label)
-        },
-        placeholder = placeholder?.let {
-            { Text(it) }
-        },
-        trailingIcon = trailingContent ?: {
-            Icon(
-                imageVector = Icons.Outlined.ArrowDropDown,
-                contentDescription = null
-            )
         }
-    )
+    }
 }

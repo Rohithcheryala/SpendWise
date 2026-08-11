@@ -1,26 +1,36 @@
 package com.example.spendwise.ui.screens.onboarding
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
@@ -43,133 +54,178 @@ fun ProfileScreen(
     modifier: Modifier = Modifier
 ) {
 
-    var name by remember {
-        mutableStateOf("")
-    }
+    var name by remember { mutableStateOf("") }
 
-    var selectedColor by remember {
-        mutableStateOf(Color(0xFF4CAF50))
-    }
+    var selectedColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
 
-    val colors = listOf(
-        Color(0xFF4CAF50),
-        Color(0xFF2196F3),
-        Color(0xFFFF9800),
-        Color(0xFFE91E63),
-        Color(0xFF9C27B0),
-        Color(0xFFF44336)
+    val colorOptions = listOf(
+        Color(0xFF16A34A),  // Green
+        Color(0xFF0D9488),  // Teal
+        Color(0xFF2563EB),  // Blue
+        Color(0xFF7C3AED),  // Violet
+        Color(0xFFDB2777),  // Pink
+        Color(0xFFEA580C),  // Orange
     )
 
-    Scaffold(
-        modifier = modifier
-    ) { padding ->
-
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp)
+                .statusBarsPadding()
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            Spacer(Modifier.height(48.dp))
 
-            Spacer(Modifier.weight(1f))
+            // Avatar with selected color
+            val avatarBg by animateColorAsState(
+                targetValue = selectedColor.copy(alpha = 0.15f),
+                label = "avatar_bg"
+            )
+            val avatarTint by animateColorAsState(
+                targetValue = selectedColor,
+                label = "avatar_tint"
+            )
 
             Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .size(96.dp),
+                modifier = Modifier.size(96.dp),
                 shape = CircleShape,
-                color = selectedColor.copy(alpha = .15f)
+                color = avatarBg
             ) {
-
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Rounded.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = selectedColor
-                    )
+                Box(contentAlignment = Alignment.Center) {
+                    if (name.isNotBlank()) {
+                        Text(
+                            text = name.trim().first().uppercaseChar().toString(),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = avatarTint
+                        )
+                    } else {
+                        Icon(
+                            Icons.Rounded.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = avatarTint
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.size(32.dp))
+            Spacer(Modifier.height(28.dp))
 
             Text(
-                "Let's personalize your app",
+                text = "Personalize your app",
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.size(8.dp))
+            Spacer(Modifier.height(8.dp))
 
             Text(
-                "Tell us what you'd like to be called.",
+                text = "Set your display name and choose a color theme.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.size(24.dp))
+            Spacer(Modifier.height(32.dp))
 
             OutlinedTextField(
                 value = name,
-                onValueChange = {
-                    name = it
-                },
+                onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Text("Your name")
-                },
-                singleLine = true
+                label = { Text("Your name") },
+                placeholder = { Text("e.g. Rohith") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp)
             )
 
-            Spacer(Modifier.size(24.dp))
-            Text(
-                "Accent Color",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(Modifier.size(12.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            Spacer(Modifier.height(28.dp))
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                colors.forEach { color ->
+                Text(
+                    text = "Accent Color",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                            .clickable {
-                                selectedColor = color
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    colorOptions.forEach { color ->
+                        val isSelected = color == selectedColor
+                        val size by animateDpAsState(
+                            targetValue = if (isSelected) 44.dp else 40.dp,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "color_swatch_size"
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .size(size)
+                                .clip(CircleShape)
+                                .background(color)
+                                .then(
+                                    if (isSelected)
+                                        Modifier.border(3.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                    else Modifier
+                                )
+                                .clickable { selectedColor = color },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Rounded.Check,
+                                    contentDescription = "Selected",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                    )
+                        }
+                    }
                 }
             }
+
             Spacer(Modifier.weight(1f))
+
             Button(
-                onClick = {
-                    onContinue(
-                        name.trim(),
-                        selectedColor
-                    )
-                },
+                onClick = { onContinue(name.trim(), selectedColor) },
                 enabled = name.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(56.dp)
                     .navigationBarsPadding()
+                    .padding(bottom = 0.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = selectedColor
+                )
             ) {
-
-                Text("Continue")
+                Text(
+                    "Continue",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun ProfilePreview() {
     ProfileScreen(
-        onContinue = { string: String, color: Color -> },
+        onContinue = { _: String, _: Color -> },
     )
 }

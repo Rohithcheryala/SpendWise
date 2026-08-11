@@ -35,7 +35,7 @@ fun TagSection(
 
             InputChip(
                 selected = true,
-                onClick = {},
+                onClick = { onRemove(tag.id) },
                 label = {
                     Text(tag.label)
                 },

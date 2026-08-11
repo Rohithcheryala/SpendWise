@@ -2,7 +2,6 @@ package com.example.spendwise.core.messages
 
 import android.content.ContentResolver
 import android.provider.Telephony
-import com.example.spendwise.data.mapper.SmsMessage
 import java.time.Instant
 import javax.inject.Inject
 
@@ -13,7 +12,7 @@ class MessageReader @Inject constructor(
     fun read(
         from: Long,
         to: Long = Instant.now().toEpochMilli()
-    ): List<SmsMessage> {
+    ): List<Message> {
 
         val projection = arrayOf(
             Telephony.Sms._ID,
@@ -30,7 +29,7 @@ class MessageReader @Inject constructor(
             to.toString()
         )
 
-        val messages = mutableListOf<SmsMessage>()
+        val messages = mutableListOf<Message>()
 
         contentResolver.query(
             Telephony.Sms.CONTENT_URI,
@@ -54,7 +53,7 @@ class MessageReader @Inject constructor(
 
             while (cursor.moveToNext()) {
 
-                messages += SmsMessage(
+                messages += Message(
                     id = cursor.getLong(idColumn),
                     address = cursor.getString(addressColumn).orEmpty(),
                     body = cursor.getString(bodyColumn).orEmpty(),
@@ -68,7 +67,7 @@ class MessageReader @Inject constructor(
 
     fun readSince(
         from: Long
-    ): List<SmsMessage> {
+    ): List<Message> {
 
         return this.read(from)
     }

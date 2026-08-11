@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.SwapHoriz
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -28,12 +27,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.spendwise.core.extensions.div
 
 @Composable
 fun TransactionListItem(
@@ -56,121 +55,13 @@ fun TransactionListItem(
         modifier = modifier
             .fillMaxWidth()
             .then(clickable),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 1.dp
+            defaultElevation = 0.dp
         )
-    ) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            TransactionDirectionIcon(direction)
-
-            Spacer(Modifier.width(16.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    AmountText(
-                        amount = amount,
-                        direction = direction
-                    )
-                }
-
-                Spacer(Modifier.height(4.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-
-                    Text(
-                        text = time,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (!account.isNullOrBlank()) {
-
-                        Spacer(Modifier.width(6.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .size(3.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.outlineVariant,
-                                    CircleShape
-                                )
-                        )
-
-                        Spacer(Modifier.width(6.dp))
-
-                        Text(
-                            text = account,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                if (tags.isNotEmpty()) {
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        tags.forEach {
-                            MetadataChip(it)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TransactionListItemLegacy(
-    title: String,
-    account: String?,
-    time: String,
-    amount: String,
-    direction: TransactionDirection,
-    modifier: Modifier = Modifier,
-    tags: List<String> = emptyList(),
-    onClick: (() -> Unit)? = null,
-) {
-    val clickable = if (onClick != null) {
-        Modifier.clickable(onClick = onClick)
-    } else Modifier
-
-    Surface(
-        modifier = modifier.then(clickable),
-        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -178,39 +69,44 @@ fun TransactionListItemLegacy(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             TransactionDirectionIcon(direction)
 
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(14.dp))
 
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(3.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
                     Text(
                         text = time,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    if (account != null) {
-                        Text(
-                            text = " • ",
-                            color = MaterialTheme.colorScheme.outline
+                    if (!account.isNullOrBlank()) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(3.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    CircleShape
+                                )
                         )
+                        Spacer(Modifier.width(6.dp))
 
                         Text(
                             text = account,
@@ -227,8 +123,8 @@ fun TransactionListItemLegacy(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        tags.forEach {
-                            MetadataChip(it)
+                        tags.forEach { tag ->
+                            TagPill(tag)
                         }
                     }
                 }
@@ -245,46 +141,40 @@ fun TransactionListItemLegacy(
 }
 
 @Composable
+private fun TagPill(text: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+        )
+    }
+}
+
+@Composable
 private fun AmountText(
     amount: String,
     direction: TransactionDirection,
     modifier: Modifier = Modifier
 ) {
-
     val (prefix, color) = when (direction) {
-
-        TransactionDirection.EXPENSE ->
-            "−" to MaterialTheme.colorScheme.error / 1.75f
-
-        TransactionDirection.INCOME ->
-            "+" to Color(0xFF22C55E) / 1.5f
-
-        TransactionDirection.TRANSFER ->
-            "" to MaterialTheme.colorScheme.primary
+        TransactionDirection.EXPENSE -> "−" to MaterialTheme.colorScheme.error
+        TransactionDirection.INCOME -> "+" to Color(0xFF16A34A)
+        TransactionDirection.TRANSFER -> "" to MaterialTheme.colorScheme.primary
     }
 
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.End
-    ) {
-
-        Text(
-            text = prefix + amount,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-
-//        Text(
-//            text = when (direction) {
-//                TransactionDirection.EXPENSE -> "Expense"
-//                TransactionDirection.INCOME -> "Income"
-//                TransactionDirection.TRANSFER -> "Transfer"
-//            },
-//            style = MaterialTheme.typography.labelSmall,
-//            color = MaterialTheme.colorScheme.onSurfaceVariant
-//        )
-    }
+    Text(
+        text = prefix + amount,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = color,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -292,28 +182,29 @@ fun TransactionDirectionIcon(
     direction: TransactionDirection,
     modifier: Modifier = Modifier
 ) {
-
-    val (icon, tint) = when (direction) {
-
-        TransactionDirection.EXPENSE -> {
-            Icons.Rounded.ArrowUpward to MaterialTheme.colorScheme.error
-        }
-
-        TransactionDirection.INCOME -> {
-            Icons.Rounded.ArrowDownward to Color(0xFF2E7D32)
-        }
-
-        TransactionDirection.TRANSFER -> {
-            Icons.Rounded.SwapHoriz to MaterialTheme.colorScheme.outline
-        }
+    val (icon, tint, bgColor) = when (direction) {
+        TransactionDirection.EXPENSE -> Triple(
+            Icons.Rounded.ArrowUpward,
+            MaterialTheme.colorScheme.error,
+            MaterialTheme.colorScheme.errorContainer
+        )
+        TransactionDirection.INCOME -> Triple(
+            Icons.Rounded.ArrowDownward,
+            Color(0xFF16A34A),
+            Color(0xFFDCFCE7)
+        )
+        TransactionDirection.TRANSFER -> Triple(
+            Icons.Rounded.SwapHoriz,
+            MaterialTheme.colorScheme.primary,
+            MaterialTheme.colorScheme.primaryContainer
+        )
     }
 
     Surface(
-        modifier = modifier.size(32.dp),
+        modifier = modifier.size(40.dp),
         shape = CircleShape,
-        color = tint.copy(alpha = .12f)
+        color = bgColor
     ) {
-
         Box(
             contentAlignment = Alignment.Center
         ) {
@@ -321,25 +212,10 @@ fun TransactionDirectionIcon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
     }
-}
-
-@Composable
-fun MetadataChip(
-    text: String,
-    modifier: Modifier = Modifier
-) {
-    AssistChip(
-        modifier = modifier.height(28.dp),
-        onClick = {},
-        enabled = false,
-        label = {
-            Text(text)
-        }
-    )
 }
 
 enum class TransactionDirection {
@@ -351,7 +227,10 @@ enum class TransactionDirection {
 @Preview(showBackground = true)
 @Composable
 fun JustPreview() {
-    Column {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         TransactionListItem(
             title = "Cotton Dhora",
             account = "HDFC Savings",

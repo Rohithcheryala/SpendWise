@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.data.mapper.SmsMessage
+import com.example.spendwise.core.messages.Message
 import com.example.spendwise.data.repository.InboxRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -18,7 +18,7 @@ class InboxViewModel @Inject constructor(
 
     data class InboxUiState(
         val isLoading: Boolean = true,
-        val messages: List<SmsMessage> = emptyList(),
+        val messages: List<Message> = emptyList(),
         val error: String? = null
     )
 
