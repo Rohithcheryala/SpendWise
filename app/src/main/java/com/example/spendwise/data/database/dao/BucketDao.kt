@@ -18,11 +18,13 @@ interface BucketDao {
     @Query("SELECT * FROM buckets WHERE id = :id")
     suspend fun getById(id: Long): BucketEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM buckets
         WHERE account_id = :accountId
         ORDER BY sort_order ASC, name ASC
-    """)
+    """
+    )
     fun getByAccount(accountId: Long): Flow<List<BucketEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)

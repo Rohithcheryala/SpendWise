@@ -30,7 +30,6 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,7 +57,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionListItem
-
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,7 +74,10 @@ fun TransactionsScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val filteredTransactions = transactions.filter {
-        searchQuery.isBlank() || it.title.contains(searchQuery, ignoreCase = true) || (it.account?.contains(searchQuery, ignoreCase = true) == true)
+        searchQuery.isBlank() || it.title.contains(
+            searchQuery,
+            ignoreCase = true
+        ) || (it.account?.contains(searchQuery, ignoreCase = true) == true)
     }
 
     Scaffold(

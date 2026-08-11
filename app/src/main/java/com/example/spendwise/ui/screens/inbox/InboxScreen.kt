@@ -1,7 +1,5 @@
 package com.example.spendwise.ui.screens.inbox
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +23,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sms
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -51,7 +48,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.core.extensions.toFormattedDateTime
-import com.example.spendwise.core.messages.Message
 import com.example.spendwise.viewmodel.InboxViewModel
 
 data class PendingTransactionItem(
@@ -84,7 +80,8 @@ fun InboxScreen(
                         isDebit = index % 3 != 0,
                         account = "HDFC Bank •••• 4921",
                         date = msg.date.toFormattedDateTime(),
-                        rawSms = msg.body.orEmpty().ifBlank { "Rs. ${(index + 1) * 250 + 49} debited from A/C 4921 at Starbucks on ${msg.date.toFormattedDateTime()}." }
+                        rawSms = msg.body.orEmpty()
+                            .ifBlank { "Rs. ${(index + 1) * 250 + 49} debited from A/C 4921 at Starbucks on ${msg.date.toFormattedDateTime()}." }
                     )
                 }
             } else {
@@ -231,7 +228,10 @@ fun InboxScreen(
                                 onClick = { pendingItems = emptyList() },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Approve All (${pendingItems.size})", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    "Approve All (${pendingItems.size})",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
                             }
                         }
                     }
@@ -276,13 +276,17 @@ fun InboxPendingCard(
                 Surface(
                     modifier = Modifier.size(40.dp),
                     shape = CircleShape,
-                    color = if (item.isDebit) MaterialTheme.colorScheme.errorContainer else Color(0xFFDCFCE7)
+                    color = if (item.isDebit) MaterialTheme.colorScheme.errorContainer else Color(
+                        0xFFDCFCE7
+                    )
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Sms,
                             contentDescription = null,
-                            tint = if (item.isDebit) MaterialTheme.colorScheme.error else Color(0xFF16A34A),
+                            tint = if (item.isDebit) MaterialTheme.colorScheme.error else Color(
+                                0xFF16A34A
+                            ),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -308,7 +312,9 @@ fun InboxPendingCard(
                         text = (if (item.isDebit) "−" else "+") + item.amount,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (item.isDebit) MaterialTheme.colorScheme.error else Color(0xFF16A34A)
+                        color = if (item.isDebit) MaterialTheme.colorScheme.error else Color(
+                            0xFF16A34A
+                        )
                     )
                     Text(
                         text = item.date,
@@ -343,7 +349,11 @@ fun InboxPendingCard(
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(6.dp))
                     Text("Dismiss")
                 }
@@ -352,7 +362,11 @@ fun InboxPendingCard(
                     onClick = onApprove,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(6.dp))
                     Text("Import")
                 }

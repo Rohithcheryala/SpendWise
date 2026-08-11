@@ -361,7 +361,9 @@ class HSBCBankParser : BankParser() {
 
         // Check for pattern: "credited to... of [PERSON NAME]" (beneficiary name)
         return lowerMessage.contains("credited to") &&
-                Regex("""A/c\s+[X\d]+\s+of\s+\w+""", RegexOption.IGNORE_CASE).containsMatchIn(message)
+                Regex("""A/c\s+[X\d]+\s+of\s+\w+""", RegexOption.IGNORE_CASE).containsMatchIn(
+                    message
+                )
     }
 
     override fun isTransactionMessage(message: String): Boolean {

@@ -33,30 +33,30 @@ class FriendsViewModel @Inject constructor(
     private fun load() = viewModelScope
         .launch {
 
-        uiState = uiState.copy(isLoading = true)
+            uiState = uiState.copy(isLoading = true)
 
-        try {
+            try {
 
-            val contacts = contactReader.getContacts()
+                val contacts = contactReader.getContacts()
 
-            uiState = uiState.copy(
-                isLoading = false,
-                friends = contacts.map {
-                    FriendUi(
-                        id = it.id,
-                        name = it.name,
-                        amountGiven = 0.0,
-                        amountReceived = 0.0
-                    )
-                }
-            )
+                uiState = uiState.copy(
+                    isLoading = false,
+                    friends = contacts.map {
+                        FriendUi(
+                            id = it.id,
+                            name = it.name,
+                            amountGiven = 0.0,
+                            amountReceived = 0.0
+                        )
+                    }
+                )
 
-        } catch (e: Exception) {
+            } catch (e: Exception) {
 
-            uiState = uiState.copy(
-                isLoading = false,
-                error = e.message
-            )
+                uiState = uiState.copy(
+                    isLoading = false,
+                    error = e.message
+                )
+            }
         }
-    }
 }

@@ -7,7 +7,6 @@ import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import com.example.spendwise.data.repository.CategoryRepository
-import com.example.spendwise.data.repository.InboxRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -176,7 +175,11 @@ fun ProfileScreen(
                                 .background(color)
                                 .then(
                                     if (isSelected)
-                                        Modifier.border(3.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                        Modifier.border(
+                                            3.dp,
+                                            MaterialTheme.colorScheme.outline,
+                                            CircleShape
+                                        )
                                     else Modifier
                                 )
                                 .clickable { selectedColor = color },

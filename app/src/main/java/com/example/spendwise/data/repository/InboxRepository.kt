@@ -3,8 +3,8 @@ package com.example.spendwise.data.repository
 
 import android.content.ContentResolver
 import android.provider.Telephony
-import com.example.spendwise.core.messages.MessageReader
 import com.example.spendwise.core.messages.Message
+import com.example.spendwise.core.messages.MessageReader
 import javax.inject.Inject
 
 class InboxRepository @Inject constructor(
@@ -21,7 +21,7 @@ class InboxRepository @Inject constructor(
         val lastSyncTime = metadata!!.lastSmsSync
 
         return readFake(
-                from = lastSyncTime
+            from = lastSyncTime
 
         )
     }

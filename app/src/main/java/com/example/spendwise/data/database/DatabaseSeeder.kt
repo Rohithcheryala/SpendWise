@@ -22,9 +22,11 @@ class DatabaseSeeder @Inject constructor(
 
 
         if (categoryRepository.count() == 0) {
-            categoryRepository.insert(Category(
-                name = "Food",
-            ))
+            categoryRepository.insert(
+                Category(
+                    name = "Food",
+                )
+            )
             categoryRepository.insert(Category(name = "Transport"))
             categoryRepository.insert(Category(name = "Shopping"))
         }

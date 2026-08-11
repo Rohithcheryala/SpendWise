@@ -13,12 +13,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Badge
@@ -34,14 +32,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -116,22 +111,27 @@ fun MainScaffold(
                 Screen.entries
                     .filter { it != Screen.Transaction }
                     .forEach { screen ->
-                    NavigationDrawerItem(
-                        icon = {
-                            Icon(
-                                imageVector = screen.icon,
-                                contentDescription = screen.contentDescription
-                            )
-                        },
-                        label = { Text(screen.label, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium) },
-                        selected = false,
-                        onClick = {
-                            scope.launch { drawerState.close() }
-                            rootNavController.navigate(screen.route)
-                        },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-                    )
-                }
+                        NavigationDrawerItem(
+                            icon = {
+                                Icon(
+                                    imageVector = screen.icon,
+                                    contentDescription = screen.contentDescription
+                                )
+                            },
+                            label = {
+                                Text(
+                                    screen.label,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                                )
+                            },
+                            selected = false,
+                            onClick = {
+                                scope.launch { drawerState.close() }
+                                rootNavController.navigate(screen.route)
+                            },
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                        )
+                    }
             }
         }
     ) {

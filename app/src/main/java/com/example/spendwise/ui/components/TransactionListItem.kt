@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -188,11 +187,13 @@ fun TransactionDirectionIcon(
             MaterialTheme.colorScheme.error,
             MaterialTheme.colorScheme.errorContainer
         )
+
         TransactionDirection.INCOME -> Triple(
             Icons.Rounded.ArrowDownward,
             Color(0xFF16A34A),
             Color(0xFFDCFCE7)
         )
+
         TransactionDirection.TRANSFER -> Triple(
             Icons.Rounded.SwapHoriz,
             MaterialTheme.colorScheme.primary,

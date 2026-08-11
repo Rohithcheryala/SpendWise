@@ -16,8 +16,18 @@ enum class Screen(
     val icon: ImageVector,
     val contentDescription: String
 ) {
-    Transactions("transactions", "Transactions", Icons.AutoMirrored.Filled.List, "All Transactions"),
-    Transaction("transaction", "Transaction Detail", Icons.Filled.ReceiptLong, "Transaction Detail"),
+    Transactions(
+        "transactions",
+        "Transactions",
+        Icons.AutoMirrored.Filled.List,
+        "All Transactions"
+    ),
+    Transaction(
+        "transaction",
+        "Transaction Detail",
+        Icons.Filled.ReceiptLong,
+        "Transaction Detail"
+    ),
     Accounts("accounts", "Accounts", Icons.Filled.AccountBalance, "Accounts & Cards"),
     Categories("categories", "Categories", Icons.Filled.Category, "Categories"),
     Friends("friends", "Friends & Split", Icons.Filled.Group, "Friends"),

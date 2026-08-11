@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
@@ -248,9 +247,29 @@ fun TransactionScreen(
     val currentPicker = activePickerType
     if (currentPicker != null) {
         val (title, options) = when (currentPicker) {
-            PickerType.ACCOUNT -> "Select Account" to (if (uiState.accounts.isNotEmpty()) uiState.accounts else listOf(DropdownOption("1", "HDFC Savings"), DropdownOption("2", "SBI Savings"), DropdownOption("3", "ICICI Credit Card"), DropdownOption("4", "Cash")))
-            PickerType.CATEGORY -> "Select Category" to (if (uiState.categories.isNotEmpty()) uiState.categories else listOf(DropdownOption("1", "Food & Dining"), DropdownOption("2", "Groceries"), DropdownOption("3", "Rent & Utilities"), DropdownOption("4", "Transportation"), DropdownOption("5", "Shopping"), DropdownOption("6", "Unclassified")))
-            PickerType.COUNTERPARTY -> "Select Counterparty" to (if (uiState.counterparties.isNotEmpty()) uiState.counterparties else listOf(DropdownOption("1", "Starbucks"), DropdownOption("2", "Swiggy"), DropdownOption("3", "Amazon"), DropdownOption("4", "Uber"), DropdownOption("5", "Rahul Sharma")))
+            PickerType.ACCOUNT -> "Select Account" to (if (uiState.accounts.isNotEmpty()) uiState.accounts else listOf(
+                DropdownOption("1", "HDFC Savings"),
+                DropdownOption("2", "SBI Savings"),
+                DropdownOption("3", "ICICI Credit Card"),
+                DropdownOption("4", "Cash")
+            ))
+
+            PickerType.CATEGORY -> "Select Category" to (if (uiState.categories.isNotEmpty()) uiState.categories else listOf(
+                DropdownOption("1", "Food & Dining"),
+                DropdownOption("2", "Groceries"),
+                DropdownOption("3", "Rent & Utilities"),
+                DropdownOption("4", "Transportation"),
+                DropdownOption("5", "Shopping"),
+                DropdownOption("6", "Unclassified")
+            ))
+
+            PickerType.COUNTERPARTY -> "Select Counterparty" to (if (uiState.counterparties.isNotEmpty()) uiState.counterparties else listOf(
+                DropdownOption("1", "Starbucks"),
+                DropdownOption("2", "Swiggy"),
+                DropdownOption("3", "Amazon"),
+                DropdownOption("4", "Uber"),
+                DropdownOption("5", "Rahul Sharma")
+            ))
         }
 
         OptionPickerBottomSheet(
@@ -275,7 +294,11 @@ fun TransactionScreen(
             onDismiss = { showAddTagDialog = false },
             onAdd = { tagLabel ->
                 onUpdateState { current ->
-                    current.copy(tags = current.tags + TagUiModel(System.currentTimeMillis().toString(), tagLabel))
+                    current.copy(
+                        tags = current.tags + TagUiModel(
+                            System.currentTimeMillis().toString(), tagLabel
+                        )
+                    )
                 }
                 showAddTagDialog = false
             }
@@ -307,7 +330,11 @@ private fun OptionPickerBottomSheet(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
 
             options.forEach { option ->
                 androidx.compose.material3.OutlinedCard(

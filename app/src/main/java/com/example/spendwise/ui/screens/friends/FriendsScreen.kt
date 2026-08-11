@@ -1,6 +1,5 @@
 package com.example.spendwise.ui.screens.friends
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,7 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SearchBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -89,7 +87,6 @@ fun FriendsContent(
     }
 
     var searchQuery by remember { mutableStateOf("") }
-    var isSearchActive by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedFriendForDetail by remember { mutableStateOf<FriendUi?>(null) }
 
@@ -222,7 +219,10 @@ fun FriendsContent(
             onDismiss = { selectedFriendForDetail = null },
             onSettleUp = { settledFriendId ->
                 friendList = friendList.map { f ->
-                    if (f.id == settledFriendId) f.copy(amountGiven = 0.0, amountReceived = 0.0) else f
+                    if (f.id == settledFriendId) f.copy(
+                        amountGiven = 0.0,
+                        amountReceived = 0.0
+                    ) else f
                 }
                 selectedFriendForDetail = null
             }

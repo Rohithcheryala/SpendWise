@@ -12,7 +12,7 @@ class ContactReader @Inject constructor(
     private val contentResolver: ContentResolver,
 ) {
 
-     suspend fun getContacts(): List<Contact> =
+    suspend fun getContacts(): List<Contact> =
         withContext(Dispatchers.IO) {
 
             val contacts = mutableListOf<Contact>()

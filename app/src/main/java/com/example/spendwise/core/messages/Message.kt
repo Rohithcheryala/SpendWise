@@ -1,8 +1,5 @@
 package com.example.spendwise.core.messages
 
-import android.net.Uri
-
-
 
 data class Message(
     val id: Long,

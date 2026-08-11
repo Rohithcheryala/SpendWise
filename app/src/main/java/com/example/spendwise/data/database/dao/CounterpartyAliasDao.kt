@@ -12,30 +12,38 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CounterpartyAliasDao {
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparty_aliases
         ORDER BY alias_display ASC
-    """)
+    """
+    )
     fun getAll(): Flow<List<CounterpartyAliasEntity>>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparty_aliases
         WHERE id = :id
-    """)
+    """
+    )
     suspend fun getById(id: Long): CounterpartyAliasEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparty_aliases
         WHERE counterparty_id = :counterpartyId
         ORDER BY alias_display ASC
-    """)
+    """
+    )
     fun getByCounterparty(counterpartyId: Long): Flow<List<CounterpartyAliasEntity>>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparty_aliases
         WHERE alias_norm = :aliasNorm
         LIMIT 1
-    """)
+    """
+    )
     suspend fun findByNormalizedAlias(aliasNorm: String): CounterpartyAliasEntity?
 
     @Insert(onConflict = OnConflictStrategy.ABORT)

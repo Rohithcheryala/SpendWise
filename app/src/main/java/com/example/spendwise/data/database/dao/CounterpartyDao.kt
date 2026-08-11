@@ -12,37 +12,47 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CounterpartyDao {
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparties
         ORDER BY display_name ASC
-    """)
+    """
+    )
     fun getAll(): Flow<List<CounterpartyEntity>>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparties
         WHERE id = :id
-    """)
+    """
+    )
     suspend fun getById(id: Long): CounterpartyEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparties
         WHERE display_name = :displayName
         LIMIT 1
-    """)
+    """
+    )
     suspend fun getByDisplayName(displayName: String): CounterpartyEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparties
         WHERE default_category_id = :categoryId
         ORDER BY display_name ASC
-    """)
+    """
+    )
     fun getByCategory(categoryId: Long): Flow<List<CounterpartyEntity>>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM counterparties
         WHERE party_type = :partyType
         ORDER BY display_name ASC
-    """)
+    """
+    )
     fun getByPartyType(partyType: String): Flow<List<CounterpartyEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)

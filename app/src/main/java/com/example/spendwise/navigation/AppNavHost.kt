@@ -55,6 +55,7 @@ fun AppNavHost(
                         is TransactionUiEvent.VoidClicked -> {
                             navController.popBackStack()
                         }
+
                         else -> {}
                     }
                 }

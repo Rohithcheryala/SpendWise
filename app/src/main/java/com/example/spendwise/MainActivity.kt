@@ -37,7 +37,7 @@ fun AppRoot() {
     val isOnboardingComplete by onboardingViewModel.isOnboardingComplete
         .collectAsStateWithLifecycle()
 
-    Log.d("isOnboardingComplete", "AppRoot: $isOnboardingComplete", )
+    Log.d("isOnboardingComplete", "AppRoot: $isOnboardingComplete")
     if (isOnboardingComplete || true) {
         SpendwiseAppComposable()
     } else {
