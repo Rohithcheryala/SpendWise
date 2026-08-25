@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -46,8 +47,8 @@ fun TransactionSummaryCard(
         )
 
         TransactionDirection.INCOME -> Quadruple(
-            Color(0xFF16A34A),
-            Color(0xFFDCFCE7),
+            SpendwiseTheme.colors.income,
+            SpendwiseTheme.colors.incomeContainer,
             Icons.Rounded.ArrowDownward,
             "Income"
         )

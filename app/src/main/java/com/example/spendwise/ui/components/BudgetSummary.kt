@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 
 @Composable
 fun BudgetSummaryCard(
@@ -41,8 +42,8 @@ fun BudgetSummaryCard(
 
     val progressColor = when {
         progress >= 1f -> MaterialTheme.colorScheme.error
-        progress >= 0.80f -> Color(0xFFF59E0B)
-        else -> Color(0xFF16A34A)
+        progress >= 0.80f -> SpendwiseTheme.colors.warning
+        else -> SpendwiseTheme.colors.income
     }
 
     Card(

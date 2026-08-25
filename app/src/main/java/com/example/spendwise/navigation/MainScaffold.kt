@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Badge
@@ -33,10 +35,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -193,19 +197,17 @@ fun MainNavigationBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
-        color = MaterialTheme.colorScheme.surfaceContainer
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 8.dp
     ) {
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .height(72.dp)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .height(68.dp)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
 
             Destination.entries.forEach { destination ->
@@ -214,72 +216,87 @@ fun MainNavigationBar(
 
                 if (destination == Destination.UPI) {
 
+                    // Center scan action — brand-colored circle, kept prominent
                     Box(
                         modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-
-                        Box(
+                        Surface(
                             modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .clickable {
-                                    onDestinationClick(destination)
-                                },
-                            contentAlignment = Alignment.Center
+                                .size(54.dp)
+                                .clickable { onDestinationClick(destination) },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            shadowElevation = 4.dp
                         ) {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = destination.contentDescription,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(28.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = destination.icon,
+                                    contentDescription = destination.contentDescription,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
                         }
                     }
 
                 } else {
 
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable {
-                                onDestinationClick(destination)
-                            },
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    // Pill-indicator item: the pill animates behind the icon and
+                    // the label is ALWAYS visible — selection no longer shifts layout.
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-
-                        BadgedBox(
-                            badge = {
-                                if (destination == Destination.INBOX && inboxCount > 0) {
-                                    Badge {
-                                        Text(inboxCount.toString())
-                                    }
-                                }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                onDestinationClick(destination)
                             }
                         ) {
-
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = destination.contentDescription,
-                                modifier = Modifier.size(24.dp),
-                                tint =
-                                    if (selected)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        AnimatedVisibility(selected) {
+                            Surface(
+                                shape = RoundedCornerShape(percent = 50),
+                                color = if (selected)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else
+                                    Color.Transparent
+                            ) {
+                                BadgedBox(
+                                    badge = {
+                                        if (destination == Destination.INBOX && inboxCount > 0) {
+                                            Badge {
+                                                Text(inboxCount.toString())
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.padding(horizontal = 14.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = destination.icon,
+                                        contentDescription = destination.contentDescription,
+                                        modifier = Modifier.size(24.dp),
+                                        tint =
+                                            if (selected)
+                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                            else
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
 
                             Text(
                                 text = destination.label,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 4.dp)
+                                color =
+                                    if (selected)
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                         }
                     }

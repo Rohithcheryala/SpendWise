@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.inbox
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.core.extensions.toFormattedDateTime
+import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.InboxViewModel
 
 data class PendingTransactionItem(
@@ -259,6 +261,9 @@ fun InboxPendingCard(
     onApprove: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val colors = SpendwiseTheme.colors
+    var smsExpanded by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -276,17 +281,13 @@ fun InboxPendingCard(
                 Surface(
                     modifier = Modifier.size(40.dp),
                     shape = CircleShape,
-                    color = if (item.isDebit) MaterialTheme.colorScheme.errorContainer else Color(
-                        0xFFDCFCE7
-                    )
+                    color = if (item.isDebit) MaterialTheme.colorScheme.errorContainer else colors.incomeContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Sms,
                             contentDescription = null,
-                            tint = if (item.isDebit) MaterialTheme.colorScheme.error else Color(
-                                0xFF16A34A
-                            ),
+                            tint = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -312,9 +313,7 @@ fun InboxPendingCard(
                         text = (if (item.isDebit) "−" else "+") + item.amount,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (item.isDebit) MaterialTheme.colorScheme.error else Color(
-                            0xFF16A34A
-                        )
+                        color = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income
                     )
                     Text(
                         text = item.date,
@@ -324,22 +323,35 @@ fun InboxPendingCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
+            // Raw SMS is secondary evidence — collapsed to one line by default so
+            // the review list stays scannable. Tap to expand for the full message.
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { smsExpanded = !smsExpanded },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
-                Text(
-                    text = item.rawSms,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(12.dp)
-                )
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = item.rawSms,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = if (smsExpanded) Int.MAX_VALUE else 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (smsExpanded) "Show less" else "Show more",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

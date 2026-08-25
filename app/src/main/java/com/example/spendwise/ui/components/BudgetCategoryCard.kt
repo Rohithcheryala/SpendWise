@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.BudgetViewModel
 
 @Composable
@@ -55,7 +56,7 @@ fun BudgetCategoryCard(
 
     val progressColor = when {
         progress >= 1f -> MaterialTheme.colorScheme.error
-        progress >= 0.80f -> Color(0xFFF59E0B)
+        progress >= 0.80f -> SpendwiseTheme.colors.warning
         else -> MaterialTheme.colorScheme.primary
     }
 

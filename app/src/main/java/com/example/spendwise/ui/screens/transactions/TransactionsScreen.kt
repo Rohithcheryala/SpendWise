@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -38,10 +40,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -52,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -117,31 +119,13 @@ fun TransactionsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
             item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search transactions...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Clear")
-                            }
-                        }
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 6.dp),
-                    singleLine = true
+                CompactSearchField(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
 
@@ -178,17 +162,26 @@ fun TransactionsScreen(
                     }
                 }
             } else {
-                items(
+                itemsIndexed(
                     items = filteredTransactions,
-                    key = { transaction -> transaction.id }
-                ) { item ->
+                    key = { _, transaction -> transaction.id }
+                ) { index, item ->
+                    val showHeader = index == 0 ||
+                        filteredTransactions[index - 1].dayLabel != item.dayLabel
+                    val showDivider = index < filteredTransactions.lastIndex &&
+                        filteredTransactions[index + 1].dayLabel == item.dayLabel
+
+                    if (showHeader && item.dayLabel.isNotBlank()) {
+                        DayHeader(label = item.dayLabel)
+                    }
+
                     TransactionListItem(
                         title = item.title,
                         account = item.account,
                         time = item.time,
                         amount = item.amount,
                         direction = item.direction,
-                        tags = item.tags,
+                        showDivider = showDivider,
                         onClick = { onTransactionClick?.invoke(item.id) }
                     )
                 }
@@ -442,6 +435,79 @@ fun ActiveFilterRow(
     }
 }
 
+@Composable
+fun DayHeader(label: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 16.dp, bottom = 2.dp, start = 4.dp)
+    )
+}
+
+/**
+ * Compact search field (~46dp) built from a Surface + BasicTextField.
+ * Replaces OutlinedTextField which has a fixed 56dp minimum height.
+ */
+@Composable
+fun CompactSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+
+            Spacer(Modifier.width(10.dp))
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (query.isEmpty()) {
+                    Text(
+                        text = "Search transactions...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                BasicTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    singleLine = true,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(20.dp)) {
+                    Icon(
+                        Icons.Rounded.Close,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
 val defaultTransactions = listOf(
     TransactionUi(
         id = 1,
@@ -450,7 +516,8 @@ val defaultTransactions = listOf(
         amount = "₹10,000",
         time = "11:24 AM",
         direction = TransactionDirection.INCOME,
-        tags = listOf("Repayment")
+        tags = listOf("Repayment"),
+        dayLabel = "Today"
     ),
     TransactionUi(
         id = 2,
@@ -459,24 +526,27 @@ val defaultTransactions = listOf(
         amount = "₹450",
         time = "10:43 AM",
         direction = TransactionDirection.EXPENSE,
-        tags = listOf("Food")
+        tags = listOf("Food"),
+        dayLabel = "Today"
     ),
     TransactionUi(
         id = 3,
         title = "Amazon Shopping",
         account = "ICICI Credit Card",
         amount = "₹2,529.90",
-        time = "Yesterday • 9:41 PM",
+        time = "9:41 PM",
         direction = TransactionDirection.EXPENSE,
-        tags = listOf("Shopping", "Electronics")
+        tags = listOf("Shopping", "Electronics"),
+        dayLabel = "Yesterday"
     ),
     TransactionUi(
         id = 4,
         title = "Monthly Salary",
         account = "HDFC Savings",
         amount = "₹85,000",
-        time = "01 Aug • 8:30 AM",
-        direction = TransactionDirection.INCOME
+        time = "8:30 AM",
+        direction = TransactionDirection.INCOME,
+        dayLabel = "01 Aug"
     )
 )
 
@@ -487,7 +557,9 @@ data class TransactionUi(
     val amount: String,
     val time: String,
     val direction: TransactionDirection,
-    val tags: List<String> = emptyList()
+    val tags: List<String> = emptyList(),
+    /** Day bucket label used for list section headers, e.g. "Today", "12 Aug" */
+    val dayLabel: String = ""
 )
 
 data class TransactionFilterState(

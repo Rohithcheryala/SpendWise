@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 
 @Composable
 fun FriendCard(
@@ -116,7 +117,7 @@ fun FriendCard(
                         Icon(
                             Icons.Rounded.ArrowDownward,
                             null,
-                            tint = Color(0xFF22C55E),
+                            tint = SpendwiseTheme.colors.income,
                             modifier = Modifier.size(18.dp)
                         )
 

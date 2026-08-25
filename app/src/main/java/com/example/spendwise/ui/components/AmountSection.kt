@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 
 @Composable
 fun AmountSection(
@@ -39,9 +40,9 @@ fun AmountSection(
 ) {
     val accentColor by animateColorAsState(
         targetValue = when (direction) {
-            TransactionDirection.EXPENSE -> MaterialTheme.colorScheme.error
-            TransactionDirection.INCOME -> Color(0xFF16A34A)
-            TransactionDirection.TRANSFER -> MaterialTheme.colorScheme.primary
+            TransactionDirection.EXPENSE -> SpendwiseTheme.colors.expense
+            TransactionDirection.INCOME -> SpendwiseTheme.colors.income
+            TransactionDirection.TRANSFER -> SpendwiseTheme.colors.transfer
         },
         animationSpec = tween(300),
         label = "accent_color"
@@ -80,8 +81,8 @@ fun AmountSection(
                         val tabBg by animateColorAsState(
                             targetValue = if (isSelected) {
                                 when (dir) {
-                                    TransactionDirection.EXPENSE -> MaterialTheme.colorScheme.errorContainer
-                                    TransactionDirection.INCOME -> Color(0xFFDCFCE7)
+                                    TransactionDirection.EXPENSE -> SpendwiseTheme.colors.expenseContainer
+                                    TransactionDirection.INCOME -> SpendwiseTheme.colors.incomeContainer
                                     TransactionDirection.TRANSFER -> MaterialTheme.colorScheme.primaryContainer
                                 }
                             } else MaterialTheme.colorScheme.surfaceContainer,
@@ -91,7 +92,7 @@ fun AmountSection(
                             targetValue = if (isSelected) {
                                 when (dir) {
                                     TransactionDirection.EXPENSE -> MaterialTheme.colorScheme.onErrorContainer
-                                    TransactionDirection.INCOME -> Color(0xFF166534)
+                                    TransactionDirection.INCOME -> SpendwiseTheme.colors.income
                                     TransactionDirection.TRANSFER -> MaterialTheme.colorScheme.onPrimaryContainer
                                 }
                             } else MaterialTheme.colorScheme.onSurfaceVariant,
