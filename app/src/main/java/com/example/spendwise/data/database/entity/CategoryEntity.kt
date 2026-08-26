@@ -37,6 +37,14 @@ data class CategoryEntity(
 
     val icon: String? = null,
 
+    /**
+     * "income" | "expense" — which side of the ledger this category posts to.
+     * Mirrors the old server's Category.kind (needed by describe-entry and the
+     * ingestion contra-line rules). Defaults to "expense" for legacy rows.
+     */
+    @ColumnInfo(name = "kind", defaultValue = "expense")
+    val kind: String = "expense",
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long
 )

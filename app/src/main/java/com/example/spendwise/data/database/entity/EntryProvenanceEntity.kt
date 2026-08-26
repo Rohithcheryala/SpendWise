@@ -36,5 +36,12 @@ data class EntryProvenanceEntity(
     val dedupeHash: String? = null,
 
     @ColumnInfo(name = "bank_ref")
-    val bankRef: String? = null
+    val bankRef: String? = null,
+
+    /**
+     * Parse facts frozen at ingest time ("bank|last4|accountKind"), so orphan
+     * reclaim can re-run account matching without re-parsing the raw SMS.
+     */
+    @ColumnInfo(name = "parsed_facts")
+    val parsedFacts: String? = null
 )

@@ -1,0 +1,283 @@
+package com.example.spendwise.backend.service
+
+import com.example.spendwise.backend.api.Direction
+import com.example.spendwise.backend.api.EntrySource
+import com.example.spendwise.backend.api.EntryStatus
+import com.example.spendwise.backend.api.IngestRequest
+import com.example.spendwise.backend.api.Intent
+import com.example.spendwise.data.database.dao.AccountDao
+import com.example.spendwise.data.database.dao.AccountIdentifierDao
+import com.example.spendwise.data.database.dao.EntryDao
+import com.example.spendwise.data.database.dao.EntryLineDao
+import com.example.spendwise.data.database.dao.EntryProvenanceDao
+import com.example.spendwise.data.database.entity.AccountEntity
+import com.example.spendwise.data.database.entity.EntryLineEntity
+import javax.inject.Inject
+
+/**
+ * The SMS -> ledger bridge. Port of the old server's routers/sms.py core:
+ * dedupe, account matching by bank + last-4 identifier (kind-aware), orphan
+ * parking, QR-scan merge, and retroactive orphan claiming.
+ *
+ * The device-side parser hands over structured parse facts; everything here is
+ * accounting policy and writes go through LedgerApi only.
+ */
+class IngestionService @Inject constructor(
+    private val accountDao: AccountDao,
+    private val identifierDao: AccountIdentifierDao,
+    private val entryDao: EntryDao,
+    private val entryLineDao: EntryLineDao,
+    private val provenanceDao: EntryProvenanceDao,
+    private val ledger: LedgerService,
+    private val counterparties: CounterpartyService,
+) {
+
+    /** What a device-side parser extracts from one bank SMS. */
+    data class SmsParseFacts(
+        val sender: String,
+        val bank: String?,
+        val last4: String?,
+        /** Parser vocabulary: "savings" | "credit_card" (see KIND_BRIDGE). */
+        val smsAccountKind: String?,
+        /**
+         * Channel constraint when known: "account" for UPI/NEFT narration,
+         * "card" for POS/ATM. Null matches both identifier kinds.
+         */
+        val idKinds: Set<String>? = null,
+        val amountPaise: Long,
+        val direction: Direction,
+        val counterpartyRaw: String? = null,
+        val refId: String? = null,
+        val rawText: String,
+        val happenedAt: Long? = null,
+        val occurredOn: Long,
+    )
+
+    sealed interface SmsIngestResult {
+        /** Fresh buffer entry created (an orphan when accountId is null). */
+        data class Parsed(val entryId: Long, val accountId: Long?, val mergedQrEntryId: Long?) :
+            SmsIngestResult
+
+        /** The same SMS was ingested before — nothing booked twice. */
+        data class Duplicate(val entryId: Long) : SmsIngestResult
+    }
+
+    /**
+     * Ingest one parsed bank SMS, in the old webhook's order: dedupe by stable
+     * hash -> match account (bank contains + kind bridge + active identifier
+     * on the SMS's channel) -> resolve counterparty (VPA first, then narration)
+     * -> default intent by direction -> buffer entry with provenance carrying
+     * frozen parse facts -> attempt the QR merge.
+     */
+    suspend fun ingestSms(facts: SmsParseFacts): SmsIngestResult {
+        val hash = Text.smsHash(facts.sender, facts.rawText)
+        ledger.findEntryByDedupeHash(hash)?.let { return SmsIngestResult.Duplicate(it.id) }
+
+        val account = findAccount(facts.bank, facts.last4, facts.smsAccountKind, facts.idKinds)
+
+        // The VPA is the strongest cross-source key; fall back to the slug.
+        val vpa = Text.extractVpa(facts.rawText)
+        val cpId = counterparties.findByAny(LedgerService.USER_ID, vpa, facts.counterpartyRaw)
+            ?: counterparties.resolveOrCreate(
+                LedgerService.USER_ID,
+                facts.counterpartyRaw ?: vpa,
+                aliasSource = if (vpa != null && facts.counterpartyRaw == null) "upi" else "sms",
+            )
+
+        val view = ledger.ingest(
+            IngestRequest(
+                amountPaise = facts.amountPaise,
+                direction = facts.direction,
+                occurredOn = facts.occurredOn,
+                accountId = account?.id,
+                counterpartyId = cpId,
+                intent = defaultIntent(facts.direction),
+                status = EntryStatus.BUFFER,
+                source = EntrySource.SMS,
+                happenedAt = facts.happenedAt,
+                rawText = facts.rawText,
+                dedupeHash = hash,
+                bankRef = facts.refId,
+                parsedFacts = listOfNotNull(facts.bank, facts.last4, facts.smsAccountKind)
+                    .joinToString("|").takeIf { it.isNotBlank() },
+            )
+        )
+
+        val mergedQrId = tryMergeQrScanBuffer(view.id)
+        return SmsIngestResult.Parsed(view.id, account?.id, mergedQrId)
+    }
+
+    /**
+     * Port of `_find_account`: an SMS attaches only when the bank matches
+     * (case-insensitive contains), the account is active and non-system, its
+     * stored kind is reachable from the parser kind via [KIND_BRIDGE], AND it
+     * owns an active identifier equal to the SMS last-4 on the channel used.
+     * Unknown parser kinds map to nothing — orphan, never a wrong account.
+     */
+    suspend fun findAccount(
+        bank: String?,
+        last4: String?,
+        smsAccountKind: String?,
+        idKinds: Set<String>? = null,
+    ): AccountEntity? {
+        if (last4.isNullOrBlank() || bank == null) return null
+        val dbKinds = KIND_BRIDGE[smsAccountKind] ?: return null
+        val allowedIds = identifierDao.getActiveByValue(last4)
+            .filter { idKinds == null || it.kind in idKinds }
+            .map { it.accountId }
+            .toSet()
+        if (allowedIds.isEmpty()) return null
+        return accountDao.listAll().firstOrNull { acct ->
+            acct.id in allowedIds &&
+                acct.isActive &&
+                !acct.slug.startsWith("sys-") &&
+                acct.kind in dbKinds &&
+                acct.bank?.contains(bank, ignoreCase = true) == true
+        }
+    }
+
+    /**
+     * Retroactively attach account-less SMS entries that now match [accountId].
+     *
+     * Orphans were frozen on the unmatched pot at ingest time. Instead of
+     * re-parsing raw text (parser drift), we re-run matching against the parse
+     * facts frozen into provenance. Attach-only — never detaches — so it is
+     * safe to re-run on every account create/edit. Returns count claimed.
+     */
+    suspend fun claimOrphansForAccount(accountId: Long): Int {
+        val account = accountDao.getById(accountId)
+            ?: throw com.example.spendwise.backend.api.ApiException("account $accountId not found")
+        val hasIdentifier = identifierDao.getByAccountList(accountId).any { it.isActive }
+        if (account.bank == null || !hasIdentifier) return 0
+
+        val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
+        var claimed = 0
+        for (entryId in entryLineDao.entryIdsForAccount(unmatchedPot)) {
+            val entry = entryDao.getById(entryId) ?: continue
+            if (entry.source != EntrySource.SMS || entry.voidedAt != null) continue
+
+            val prov = provenanceDao.getByEntry(entryId) ?: continue
+            val parts = prov.parsedFacts?.split("|") ?: continue
+            if (parts.size < 3) continue
+
+            val match = findAccount(parts[0], parts[1], parts[2])
+            if (match?.id == accountId) {
+                val line = entryLineDao.getByEntryList(entryId).singleOrNull { it.accountId != null }
+                    ?: continue
+                entryLineDao.update(line.copy(accountId = accountId))
+                claimed++
+            }
+        }
+        return claimed
+    }
+
+    /**
+     * Port of `_try_merge_qr_scan_buffer`: when a bank SMS lands within the
+     * merge window describing the same payment as exactly one recent QR-scan
+     * buffer entry (same direction, amount within ±1%), they are ONE payment.
+     * Bank facts stay on the SMS entry; the user's scan intent fills blanks
+     * (account, party, note; category unless SMS contra is still suspense).
+     * Tags union. Intent + proof = finished transaction: auto-confirm and
+     * delete the redundant QR entry. Returns the deleted QR id or null.
+     */
+    suspend fun tryMergeQrScanBuffer(
+        smsEntryId: Long,
+        nowMillis: Long = System.currentTimeMillis(),
+        tolerance: Double = QR_SMS_MERGE_TOLERANCE,
+        windowMinutes: Long = QR_SMS_MERGE_WINDOW_MINUTES,
+    ): Long? {
+        val smsEntry = entryDao.getById(smsEntryId) ?: return null
+        val smsAd = amountDirection(smsEntryId) ?: return null
+
+        val candidates = entryDao.recentBufferQrScans(
+            cutoffMillis = nowMillis - windowMinutes * 60_000,
+            excludeId = smsEntryId,
+        )
+        val matches = candidates.filter { qr ->
+            val ad = amountDirection(qr.id)
+            ad != null && ad.second == smsAd.second &&
+                amountsMatch(ad.first, smsAd.first, tolerance)
+        }
+        if (matches.size != 1) return null
+        val qr = matches[0]
+
+        val smsLines = entryLineDao.getByEntryList(smsEntryId).toMutableList()
+        val qrLines = entryLineDao.getByEntryList(qr.id)
+
+        // Tags: union, order-preserving, deduped.
+        val tags = LinkedHashSet(TagCodec.decode(smsEntry.tags))
+        tags.addAll(TagCodec.decode(qr.tags))
+
+        // If the SMS couldn't name an account but the user's scan did, adopt it.
+        val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
+        val smsAcctIdx = smsLines.indexOfFirst { it.accountId != null }
+        val qrAcct = qrLines.firstOrNull { it.accountId != null && it.accountId != unmatchedPot }
+        if (smsAcctIdx >= 0 && qrAcct != null && smsLines[smsAcctIdx].accountId == unmatchedPot) {
+            smsLines[smsAcctIdx] = smsLines[smsAcctIdx].copy(accountId = qrAcct.accountId)
+        }
+
+        // Category: adopt the scan's deliberate pick when the SMS contra is
+        // still the system suspense category.
+        val unclassified = ledger.systemCategory(LedgerService.KIND_EXPENSE, "Unclassified").id
+        val qrCat = qrLines.firstOrNull { it.categoryId != null }
+        val smsCatIdx = smsLines.indexOfFirst { it.categoryId != null }
+        if (qrCat != null && smsCatIdx >= 0 && smsLines[smsCatIdx].categoryId == unclassified) {
+            smsLines[smsCatIdx] = smsLines[smsCatIdx].copy(categoryId = qrCat.categoryId)
+        }
+
+        // Persist merged SMS entry: user intent + bank proof = confirmed.
+        entryDao.update(
+            smsEntry.copy(
+                counterpartyId = smsEntry.counterpartyId ?: qr.counterpartyId,
+                note = smsEntry.note ?: qr.note,
+                tags = TagCodec.encode(tags.toList()),
+                status = EntryStatus.CONFIRMED,
+            )
+        )
+        smsLines.forEach { entryLineDao.update(it) }
+
+        // The QR entry is now redundant.
+        entryLineDao.deleteByEntry(qr.id)
+        entryDao.getById(qr.id)?.let { entryDao.delete(it) }
+        return qr.id
+    }
+
+    /** (magnitude, direction) of an ingested entry, from its single account leg. */
+    private suspend fun amountDirection(entryId: Long): Pair<Long, Direction>? {
+        val line = entryLineDao.getByEntryList(entryId)
+            .filter { it.accountId != null }
+            .singleOrNull() ?: return null
+        return kotlin.math.abs(line.amountPaise) to
+            (if (line.amountPaise > 0) Direction.IN else Direction.OUT)
+    }
+
+    companion object {
+        /** Equal-or-within-tolerance, in paise. tolerance=0.01 means ±1%. */
+        fun amountsMatch(a: Long, b: Long, tolerance: Double): Boolean {
+            if (a == b) return true
+            if (tolerance <= 0) return false
+            val allowed = maxOf(1L, Math.round(maxOf(a, b) * tolerance))
+            return Math.abs(a - b) <= allowed
+        }
+
+        /** Money in defaults to income, money out to expense. */
+        fun defaultIntent(direction: Direction): String =
+            if (direction == Direction.IN) Intent.INCOME else Intent.EXPENSE
+
+        /**
+         * Parser account-kind -> stored Account.kind bridge. Unknown parser
+         * kinds intentionally map to nothing (stay orphans).
+         */
+        val KIND_BRIDGE: Map<String, Set<String>> = mapOf(
+            "credit_card" to setOf("liability"),
+            "savings" to setOf("available", "cash"),
+        )
+
+        const val QR_SMS_MERGE_TOLERANCE = 0.01
+        const val QR_SMS_MERGE_WINDOW_MINUTES = 30L
+        const val NOTIFICATION_SMS_MERGE_WINDOW_MINUTES = 3L
+
+        const val ID_KIND_ACCOUNT = "account"
+        const val ID_KIND_CARD = "card"
+    }
+}

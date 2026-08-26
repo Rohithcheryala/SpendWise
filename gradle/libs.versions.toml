@@ -11,6 +11,9 @@ composeBom = "2024.09.00"
 navigationCompose = "2.9.8"
 hilt = "2.56.2"
 ksp = "2.2.0-2.0.2"
+robolectric = "4.15.1"
+androidxTestCore = "1.6.1"
+coroutines = "1.9.0"
 room = "2.7.2"
 #coreKtxVersion = "1.19.0"
 
@@ -36,6 +39,10 @@ hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", v
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+androidx-test-core = { group = "androidx.test", name = "core-ktx", version.ref = "androidxTestCore" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 #core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtxVersion" }
 
 [plugins]

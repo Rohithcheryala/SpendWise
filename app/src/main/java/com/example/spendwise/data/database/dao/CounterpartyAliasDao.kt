@@ -46,6 +46,14 @@ interface CounterpartyAliasDao {
     )
     suspend fun findByNormalizedAlias(aliasNorm: String): CounterpartyAliasEntity?
 
+    @Query(
+        """
+        SELECT COUNT(*) FROM counterparty_aliases
+        WHERE counterparty_id = :counterpartyId AND alias_norm = :aliasNorm
+    """
+    )
+    suspend fun countAlias(counterpartyId: Long, aliasNorm: String): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(alias: CounterpartyAliasEntity): Long
 

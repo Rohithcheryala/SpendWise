@@ -58,6 +58,48 @@ interface EntryDao {
     )
     fun getByStatus(status: String): Flow<List<EntryEntity>>
 
+    // ── Backend service additions (suspend, non-Flow) ───────────────────────
+
+    @Query(
+        """
+        SELECT * FROM entries
+        WHERE (:status IS NULL OR status = :status)
+          AND (:fromMillis IS NULL OR occurred_on >= :fromMillis)
+          AND (:toMillis IS NULL OR occurred_on <= :toMillis)
+          AND voided_at IS NULL
+        ORDER BY occurred_on DESC, happened_at DESC, created_at DESC
+    """
+    )
+    suspend fun listSuspend(status: String?, fromMillis: Long?, toMillis: Long?): List<EntryEntity>
+
+    /** Break a sibling's link to this entry before deleting it (purge). */
+    @Query("UPDATE entries SET linked_entry_id = NULL WHERE linked_entry_id = :entryId")
+    suspend fun clearLinkedEntry(entryId: Long)
+
+    /** Entries carrying a bucket's allocation note on one of their lines. */
+    @Query(
+        """
+        SELECT DISTINCT e.id FROM entries e
+        JOIN entry_lines l ON l.entry_id = e.id
+        WHERE l.bucket_id = :bucketId AND e.note = :note
+    """
+    )
+    suspend fun bucketAllocationEntryIds(bucketId: Long, note: String): List<Long>
+
+    /** Recent QR-scan buffer entries for the QR<->SMS merge (see IngestionService). */
+    @Query(
+        """
+        SELECT * FROM entries
+        WHERE source = 'qr_scan'
+          AND status = 'buffer'
+          AND created_at >= :cutoffMillis
+          AND voided_at IS NULL
+          AND id != :excludeId
+        ORDER BY created_at DESC
+    """
+    )
+    suspend fun recentBufferQrScans(cutoffMillis: Long, excludeId: Long): List<EntryEntity>
+
     @Query(
         """
         SELECT * FROM entries

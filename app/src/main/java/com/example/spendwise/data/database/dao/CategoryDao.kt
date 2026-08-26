@@ -66,4 +66,17 @@ interface CategoryDao {
 
     @Query("""SELECT COUNT(*) FROM categories""")
     suspend fun count(): Int
+
+    /** Get-or-create target for the ingestion contra categories (see SystemNodes). */
+    @Query(
+        """
+        SELECT * FROM categories
+        WHERE kind = :kind AND name = :name AND parent_id IS NULL
+        LIMIT 1
+    """
+    )
+    suspend fun findByKindAndName(kind: String, name: String): CategoryEntity?
+
+    @Query("SELECT * FROM categories WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<CategoryEntity>
 }

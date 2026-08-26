@@ -40,6 +40,55 @@ interface EntryLineDao {
     @Query(
         """
         SELECT * FROM entry_lines
+        WHERE entry_id = :entryId
+        ORDER BY id ASC
+    """
+    )
+    suspend fun getByEntryList(entryId: Long): List<EntryLineEntity>
+
+    /**
+     * Signed sum of this account's lines on confirmed, non-voided entries,
+     * optionally bounded by occurred_on <= :throughMillis. The service layer
+     * inverts liabilities on top of this raw sum.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(l.amount_paise), 0)
+        FROM entry_lines l
+        JOIN entries e ON e.id = l.entry_id
+        WHERE l.account_id = :accountId
+          AND e.status = 'confirmed'
+          AND e.voided_at IS NULL
+          AND (:throughMillis IS NULL OR e.occurred_on <= :throughMillis)
+    """
+    )
+    suspend fun sumConfirmedForAccount(accountId: Long, throughMillis: Long?): Long
+
+    /** Same as [sumConfirmedForAccount] but for bucket-tagged lines. */
+    @Query(
+        """
+        SELECT COALESCE(SUM(l.amount_paise), 0)
+        FROM entry_lines l
+        JOIN entries e ON e.id = l.entry_id
+        WHERE l.bucket_id = :bucketId
+          AND e.status = 'confirmed'
+          AND e.voided_at IS NULL
+          AND (:throughMillis IS NULL OR e.occurred_on <= :throughMillis)
+    """
+    )
+    suspend fun sumConfirmedForBucket(bucketId: Long, throughMillis: Long?): Long
+
+    /** Detach a bucket tag from every line (bucket deletion cleanup). */
+    @Query("UPDATE entry_lines SET bucket_id = NULL WHERE bucket_id = :bucketId")
+    suspend fun detachBucket(bucketId: Long)
+
+    /** Entry ids having a line on the given account. */
+    @Query("SELECT DISTINCT entry_id FROM entry_lines WHERE account_id = :accountId")
+    suspend fun entryIdsForAccount(accountId: Long): List<Long>
+
+    @Query(
+        """
+        SELECT * FROM entry_lines
         WHERE account_id = :accountId
         ORDER BY id DESC
     """

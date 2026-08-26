@@ -24,6 +24,9 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE last4 = :last4")
     suspend fun getByLast4(last4: String): List<AccountEntity>
 
+    @Query("SELECT * FROM accounts ORDER BY id ASC")
+    suspend fun listAll(): List<AccountEntity>
+
     @Query("SELECT * FROM accounts WHERE is_active = 1 ORDER BY name ASC")
     fun getActive(): Flow<List<AccountEntity>>
 
