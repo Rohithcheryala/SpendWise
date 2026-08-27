@@ -34,10 +34,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,19 +51,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.spendwise.core.extensions.toAmountString
 import com.example.spendwise.core.extensions.toFormattedDateTime
+import com.example.spendwise.data.repository.InboxItem
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.InboxViewModel
-
-data class PendingTransactionItem(
-    val id: String,
-    val sender: String,
-    val amount: String,
-    val isDebit: Boolean,
-    val account: String,
-    val date: String,
-    val rawSms: String
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,64 +66,33 @@ fun InboxScreen(
 ) {
     val state = viewModel.uiState
 
-    var pendingItems by remember(state.messages) {
-        mutableStateOf(
-            if (state.messages.isNotEmpty()) {
-                state.messages.mapIndexed { index, msg ->
-                    PendingTransactionItem(
-                        id = msg.id.toString(),
-                        sender = msg.address.orEmpty().ifBlank { "HDFCBK" },
-                        amount = "₹${(index + 1) * 250 + 49}",
-                        isDebit = index % 3 != 0,
-                        account = "HDFC Bank •••• 4921",
-                        date = msg.date.toFormattedDateTime(),
-                        rawSms = msg.body.orEmpty()
-                            .ifBlank { "Rs. ${(index + 1) * 250 + 49} debited from A/C 4921 at Starbucks on ${msg.date.toFormattedDateTime()}." }
-                    )
-                }
-            } else {
-                listOf(
-                    PendingTransactionItem(
-                        id = "1",
-                        sender = "HDFCBK",
-                        amount = "₹450.00",
-                        isDebit = true,
-                        account = "HDFC A/C 4921",
-                        date = "Today • 2:15 PM",
-                        rawSms = "Rs 450.00 debited from A/C **4921 at Swiggy on 11-08-26. Ref UPI/428190281."
-                    ),
-                    PendingTransactionItem(
-                        id = "2",
-                        sender = "SBIBANK",
-                        amount = "₹12,500.00",
-                        isDebit = false,
-                        account = "SBI A/C 8102",
-                        date = "Yesterday • 10:30 AM",
-                        rawSms = "Rs 12500.00 credited to A/C **8102 by NEFT-SALARY. Available bal Rs 150000."
-                    ),
-                    PendingTransactionItem(
-                        id = "3",
-                        sender = "ICICIBK",
-                        amount = "₹1,890.00",
-                        isDebit = true,
-                        account = "ICICI Card 9012",
-                        date = "09 Aug • 8:45 PM",
-                        rawSms = "Spent Rs 1890.00 on ICICI Bank Credit Card ending 9012 at Zara Store."
-                    )
-                )
-            }
-        )
+    val items = state.items
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.actionMessage) {
+        state.actionMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeActionMessage()
+        }
+    }
+
+    LaunchedEffect(state.error) {
+        state.error?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.consumeError()
+        }
     }
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text("Buffer Inbox", fontWeight = FontWeight.Bold)
                         Text(
-                            text = "${pendingItems.size} pending review",
+                            text = "${items.size} pending review",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -162,7 +126,7 @@ fun InboxScreen(
                 }
             }
 
-            pendingItems.isEmpty() -> {
+            items.isEmpty() -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -227,26 +191,22 @@ fun InboxScreen(
                             )
 
                             Button(
-                                onClick = { pendingItems = emptyList() },
+                                onClick = { viewModel.importAll() },
                                 modifier = Modifier.height(36.dp)
                             ) {
                                 Text(
-                                    "Approve All (${pendingItems.size})",
+                                    "Approve All (${items.size})",
                                     style = MaterialTheme.typography.labelSmall
                                 )
                             }
                         }
                     }
 
-                    items(pendingItems, key = { it.id }) { item ->
+                    items(items, key = { it.entryId }) { item ->
                         InboxPendingCard(
                             item = item,
-                            onApprove = {
-                                pendingItems = pendingItems.filter { it.id != item.id }
-                            },
-                            onDismiss = {
-                                pendingItems = pendingItems.filter { it.id != item.id }
-                            }
+                            onApprove = { viewModel.import(item.entryId) },
+                            onDismiss = { viewModel.dismiss(item.entryId) }
                         )
                     }
                 }
@@ -257,7 +217,7 @@ fun InboxScreen(
 
 @Composable
 fun InboxPendingCard(
-    item: PendingTransactionItem,
+    item: InboxItem,
     onApprove: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -302,7 +262,7 @@ fun InboxPendingCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = item.account,
+                        text = item.account ?: "Unmatched account",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -310,13 +270,13 @@ fun InboxPendingCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = (if (item.isDebit) "−" else "+") + item.amount,
+                        text = (if (item.isDebit) "−" else "+") + item.amountPaise.toAmountString(),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income
                     )
                     Text(
-                        text = item.date,
+                        text = item.date.toFormattedDateTime(),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

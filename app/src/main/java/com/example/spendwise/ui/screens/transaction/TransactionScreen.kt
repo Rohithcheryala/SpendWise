@@ -20,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -122,6 +123,23 @@ fun TransactionScreen(
                 )
             }
 
+            if (uiState.error != null) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Text(
+                            text = uiState.error.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+            }
+
             item {
                 AmountSection(
                     direction = uiState.direction,
@@ -164,18 +182,29 @@ fun TransactionScreen(
                 )
             }
 
-            if (uiState.type == TransactionType.CATEGORY) {
+            if (uiState.type != TransactionType.CATEGORY) {
 
                 item {
                     DropdownField(
-                        label = "Counterparty",
+                        label = if (uiState.type == TransactionType.TRANSFER) {
+                            "To Account"
+                        } else {
+                            "Counterparty"
+                        },
                         value = uiState.counterparty?.label.orEmpty(),
-                        placeholder = "Optional",
+                        placeholder = if (uiState.type == TransactionType.TRANSFER) {
+                            "Select Account"
+                        } else {
+                            "Optional"
+                        },
                         onClick = {
                             activePickerType = PickerType.COUNTERPARTY
                         }
                     )
                 }
+            }
+
+            if (uiState.type == TransactionType.CATEGORY) {
 
                 item {
                     DropdownField(
@@ -263,7 +292,9 @@ fun TransactionScreen(
                 DropdownOption("6", "Unclassified")
             ))
 
-            PickerType.COUNTERPARTY -> "Select Counterparty" to (if (uiState.counterparties.isNotEmpty()) uiState.counterparties else listOf(
+            PickerType.COUNTERPARTY -> (
+                if (uiState.type == TransactionType.TRANSFER) "Select Destination Account" else "Select Counterparty"
+                ) to (if (uiState.counterparties.isNotEmpty()) uiState.counterparties else listOf(
                 DropdownOption("1", "Starbucks"),
                 DropdownOption("2", "Swiggy"),
                 DropdownOption("3", "Amazon"),
@@ -419,6 +450,7 @@ data class TransactionUiState(
     val isVoided: Boolean = false,
     val isSaving: Boolean = false,
     val canDelete: Boolean = false,
+    val error: String? = null,
     val accounts: List<DropdownOption> = emptyList(),
     val counterparties: List<DropdownOption> = emptyList(),
     val categories: List<DropdownOption> = emptyList(),

@@ -58,7 +58,7 @@ fun MainScaffold(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val inboxViewModel: InboxViewModel = hiltViewModel()
-    val inboxCount = inboxViewModel.uiState.messages.size
+    val inboxCount = inboxViewModel.uiState.items.size
 
     val backStackEntry by tabNavController.currentBackStackEntryAsState()
 

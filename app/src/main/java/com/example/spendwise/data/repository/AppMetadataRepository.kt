@@ -30,4 +30,9 @@ class AppMetadataRepository @Inject constructor(
 
     suspend fun count() =
         dao.count()
+
+    /** Advance the SMS sync watermark; null-safe so first runs don't crash. */
+    suspend fun updateLastSmsSync(time: Long) {
+        dao.get()?.let { dao.update(it.copy(lastSmsSync = time)) }
+    }
 }

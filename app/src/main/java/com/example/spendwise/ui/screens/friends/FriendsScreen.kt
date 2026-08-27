@@ -64,6 +64,7 @@ fun FriendsScreen(
     FriendsContent(
         state = state,
         onNavigateBack = onNavigateBack,
+        onAddFriend = viewModel::addFriend,
         modifier = modifier
     )
 }
@@ -73,18 +74,10 @@ fun FriendsScreen(
 fun FriendsContent(
     state: FriendsViewModel.UiState,
     onNavigateBack: (() -> Unit)? = null,
+    onAddFriend: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var friendList by remember(state.friends) {
-        mutableStateOf(
-            if (state.friends.isNotEmpty()) state.friends else listOf(
-                FriendUi(1, "Rahul Sharma", 1500.0, 0.0),
-                FriendUi(2, "Ananya Verma", 0.0, 450.0),
-                FriendUi(3, "Vikram Malhotra", 2400.0, 1200.0),
-                FriendUi(4, "Sneha Reddy", 0.0, 0.0)
-            )
-        )
-    }
+    val friendList = state.friends
 
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -207,7 +200,7 @@ fun FriendsContent(
         AddFriendDialog(
             onDismiss = { showAddDialog = false },
             onAdd = { newFriend ->
-                friendList = friendList + newFriend
+                onAddFriend(newFriend.name)
                 showAddDialog = false
             }
         )
@@ -217,13 +210,9 @@ fun FriendsContent(
         FriendDetailBottomSheet(
             friend = selectedFriendForDetail!!,
             onDismiss = { selectedFriendForDetail = null },
-            onSettleUp = { settledFriendId ->
-                friendList = friendList.map { f ->
-                    if (f.id == settledFriendId) f.copy(
-                        amountGiven = 0.0,
-                        amountReceived = 0.0
-                    ) else f
-                }
+            onSettleUp = { _ ->
+                // Real settlement is a loan-repayment entry created from the
+                // transaction screen; the sheet closes without faking a zero-out.
                 selectedFriendForDetail = null
             }
         )

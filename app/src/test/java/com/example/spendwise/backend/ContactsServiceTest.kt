@@ -86,24 +86,39 @@ class ContactsServiceTest : BackendTestBase() {
         direction = Direction.OUT,
         rawText = rawText,
         occurredOn = 0L,
-@Test
+    )
+
+    @Test
     fun ingest_usesContactNameAsDisplay_handleStaysAlias() = backendTest {
         syncContacts("9876543210" to "Rahul Sharma")
         val result = ingestion.ingestSms(sms("Sent Rs500 to 9876543210@okax. UPI/5432101"))
         val parsed = result as IngestionService.SmsIngestResult.Parsed
-        val contraLine = db.EntryLineDao().getByEntryList(parsed.entryId)
-            .first { it.counterpartyId != null }
-        val cp = db.CounterpartyDao().getById(contraLine.counterpartyId!!)!!
+        // The counterparty rides on the entry, not the contra line.
+        val entry = ledger.getEntry(parsed.entryId)!!
+        val cp = db.CounterpartyDao().getById(entry.counterpartyId!!)!!
         assertEquals("Rahul Sharma", cp.displayName)
+        // The handle itself was learned as an alias.
+        val vpa = Text.extractVpa("Sent Rs500 to 9876543210@okax. UPI/5432101")!!
+        assertEquals(
+            cp.id,
+            db.CounterpartyAliasDao().findByNormalizedAlias(vpa.trimEnd('.').lowercase())
+                ?.counterpartyId
+                ?: db.CounterpartyAliasDao().findByNormalizedAlias(vpa.lowercase())
+                    ?.counterpartyId
+        )
     }
 
     @Test
     fun ingest_withoutSyncedContact_fallsBackToRawSlug() = backendTest {
         val result = ingestion.ingestSms(sms("Sent Rs500 to 9876543210@okax. UPI/5432102"))
         val entryId = (result as IngestionService.SmsIngestResult.Parsed).entryId
-        val line = db.EntryLineDao().getByEntryList(entryId).first { it.counterpartyId != null }
-        val cp = db.CounterpartyDao().getById(line.counterpartyId!!)!!
-        assertEquals("9876543210", cp.displayName)
+        val entry = ledger.getEntry(entryId)!!
+        val cp = db.CounterpartyDao().getById(entry.counterpartyId!!)!!
+        // Falls back to the raw VPA as the display name.
+        assertEquals(
+            Text.extractVpa("Sent Rs500 to 9876543210@okax. UPI/5432102"),
+            cp.displayName
+        )
     }
 
     private suspend fun loanReq(amountPaise: Long, direction: Direction, cpId: Long) {
