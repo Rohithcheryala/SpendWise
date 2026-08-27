@@ -121,5 +121,13 @@ data class EntryView(
     val linkedEntryId: Long?,
 )
 
+/** GET /friends — one row per person with activity on the loans receivable pot. */
+data class FriendBalance(
+    val counterpartyId: Long,
+    val displayName: String,
+    /** Positive = they owe you; negative = you owe them. Zero rows are omitted. */
+    val netPaise: Long,
+)
+
 /** Thrown for 4xx-equivalent violations (bad input, invariant breaches). */
 class ApiException(message: String) : Exception(message)

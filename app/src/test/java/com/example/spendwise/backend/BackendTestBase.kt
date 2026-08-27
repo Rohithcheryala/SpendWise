@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.spendwise.backend.api.ApiException
+import com.example.spendwise.backend.service.ContactsService
 import com.example.spendwise.backend.service.CounterpartyService
 import com.example.spendwise.backend.service.IngestionService
 import com.example.spendwise.backend.service.LedgerService
@@ -30,6 +31,7 @@ abstract class BackendTestBase {
     protected lateinit var db: AppDatabase
     protected lateinit var ledger: LedgerService
     protected lateinit var counterparties: CounterpartyService
+    protected lateinit var contacts: ContactsService
     protected lateinit var ingestion: IngestionService
 
     @Before
@@ -50,17 +52,24 @@ abstract class BackendTestBase {
             categoryDao = db.CategoryDao(),
             entryDao = db.EntryDao(),
             entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvenanceDao(),
+            provenanceDao = db.EntryProvanceDao(),
             counterpartyService = counterparties,
+        )
+        contacts = ContactsService(
+            contactDao = db.ContactDao(),
+            counterpartyDao = db.CounterpartyDao(),
+            aliasDao = db.CounterpartyAliasDao(),
+            counterparties = counterparties,
         )
         ingestion = IngestionService(
             accountDao = db.AccountDao(),
             identifierDao = db.AccountIdentifierDao(),
             entryDao = db.EntryDao(),
             entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvenanceDao(),
+            provenanceDao = db.EntryProvanceDao(),
             ledger = ledger,
             counterparties = counterparties,
+            contacts = contacts,
         )
     }
 

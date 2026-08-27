@@ -10,7 +10,7 @@ import com.example.spendwise.data.database.entity.EntryProvenanceEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface EntryProvenanceDao {
+interface EntryProvanceDao {
 
     @Query(
         """

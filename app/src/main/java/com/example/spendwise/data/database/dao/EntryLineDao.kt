@@ -9,6 +9,12 @@ import androidx.room.Update
 import com.example.spendwise.data.database.entity.EntryLineEntity
 import kotlinx.coroutines.flow.Flow
 
+/** Projection for per-counterparty loan nets (see netByCounterpartyOnAccount). */
+data class CounterpartyNetRow(
+    val cpId: Long?,
+    val net: Long,
+)
+
 @Dao
 interface EntryLineDao {
 
@@ -85,6 +91,21 @@ interface EntryLineDao {
     /** Entry ids having a line on the given account. */
     @Query("SELECT DISTINCT entry_id FROM entry_lines WHERE account_id = :accountId")
     suspend fun entryIdsForAccount(accountId: Long): List<Long>
+
+    /** Net receivable per counterparty from confirmed entries on one pot account. */
+    @Query(
+        """
+        SELECT COALESCE(l.counterparty_id, e.counterparty_id) AS cpId,
+               SUM(l.amount_paise) AS net
+        FROM entry_lines l
+        JOIN entries e ON e.id = l.entry_id
+        WHERE l.account_id = :accountId
+          AND e.status = 'confirmed'
+          AND e.voided_at IS NULL
+        GROUP BY cpId
+    """
+    )
+    suspend fun netByCounterpartyOnAccount(accountId: Long): List<CounterpartyNetRow>
 
     @Query(
         """

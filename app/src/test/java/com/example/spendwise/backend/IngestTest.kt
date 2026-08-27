@@ -46,7 +46,7 @@ class IngestTest : BackendTestBase() {
         assertEquals("Unclassified", contraCat.name)
 
         // Provenance stored for the audit trail.
-        assertNotNull(db.EntryProvenanceDao().getByEntry(view.id)!!.rawText)
+        assertNotNull(db.EntryProvanceDao().getByEntry(view.id)!!.rawText)
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.example.spendwise.backend.api.EntryKind
 import com.example.spendwise.backend.api.EntrySource
 import com.example.spendwise.backend.api.EntryStatus
 import com.example.spendwise.backend.api.EntryView
+import com.example.spendwise.backend.api.FriendBalance
 import com.example.spendwise.backend.api.IngestRequest
 import com.example.spendwise.backend.api.Intent
 import com.example.spendwise.backend.api.LedgerApi
@@ -19,7 +20,7 @@ import com.example.spendwise.data.database.dao.BucketDao
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.EntryDao
 import com.example.spendwise.data.database.dao.EntryLineDao
-import com.example.spendwise.data.database.dao.EntryProvenanceDao
+import com.example.spendwise.data.database.dao.EntryProvanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.CategoryEntity
 import com.example.spendwise.data.database.entity.EntryEntity
@@ -48,7 +49,7 @@ class LedgerService @Inject constructor(
     private val categoryDao: CategoryDao,
     private val entryDao: EntryDao,
     private val entryLineDao: EntryLineDao,
-    private val provenanceDao: EntryProvenanceDao,
+    private val provenanceDao: EntryProvanceDao,
     private val counterpartyService: CounterpartyService,
 ) : LedgerApi {
 
@@ -477,6 +478,27 @@ class LedgerService @Inject constructor(
     // ─────────────────────────────────────────────────────────────────────
     // System ledger nodes (get-or-create; slugs never duplicate)
     // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * GET /friends — net outstanding per person on the receivable pot.
+     * Confirmed, non-void lines only (enforced in SQL). Positive net = they
+     * owe you; settled parties are omitted. Sorted most-outstanding first.
+     */
+    override suspend fun friendsOutstanding(): List<FriendBalance> {
+        val pot = systemAccount(SystemRole.RECEIVABLE)
+        val cpDao = db.CounterpartyDao()
+        return entryLineDao.netByCounterpartyOnAccount(pot.id)
+            .filter { it.cpId != null && it.net != 0L }
+            .mapNotNull { row ->
+                val cp = cpDao.getById(row.cpId!!) ?: return@mapNotNull null
+                FriendBalance(
+                    counterpartyId = cp.id,
+                    displayName = cp.displayName,
+                    netPaise = row.net,
+                )
+            }
+            .sortedByDescending { it.netPaise }
+    }
 
     enum class SystemRole(val slugPrefix: String, val displayName: String) {
         RECEIVABLE("sys-loans-", "Loans & advances"),

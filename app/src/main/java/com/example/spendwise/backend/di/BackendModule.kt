@@ -1,6 +1,7 @@
 package com.example.spendwise.backend.di
 
 import com.example.spendwise.backend.api.LedgerApi
+import com.example.spendwise.backend.service.ContactsService
 import com.example.spendwise.backend.service.CounterpartyService
 import com.example.spendwise.backend.service.IngestionService
 import com.example.spendwise.backend.service.LedgerService
@@ -27,19 +28,34 @@ object BackendModule {
 
     @Provides
     @Singleton
+    fun provideContactsService(
+        db: AppDatabase,
+        counterpartyService: CounterpartyService,
+    ): ContactsService =
+        ContactsService(
+            contactDao = db.ContactDao(),
+            counterpartyDao = db.CounterpartyDao(),
+            aliasDao = db.CounterpartyAliasDao(),
+            counterparties = counterpartyService,
+        )
+
+    @Provides
+    @Singleton
     fun provideIngestionService(
         db: AppDatabase,
         ledger: LedgerService,
         counterpartyService: CounterpartyService,
+        contactsService: ContactsService,
     ): IngestionService =
         IngestionService(
             accountDao = db.AccountDao(),
             identifierDao = db.AccountIdentifierDao(),
             entryDao = db.EntryDao(),
             entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvenanceDao(),
+            provenanceDao = db.EntryProvanceDao(),
             ledger = ledger,
             counterparties = counterpartyService,
+            contacts = contactsService,
         )
 
     @Provides
@@ -55,7 +71,7 @@ object BackendModule {
             categoryDao = db.CategoryDao(),
             entryDao = db.EntryDao(),
             entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvenanceDao(),
+            provenanceDao = db.EntryProvanceDao(),
             counterpartyService = counterpartyService,
         )
 }

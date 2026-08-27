@@ -138,7 +138,7 @@ class SplitLifecycleTest : BackendTestBase() {
 
         ledger.deleteEntry(entry.id)
         assertEquals(null, ledger.getEntry(entry.id))
-        assertEquals(null, db.EntryProvenanceDao().getByDedupeHash("hash-x"))
+        assertEquals(null, db.EntryProvanceDao().getByDedupeHash("hash-x"))
     }
 
     companion object {

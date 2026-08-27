@@ -64,4 +64,11 @@ interface LedgerApi {
 
     /** PUT /buckets/{id}/allocation — idempotent self-transfer baseline for a bucket. */
     suspend fun recordBucketAllocation(bucketId: Long): EntryView?
+
+    /**
+     * GET /friends — net outstanding per person counterparty, from the loans
+     * receivable pot. Only persons appear (loan paths force the type); settled
+     * parties (net 0) are omitted. Positive = they owe you.
+     */
+    suspend fun friendsOutstanding(): List<FriendBalance>
 }

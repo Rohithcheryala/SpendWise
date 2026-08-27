@@ -31,6 +31,39 @@ object Text {
         val digest = MessageDigest.getInstance("SHA-256").digest(raw.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
     }
+
+    // ── contacts resolution ──────────────────────────────────────────────
+    // Port of the old server's services/contacts.py. A UPI handle whose local
+    // part IS a phone number (`9876543210@okaxis`) can resolve to a saved
+    // contact; `name@bank` handles cannot.
+
+    /** Phone-prefixed handle: 10-12 digits, optional `-N`, then `@provider`. */
+    private val PHONE_HANDLE_RE = Regex("(\\+?\\d{10,12})(?:-\\d+)?@[A-Za-z][A-Za-z0-9.]*")
+
+    /** Last 10 digits — strips +91, leading 0, separators. "" when too short. */
+    fun normalizePhone(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        val digits = raw.filter { it.isDigit() }
+        return if (digits.length >= 10) digits.takeLast(10) else ""
+    }
+
+    /** Normalized phones for every phone-prefixed handle in [text], in order, deduped. */
+    fun phonesIn(text: String?): List<String> {
+        if (text.isNullOrEmpty()) return emptyList()
+        val out = mutableListOf<String>()
+        for (m in PHONE_HANDLE_RE.findAll(text)) {
+            val p = normalizePhone(m.groupValues[1])
+            if (p.isNotEmpty() && p !in out) out.add(p)
+        }
+        return out
+    }
+
+    /** An unresolved display: a raw handle (`x@bank`), never a human name. */
+    fun looksLikeHandle(name: String?): Boolean {
+        if (name.isNullOrBlank()) return false
+        val s = name.trim()
+        return "@" in s && " " !in s
+    }
 }
 
 /** Tiny JSON-string-list codec matching the old server's tags storage. */

@@ -9,9 +9,8 @@ import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.EntryDao
 import com.example.spendwise.data.database.dao.EntryLineDao
-import com.example.spendwise.data.database.dao.EntryProvenanceDao
+import com.example.spendwise.data.database.dao.EntryProvanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
-import com.example.spendwise.data.database.entity.EntryLineEntity
 import javax.inject.Inject
 
 /**
@@ -27,9 +26,10 @@ class IngestionService @Inject constructor(
     private val identifierDao: AccountIdentifierDao,
     private val entryDao: EntryDao,
     private val entryLineDao: EntryLineDao,
-    private val provenanceDao: EntryProvenanceDao,
+    private val provenanceDao: EntryProvanceDao,
     private val ledger: LedgerService,
     private val counterparties: CounterpartyService,
+    private val contacts: ContactsService,
 ) {
 
     /** What a device-side parser extracts from one bank SMS. */
@@ -76,11 +76,15 @@ class IngestionService @Inject constructor(
         val account = findAccount(facts.bank, facts.last4, facts.smsAccountKind, facts.idKinds)
 
         // The VPA is the strongest cross-source key; fall back to the slug.
+        // A phone-prefixed handle resolves to a saved contact name first —
+        // that becomes the friendly display; the handle itself stays an alias.
         val vpa = Text.extractVpa(facts.rawText)
+        val contactHint = contacts.resolveContactName(facts.rawText)
         val cpId = counterparties.findByAny(LedgerService.USER_ID, vpa, facts.counterpartyRaw)
             ?: counterparties.resolveOrCreate(
                 LedgerService.USER_ID,
                 facts.counterpartyRaw ?: vpa,
+                displayName = contactHint,
                 aliasSource = if (vpa != null && facts.counterpartyRaw == null) "upi" else "sms",
             )
 

@@ -55,6 +55,9 @@ interface CounterpartyDao {
     )
     fun getByPartyType(partyType: String): Flow<List<CounterpartyEntity>>
 
+    @Query("SELECT * FROM counterparties ORDER BY display_name ASC")
+    suspend fun listAll(): List<CounterpartyEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(counterparty: CounterpartyEntity): Long
 

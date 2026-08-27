@@ -40,6 +40,15 @@ interface CounterpartyAliasDao {
     @Query(
         """
         SELECT * FROM counterparty_aliases
+        WHERE counterparty_id = :counterpartyId
+        ORDER BY alias_display ASC
+    """
+    )
+    suspend fun getByCounterpartyList(counterpartyId: Long): List<CounterpartyAliasEntity>
+
+    @Query(
+        """
+        SELECT * FROM counterparty_aliases
         WHERE alias_norm = :aliasNorm
         LIMIT 1
     """
