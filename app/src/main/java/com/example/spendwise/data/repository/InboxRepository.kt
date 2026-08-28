@@ -96,8 +96,12 @@ class InboxRepository @Inject constructor(
             .toLong()
         if (amountPaise <= 0) return
 
+        // INCOME is money in. Everything else — EXPENSE, and CREDIT (which
+        // every parser uses for credit-card SPEND, e.g. "Spent INR 80 … Avl
+        // Limit") — is money out. Mapping CREDIT to IN wrongly booked credit
+        // card purchases as income.
         val direction = when (parsed.type) {
-            TransactionType.INCOME, TransactionType.CREDIT -> Direction.IN
+            TransactionType.INCOME -> Direction.IN
             else -> Direction.OUT
         }
 
@@ -167,13 +171,17 @@ class InboxRepository @Inject constructor(
             ?.substringBefore('|')
             ?.takeIf { it.isNotBlank() }
         val party = entry.counterpartyId?.let { partyNames[it] }
+        val accountName = entry.accountId?.let { accountNames[it] }
         val userAccountIds = userAccounts.mapTo(mutableSetOf()) { it.first }
         return InboxItem(
             entryId = entry.id,
-            sender = bank ?: party ?: "Bank SMS",
+            // Title priority: receiver/counterparty, then the matched account,
+            // then the bank. The bank alone is redundant — the account name
+            // already implies it — and hides who the transaction was with.
+            sender = party ?: accountName ?: bank ?: "Bank SMS",
             amountPaise = entry.amountPaise,
             isDebit = entry.direction == Direction.OUT,
-            account = entry.accountId?.let { accountNames[it] },
+            account = accountName,
             date = entry.occurredOn,
             rawSms = provenance?.rawText.orEmpty().ifBlank { entry.note.orEmpty() },
             categoryId = entry.categoryId,
@@ -186,5 +194,69 @@ class InboxRepository @Inject constructor(
     companion object {
         /** When no watermark exists yet, scan the last 30 days of SMS. */
         const val DEFAULT_LOOKBACK_MS = 30L * 24 * 60 * 60 * 1000
+    }
+
+    /** One bank account spotted in the SMS history but not yet in the app. */
+    data class DetectedAccount(
+        val bank: String,
+        val last4: String,
+        val isCard: Boolean,
+        val transactionCount: Int,
+    ) {
+        /** Stable key for selection state in the UI. */
+        val key: String get() = "$bank|$last4"
+        val suggestedName: String get() = "$bank ${if (isCard) "card" else "a/c"} ••$last4"
+    }
+
+    data class ScanReport(
+        val messagesRead: Int,
+        val transactionsDetected: Int,
+        val accounts: List<DetectedAccount>,
+    )
+
+    /**
+     * Onboarding scan: read bank SMS from [startMillis], ingest everything
+     * (dedupe makes re-runs idempotent), advance the watermark, and report the
+     * distinct bank accounts seen in the messages that the app doesn't know
+     * about yet — so the user can create them in one tap.
+     */
+    suspend fun scanFrom(startMillis: Long): ScanReport {
+        val messages = messageReader.readSince(startMillis)
+
+        val existingLast4 = accountDao.listAll().mapNotNull { it.last4 }.toSet()
+        val detected = LinkedHashMap<String, DetectedAccount>()
+        var parsedCount = 0
+
+        for (message in messages) {
+            val body = message.body.orEmpty()
+            val sender = message.address.orEmpty()
+            val parsed = BankParserFactory.parse(body, sender, message.date) ?: continue
+            parsedCount++
+            ingestRawSms(sender = sender, body = body, timestamp = message.date)
+
+            val last4 = parsed.accountLast4
+            if (last4.isNullOrBlank() || last4 in existingLast4) continue
+            val key = "${parsed.bankName}|$last4"
+            val existing = detected[key]
+            detected[key] = if (existing == null) {
+                DetectedAccount(
+                    bank = parsed.bankName,
+                    last4 = last4,
+                    isCard = parsed.isFromCard,
+                    transactionCount = 1,
+                )
+            } else {
+                existing.copy(transactionCount = existing.transactionCount + 1)
+            }
+        }
+
+        appMetadataRepository.updateLastSmsSync(System.currentTimeMillis())
+        refreshBuffer()
+
+        return ScanReport(
+            messagesRead = messages.size,
+            transactionsDetected = parsedCount,
+            accounts = detected.values.sortedByDescending { it.transactionCount },
+        )
     }
 }

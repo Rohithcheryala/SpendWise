@@ -38,10 +38,10 @@ fun OnboardingNavGraph(
         OnboardingStep.Permissions -> {
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
-            ) { results ->
-                // results: Map<String, Boolean> — each permission -> granted?
-                results.values.all { it }
-                viewModel.completeScan()
+            ) { _ ->
+                // Move on to the scan step either way — the scan screen can
+                // still be skipped, and denied permission just yields no SMS.
+                viewModel.completePermissions()
             }
 
             PermissionScreen(
@@ -51,24 +51,23 @@ fun OnboardingNavGraph(
                             android.Manifest.permission.READ_SMS,
                         )
                     )
-                    viewModel.completeOnboarding()
                 },
                 onSkip = {
-                    viewModel.completeAccounts()
+                    viewModel.completePermissions()
                 }
             )
         }
 
         OnboardingStep.ScanMessages -> {
-            // ScanScreen()
+            ScanMessagesScreen(viewModel = viewModel)
         }
 
         OnboardingStep.SelectAccounts -> {
-//            AccountSelectionScreen()
+            AccountSelectionScreen(viewModel = viewModel)
         }
 
         OnboardingStep.Finished -> {
-            // Navigate Home
+            // MainActivity swaps to AppNavHost as soon as the step is Finished.
         }
     }
 

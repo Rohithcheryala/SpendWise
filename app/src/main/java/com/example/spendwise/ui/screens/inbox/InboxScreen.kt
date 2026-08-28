@@ -19,11 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -34,7 +33,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -43,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,15 +49,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.spendwise.core.extensions.toAmountString
-import com.example.spendwise.core.extensions.toFormattedDateTime
 import com.example.spendwise.data.repository.InboxItem
+import com.example.spendwise.ui.components.TransactionDirection
+import com.example.spendwise.ui.components.TransactionDirectionIcon
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.InboxViewModel
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +79,18 @@ fun InboxScreen(
 
     val items = state.items
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Reload the buffer whenever this screen resumes: entries can be edited,
+    // confirmed or voided in the transaction screen opened from here, and the
+    // list must not show stale rows on return.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshBuffer()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(state.actionMessage) {
         state.actionMessage?.let { message ->
@@ -230,157 +249,107 @@ fun InboxPendingCard(
     onDismiss: () -> Unit
 ) {
     val colors = SpendwiseTheme.colors
-    var smsExpanded by remember { mutableStateOf(false) }
     var showAccountPicker by remember { mutableStateOf(false) }
+
+    val direction = if (item.isDebit) TransactionDirection.EXPENSE else TransactionDirection.INCOME
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         )
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    modifier = Modifier.size(40.dp),
-                    shape = CircleShape,
-                    color = if (item.isDebit) MaterialTheme.colorScheme.errorContainer else colors.incomeContainer
+            TransactionDirectionIcon(direction)
+
+            Spacer(Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.sender,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Account is auto-matched from the SMS sender + last-4. Keep it
+                // (plus a compact date) on one dense subtitle line, tappable so
+                // the user can correct a wrong match.
+                val subtitle = listOfNotNull(
+                    item.account?.takeIf { it != item.sender },
+                    compactDate(item.date)
+                ).joinToString(" • ")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { showAccountPicker = true }
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (item.assignedAccountId == null) {
+                            listOfNotNull(
+                                item.account ?: "Unmatched account",
+                                subtitle.takeIf { it.isNotBlank() }
+                            ).joinToString(" • ")
+                        } else {
+                            subtitle
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (item.assignedAccountId != null) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (item.accountChoices.isNotEmpty()) {
+                        Spacer(Modifier.width(2.dp))
                         Icon(
-                            imageVector = Icons.Default.Sms,
-                            contentDescription = null,
-                            tint = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income,
-                            modifier = Modifier.size(20.dp)
+                            Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = "Change account",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
-                }
-
-                Spacer(Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.sender,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    // Account is auto-matched from the SMS sender + last-4. Make
-                    // it visible and tappable so the user can correct the match.
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showAccountPicker = true }
-                    ) {
-                        Text(
-                            text = item.account ?: "Unmatched account",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (item.assignedAccountId != null) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.error
-                            }
-                        )
-                        if (item.accountChoices.isNotEmpty()) {
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = "Change account",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = (if (item.isDebit) "−" else "+") + item.amountPaise.toAmountString(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income
-                    )
-                    Text(
-                        text = item.date.toFormattedDateTime(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.width(8.dp))
 
-            // Raw SMS is secondary evidence — hidden by default so the review
-            // list stays dense (more rows fit per screen). Tap to reveal it.
-            TextButton(onClick = { smsExpanded = !smsExpanded }) {
+            Text(
+                text = (if (item.isDebit) "−" else "+") + item.amountPaise.toAmountString(),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income
+            )
+
+            // Compact actions: import is the single primary action; dismiss is
+            // a small secondary icon. Neither deserves a full-width button,
+            // and the raw SMS belongs in the transaction detail screen only.
+            IconButton(onClick = onApprove, modifier = Modifier.size(32.dp)) {
                 Icon(
-                    Icons.Default.Sms,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    Icons.Default.Check,
+                    contentDescription = "Import",
+                    tint = colors.income,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Dismiss",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = if (smsExpanded) "Hide SMS evidence" else "SMS evidence",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            androidx.compose.animation.AnimatedVisibility(visible = smsExpanded) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                ) {
-                    Text(
-                        text = item.rawSms,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Dismiss")
-                }
-
-                Button(
-                    onClick = onApprove,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Import")
-                }
             }
         }
     }
@@ -429,5 +398,20 @@ fun InboxPendingCard(
                 }
             }
         )
+    }
+}
+
+private val inboxTimeFormat = DateTimeFormatter.ofPattern("h:mm a")
+private val inboxDayFormat = DateTimeFormatter.ofPattern("d MMM")
+
+/** Dense list label: the time for today, "Yesterday", otherwise a short date. */
+private fun compactDate(epochMillis: Long): String {
+    val dateTime = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
+    val date = dateTime.toLocalDate()
+    val today = LocalDate.now()
+    return when (date) {
+        today -> inboxTimeFormat.format(dateTime)
+        today.minusDays(1) -> "Yesterday"
+        else -> inboxDayFormat.format(date)
     }
 }

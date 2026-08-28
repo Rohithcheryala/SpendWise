@@ -130,8 +130,16 @@ fun MainScaffold(
                             },
                             selected = false,
                             onClick = {
-                                scope.launch { drawerState.close() }
-                                rootNavController.navigate(screen.route)
+                                // Close the drawer *before* navigating, in the
+                                // same coroutine. Navigating first lets this
+                                // composable leave the composition, which
+                                // cancels the scope and aborts the close
+                                // animation — leaving the drawer open when the
+                                // user navigates back.
+                                scope.launch {
+                                    drawerState.snapTo(DrawerValue.Closed)
+                                    rootNavController.navigate(screen.route)
+                                }
                             },
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
                         )

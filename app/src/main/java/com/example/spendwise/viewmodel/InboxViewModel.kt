@@ -74,6 +74,13 @@ class InboxViewModel @Inject constructor(
         }
     }
 
+    /** Silent reload of the buffer list — no spinner. Used on screen resume. */
+    fun refreshBuffer() {
+        viewModelScope.launch {
+            runCatching { repository.refreshBuffer() }
+        }
+    }
+
     /** Import = confirm the buffer entry into the real ledger. */
     fun import(entryId: Long) {
         viewModelScope.launch {

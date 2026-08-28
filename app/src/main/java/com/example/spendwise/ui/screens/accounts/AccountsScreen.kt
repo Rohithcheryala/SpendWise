@@ -39,9 +39,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -86,7 +88,8 @@ enum class AccountType(val label: String, val icon: ImageVector, val color: Colo
 fun AccountsScreen(
     modifier: Modifier = Modifier,
     viewModel: AccountsViewModel = hiltViewModel(),
-    onNavigateBack: (() -> Unit)? = null
+    onNavigateBack: (() -> Unit)? = null,
+    onAccountClick: ((Long) -> Unit)? = null
 ) {
             val uiState = viewModel.uiState
     val showAddBottomSheet = remember { mutableStateOf(false) }
@@ -175,7 +178,7 @@ fun AccountsScreen(
                 items(accounts, key = { it.id }) { account ->
                     AccountCardItem(
                         account = account,
-                        onClick = { /* Account details screen can be wired here */ }
+                        onClick = { onAccountClick?.invoke(account.id) }
                     )
                 }
 
@@ -365,7 +368,13 @@ fun AddAccountBottomSheet(
     onDismiss: () -> Unit,
     onAdd: (AccountUiModel) -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Swipe-to-dismiss is disabled: one accidental swipe used to wipe every
+    // field the user had typed. The sheet can only be closed via the Cancel
+    // button or system back — both of which ask for confirmation first.
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden }
+    )
 
     var name by remember { mutableStateOf("") }
     var bankName by remember { mutableStateOf("") }
@@ -373,8 +382,16 @@ fun AddAccountBottomSheet(
     var initialBalance by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(AccountType.SAVINGS) }
 
+    val hasInput = name.isNotBlank() || bankName.isNotBlank() ||
+        accountNumber.isNotBlank() || initialBalance.isNotBlank()
+    var confirmDiscard by remember { mutableStateOf(false) }
+
+    fun attemptDismiss() {
+        if (hasInput) confirmDiscard = true else onDismiss()
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { attemptDismiss() },
         sheetState = sheetState
     ) {
         Column(
@@ -466,6 +483,31 @@ fun AddAccountBottomSheet(
             ) {
                 Text("Save Account")
             }
+
+            TextButton(
+                onClick = { attemptDismiss() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancel")
+            }
         }
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard account?") },
+            text = { Text("The details you entered will be lost.") },
+            confirmButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Discard")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) {
+                    Text("Keep editing")
+                }
+            }
+        )
     }
 }

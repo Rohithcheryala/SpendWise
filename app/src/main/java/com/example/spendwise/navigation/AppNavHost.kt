@@ -5,8 +5,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.background
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -36,14 +39,24 @@ fun AppNavHost(
     NavHost(
         navController = navController,
         startDestination = "main",
-        // Gentle slide+fade instead of the default abrupt crossfade "flash".
+        // Paint the host with the themed background: during slide transitions
+        // any not-yet-covered area must match the theme, otherwise the white
+        // window background shows through as a flashing bar.
+        modifier = Modifier.background(MaterialTheme.colorScheme.background),
+        // Directional slide — forward: new screen slides in from the right,
+        // old screen eases out to the left; back is mirrored. This gives the
+        // transition a sense of motion instead of an abrupt crossfade.
         enterTransition = {
-            fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 12 }
+            slideInHorizontally(tween(300)) { it } + fadeIn(tween(220))
         },
-        exitTransition = { fadeOut(tween(160)) },
-        popEnterTransition = { fadeIn(tween(220)) },
+        exitTransition = {
+            slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220))
+        },
+        popEnterTransition = {
+            slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(220))
+        },
         popExitTransition = {
-            fadeOut(tween(160)) + slideOutHorizontally(tween(220)) { it / 12 }
+            slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220))
         },
     ) {
 
@@ -114,6 +127,30 @@ fun AppNavHost(
 
         composable(Screen.Accounts.route) {
             AccountsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onAccountClick = { accountId ->
+                    navController.navigate("account/$accountId")
+                }
+            )
+        }
+
+        composable(
+            route = "account/{accountId}",
+            arguments = listOf(
+                navArgument("accountId") { type = NavType.LongType }
+            )
+        ) {
+            val vm: com.example.spendwise.viewmodel.AccountEditViewModel = hiltViewModel()
+
+            LaunchedEffect(Unit) {
+                vm.finished.collect { navController.popBackStack() }
+            }
+
+            com.example.spendwise.ui.screens.accounts.AccountEditScreen(
+                uiState = vm.uiState.collectAsStateWithLifecycle().value,
+                onUpdateState = vm::updateState,
+                onSave = vm::save,
+                onCloseAccount = vm::closeAccount,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

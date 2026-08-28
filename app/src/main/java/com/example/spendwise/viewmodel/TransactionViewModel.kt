@@ -18,6 +18,7 @@ import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.screens.transaction.DropdownOption
@@ -50,6 +51,7 @@ class TransactionViewModel @Inject constructor(
     private val counterpartyDao: CounterpartyDao,
     private val provenanceDao: EntryProvanceDao,
     private val settingsRepository: SettingsRepository,
+    private val inboxRepository: InboxRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -114,6 +116,10 @@ class TransactionViewModel @Inject constructor(
                     TransactionType.TRANSFER -> saveTransfer(s, amountPaise!!)
                     TransactionType.LOAN -> saveLoan(s, amountPaise!!)
                 }
+                // The save path can confirm/replace a buffer entry (opened from
+                // the inbox) — invalidate the shared inbox flow so the list and
+                // the bottom-nav badge update immediately.
+                runCatching { inboxRepository.refreshBuffer() }
                 finished.tryEmit(Unit)
             } catch (e: Exception) {
                 _uiState.update {
@@ -205,7 +211,10 @@ class TransactionViewModel @Inject constructor(
         val id = _uiState.value.id ?: return
         viewModelScope.launch {
             runCatching { ledgerApi.voidEntry(id, "deleted from app") }
-                .onSuccess { finished.tryEmit(Unit) }
+                .onSuccess {
+                    runCatching { inboxRepository.refreshBuffer() }
+                    finished.tryEmit(Unit)
+                }
                 .onFailure { e -> setError(e.message ?: "Delete failed") }
         }
     }
@@ -214,7 +223,10 @@ class TransactionViewModel @Inject constructor(
         val id = _uiState.value.id ?: return
         viewModelScope.launch {
             runCatching { ledgerApi.voidEntry(id, null) }
-                .onSuccess { finished.tryEmit(Unit) }
+                .onSuccess {
+                    runCatching { inboxRepository.refreshBuffer() }
+                    finished.tryEmit(Unit)
+                }
                 .onFailure { e -> setError(e.message ?: "Void failed") }
         }
     }

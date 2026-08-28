@@ -21,18 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -57,6 +52,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.spendwise.viewmodel.CategoriesViewModel
 
 data class CategoryUiModel(
     val id: Long,
@@ -80,83 +78,13 @@ data class SubcategoryUiModel(
 @Composable
 fun CategoriesScreen(
     onNavigateBack: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: CategoriesViewModel = hiltViewModel()
 ) {
-    var categories by remember {
-        mutableStateOf(
-            listOf(
-                CategoryUiModel(
-                    1,
-                    "Food & Dining",
-                    Icons.Default.Restaurant,
-                    Color(0xFFEF4444),
-                    8420.0,
-                    12000.0,
-                    listOf(
-                        SubcategoryUiModel(101, "Groceries", 4200.0, 6000.0),
-                        SubcategoryUiModel(102, "Restaurants", 3100.0, 4000.0),
-                        SubcategoryUiModel(103, "Coffee & Snacks", 1120.0, 2000.0)
-                    )
-                ),
-                CategoryUiModel(
-                    2,
-                    "Housing & Utilities",
-                    Icons.Default.Home,
-                    Color(0xFF3B82F6),
-                    22500.0,
-                    25000.0,
-                    listOf(
-                        SubcategoryUiModel(201, "Rent", 18000.0, 18000.0),
-                        SubcategoryUiModel(202, "Electricity & Water", 2800.0, 4000.0),
-                        SubcategoryUiModel(203, "Internet & WiFi", 1700.0, 3000.0)
-                    )
-                ),
-                CategoryUiModel(
-                    3,
-                    "Transportation",
-                    Icons.Default.DirectionsCar,
-                    Color(0xFFF59E0B),
-                    3450.0,
-                    6000.0,
-                    listOf(
-                        SubcategoryUiModel(301, "Fuel", 2500.0, 4000.0),
-                        SubcategoryUiModel(302, "Cab & Public Transit", 950.0, 2000.0)
-                    )
-                ),
-                CategoryUiModel(
-                    4,
-                    "Shopping & Lifestyle",
-                    Icons.Default.ShoppingBag,
-                    Color(0xFFEC4899),
-                    5600.0,
-                    8000.0,
-                    listOf(
-                        SubcategoryUiModel(401, "Clothing", 3200.0, 5000.0),
-                        SubcategoryUiModel(402, "Electronics", 2400.0, 3000.0)
-                    )
-                ),
-                CategoryUiModel(
-                    5,
-                    "Healthcare & Fitness",
-                    Icons.Default.MedicalServices,
-                    Color(0xFF10B981),
-                    1200.0,
-                    4000.0,
-                    listOf(
-                        SubcategoryUiModel(501, "Medicines", 700.0, 2000.0),
-                        SubcategoryUiModel(502, "Gym & Sports", 500.0, 2000.0)
-                    )
-                ),
-                CategoryUiModel(
-                    6, "Entertainment", Icons.Default.Movie, Color(0xFF8B5CF6), 2100.0, 3500.0,
-                    listOf(
-                        SubcategoryUiModel(601, "Movies & Events", 1200.0, 2000.0),
-                        SubcategoryUiModel(602, "Subscriptions", 900.0, 1500.0)
-                    )
-                )
-            )
-        )
-    }
+    // Real data: persisted categories with live confirmed spend and active
+    // budgets for the current month (same loading logic as the Budget screen).
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var expandedIds by remember { mutableStateOf(setOf<Long>()) }
 
     var showAddCategoryDialog by remember { mutableStateOf(false) }
 
@@ -190,22 +118,35 @@ fun CategoriesScreen(
         }
     ) { padding ->
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(categories, key = { it.id }) { category ->
-                CategoryItemCard(
-                    category = category,
-                    onToggleExpand = {
-                        categories = categories.map { c ->
-                            if (c.id == category.id) c.copy(isExpanded = !c.isExpanded) else c
+        if (uiState.isLoading && uiState.categories.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(uiState.categories, key = { it.id }) { category ->
+                    CategoryItemCard(
+                        category = category.copy(isExpanded = category.id in expandedIds),
+                        onToggleExpand = {
+                            expandedIds = if (category.id in expandedIds) {
+                                expandedIds - category.id
+                            } else {
+                                expandedIds + category.id
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
@@ -213,8 +154,8 @@ fun CategoriesScreen(
     if (showAddCategoryDialog) {
         AddCategoryDialog(
             onDismiss = { showAddCategoryDialog = false },
-            onAdd = { newCat ->
-                categories = categories + newCat
+            onAdd = { name, monthlyBudget ->
+                viewModel.addCategory(name, monthlyBudget)
                 showAddCategoryDialog = false
             }
         )
@@ -335,7 +276,7 @@ fun CategoryItemCard(
 @Composable
 fun AddCategoryDialog(
     onDismiss: () -> Unit,
-    onAdd: (CategoryUiModel) -> Unit
+    onAdd: (name: String, monthlyBudget: Double) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var budget by remember { mutableStateOf("") }
@@ -365,16 +306,7 @@ fun AddCategoryDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onAdd(
-                        CategoryUiModel(
-                            id = System.currentTimeMillis(),
-                            title = title.ifBlank { "Custom Category" },
-                            icon = Icons.Default.ShoppingBag,
-                            color = Color(0xFF10B981),
-                            spent = 0.0,
-                            budget = budget.toDoubleOrNull() ?: 5000.0
-                        )
-                    )
+                    onAdd(title.trim(), budget.toDoubleOrNull() ?: 0.0)
                 },
                 enabled = title.isNotBlank()
             ) {

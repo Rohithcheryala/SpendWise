@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.backend.api.LedgerApi
+import com.example.spendwise.backend.service.IngestionService
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountEntity
@@ -26,6 +27,7 @@ class AccountsViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val identifierDao: AccountIdentifierDao,
     private val ledgerApi: LedgerApi,
+    private val ingestionService: IngestionService,
 ) : ViewModel() {
 
     data class UiState(
@@ -43,9 +45,17 @@ class AccountsViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            uiState = uiState.copy(isLoading = true, error = null)
+            // Stale-while-revalidate: only show the loading state when there is
+            // nothing to paint yet — avoids a full-screen spinner (flash) on
+            // every revisit.
+            uiState = uiState.copy(isLoading = uiState.accounts.isEmpty(), error = null)
             runCatching {
-                accountDao.listAll().map { entity ->
+                // System pots (sys-unmatched, sys-loans, sys-openeq, …) are
+                // ledger plumbing, not user accounts — never show them here.
+                // The same filter is used by InboxRepository.refreshBuffer().
+                accountDao.listAll()
+                    .filter { !it.slug.startsWith("sys-") && it.isActive }
+                    .map { entity ->
                     entity.toUi(computeBalance(entity))
                 }
             }.onSuccess { accounts ->
@@ -107,6 +117,13 @@ class AccountsViewModel @Inject constructor(
                 // Book the opening balance against open equity (idempotent).
                 if (openingPaise != 0L) {
                     ledgerApi.recordOpeningBalance(id, System.currentTimeMillis())
+                }
+
+                // Any SMS already ingested for this card/account sits orphaned
+                // on the unmatched pot — claim it now that we have the
+                // identifier (attach-only, safe to re-run).
+                if (last4Digits != null) {
+                    ingestionService.claimOrphansForAccount(id)
                 }
             }.onSuccess {
                 refresh()
