@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.backend.api.Direction
 import com.example.spendwise.backend.api.EntryKind
+import com.example.spendwise.backend.api.EntryStatus
 import com.example.spendwise.backend.api.EntryView
 import com.example.spendwise.backend.api.LedgerApi
 import com.example.spendwise.core.extensions.toAmountString
@@ -15,6 +16,9 @@ import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
+import com.example.spendwise.ui.screens.transactions.TransactionEvent
+import com.example.spendwise.ui.screens.transactions.TransactionFilterState
+import com.example.spendwise.ui.screens.transactions.TransactionStatus
 import com.example.spendwise.ui.screens.transactions.TransactionUi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
@@ -30,7 +34,10 @@ import javax.inject.Inject
 
 /**
  * The transactions list, read from the real ledger ([LedgerApi.listEntries]).
- * Includes buffer entries (shown alongside confirmed ones) and excludes voided.
+ *
+ * Defaults to CONFIRMED (finalized) entries only; buffer/orphan rows belong on
+ * the Inbox screen. Applying a status filter re-queries the ledger for buffer
+ * entries ("Pending") instead. Voided entries are excluded by the ledger.
  */
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
@@ -50,6 +57,9 @@ class TransactionsViewModel @Inject constructor(
     var uiState by mutableStateOf(UiState())
         private set
 
+    var filterState by mutableStateOf(TransactionFilterState())
+        private set
+
     init {
         refresh()
     }
@@ -62,7 +72,11 @@ class TransactionsViewModel @Inject constructor(
                 val symbol = settingsRepository.settings.first().currencySymbol
                 val accounts = accountDao.listAll().associate { it.id to it.name }
                 val parties = counterpartyDao.listAll().associate { it.id to it.displayName }
-                val entries = ledgerApi.listEntries()
+                val statusArg = when (filterState.status) {
+                    TransactionStatus.Pending -> EntryStatus.BUFFER
+                    else -> EntryStatus.CONFIRMED
+                }
+                val entries = ledgerApi.listEntries(status = statusArg)
                 val categoryIds = entries.mapNotNull { it.categoryId }.distinct()
                 val categories = if (categoryIds.isEmpty()) {
                     emptyMap()
@@ -78,6 +92,37 @@ class TransactionsViewModel @Inject constructor(
                 uiState = uiState.copy(isLoading = false, error = e.message)
             }
         }
+    }
+
+    // ── Filter sheet events ───────────────────────────────────────────────
+
+    fun onEvent(event: TransactionEvent) {
+        when (event) {
+            TransactionEvent.OpenFilters ->
+                filterState = filterState.copy(showFilters = true)
+
+            TransactionEvent.CloseFilters ->
+                filterState = filterState.copy(showFilters = false)
+
+            TransactionEvent.ApplyFilters -> {
+                filterState = filterState.copy(showFilters = false)
+                refresh()
+            }
+
+            TransactionEvent.ResetFilters -> {
+                filterState = TransactionFilterState()
+                refresh()
+            }
+
+            is TransactionEvent.RemoveFilter -> {
+                filterState = filterState.removeChip(event.filter)
+                refresh()
+            }
+        }
+    }
+
+    fun setStatusFilter(status: TransactionStatus?) {
+        filterState = filterState.copy(status = status)
     }
 
     private fun EntryView.toUi(
@@ -118,6 +163,12 @@ class TransactionsViewModel @Inject constructor(
             },
             tags = tags,
             dayLabel = dayLabel(occurredOn),
+            status = if (status == EntryStatus.BUFFER) {
+                TransactionStatus.Pending
+            } else {
+                TransactionStatus.Confirmed
+            },
+            occurredOn = occurredOn,
         )
     }
 

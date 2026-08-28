@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -105,12 +107,12 @@ fun TransactionScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
-                top = 12.dp,
-                bottom = 24.dp
+                top = 8.dp,
+                bottom = 16.dp
             )
         ) {
 
@@ -239,6 +241,12 @@ fun TransactionScreen(
                     }
                 )
             }
+
+            if (uiState.mode == TransactionMode.EDIT && !uiState.rawSms.isNullOrBlank()) {
+                item {
+                    BackingSmsSection(sms = uiState.rawSms)
+                }
+            }
         }
     }
 
@@ -276,31 +284,13 @@ fun TransactionScreen(
     val currentPicker = activePickerType
     if (currentPicker != null) {
         val (title, options) = when (currentPicker) {
-            PickerType.ACCOUNT -> "Select Account" to (if (uiState.accounts.isNotEmpty()) uiState.accounts else listOf(
-                DropdownOption("1", "HDFC Savings"),
-                DropdownOption("2", "SBI Savings"),
-                DropdownOption("3", "ICICI Credit Card"),
-                DropdownOption("4", "Cash")
-            ))
+            PickerType.ACCOUNT -> "Select Account" to uiState.accounts
 
-            PickerType.CATEGORY -> "Select Category" to (if (uiState.categories.isNotEmpty()) uiState.categories else listOf(
-                DropdownOption("1", "Food & Dining"),
-                DropdownOption("2", "Groceries"),
-                DropdownOption("3", "Rent & Utilities"),
-                DropdownOption("4", "Transportation"),
-                DropdownOption("5", "Shopping"),
-                DropdownOption("6", "Unclassified")
-            ))
+            PickerType.CATEGORY -> "Select Category" to uiState.categories
 
             PickerType.COUNTERPARTY -> (
                 if (uiState.type == TransactionType.TRANSFER) "Select Destination Account" else "Select Counterparty"
-                ) to (if (uiState.counterparties.isNotEmpty()) uiState.counterparties else listOf(
-                DropdownOption("1", "Starbucks"),
-                DropdownOption("2", "Swiggy"),
-                DropdownOption("3", "Amazon"),
-                DropdownOption("4", "Uber"),
-                DropdownOption("5", "Rahul Sharma")
-            ))
+                ) to uiState.counterparties
         }
 
         OptionPickerBottomSheet(
@@ -433,6 +423,44 @@ private fun TransactionScreenPreview() {
     )
 }
 
+@Composable
+private fun BackingSmsSection(sms: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Backing SMS",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = if (expanded) "Hide" else "Show evidence",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { expanded = !expanded }
+                )
+            }
+            if (expanded) {
+                Text(
+                    text = sms,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+}
+
 @Immutable
 data class TransactionUiState(
     val id: Long? = null,
@@ -447,6 +475,8 @@ data class TransactionUiState(
     val tags: List<TagUiModel> = emptyList(),
     val note: String = "",
     val source: String? = null,
+    /** Raw bank SMS / note that produced this entry (provenance) — shown as backing evidence. */
+    val rawSms: String? = null,
     val isVoided: Boolean = false,
     val isSaving: Boolean = false,
     val canDelete: Boolean = false,

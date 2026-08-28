@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,9 +54,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.spendwise.viewmodel.AccountsViewModel
+import android.widget.Toast
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 
 data class AccountUiModel(
     val id: Long,
@@ -76,56 +84,32 @@ enum class AccountType(val label: String, val icon: ImageVector, val color: Colo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(
-    onNavigateBack: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: AccountsViewModel = hiltViewModel(),
+    onNavigateBack: (() -> Unit)? = null
 ) {
-    var accounts by remember {
-        mutableStateOf(
-            listOf(
-                AccountUiModel(
-                    1,
-                    "HDFC Salary Account",
-                    "•••• 4921",
-                    84520.50,
-                    AccountType.SAVINGS,
-                    "HDFC Bank"
-                ),
-                AccountUiModel(
-                    2,
-                    "SBI Emergency Fund",
-                    "•••• 8102",
-                    150000.00,
-                    AccountType.SAVINGS,
-                    "SBI"
-                ),
-                AccountUiModel(
-                    3,
-                    "ICICI Amazon Pay Credit Card",
-                    "•••• 9012",
-                    -12450.00,
-                    AccountType.CREDIT_CARD,
-                    "ICICI Bank"
-                ),
-                AccountUiModel(
-                    4,
-                    "Wallet Cash",
-                    "Physical Wallet",
-                    3450.00,
-                    AccountType.CASH,
-                    "Cash"
-                )
-            )
-        )
+            val uiState = viewModel.uiState
+    val showAddBottomSheet = remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
     }
 
-    var showAddBottomSheet by remember { mutableStateOf(false) }
-
+    val accounts = uiState.accounts
     val totalAssets = accounts.filter { it.balance > 0 }.sumOf { it.balance }
     val totalLiabilities = accounts.filter { it.balance < 0 }.sumOf { -it.balance }
     val netWorth = totalAssets - totalLiabilities
 
+    // Show any error from data operations (e.g. balance fetch failures)
+    if (uiState.error != null) {
+        LaunchedEffect(uiState.error) {
+            Toast.makeText(context, uiState.error, Toast.LENGTH_LONG).show()
+            viewModel.consumeError()
+        }
+    }
+
     Scaffold(
-        modifier = modifier,
         topBar = {
             TopAppBar(
                 title = { Text("Accounts & Cards", fontWeight = FontWeight.Bold) },
@@ -137,7 +121,7 @@ fun AccountsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showAddBottomSheet = true }) {
+                    IconButton(onClick = { showAddBottomSheet.value = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Add Account")
                     }
                 }
@@ -145,7 +129,7 @@ fun AccountsScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddBottomSheet = true },
+                onClick = { showAddBottomSheet.value = true },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
@@ -154,45 +138,73 @@ fun AccountsScreen(
         }
     ) { padding ->
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                NetWorthSummaryCard(
-                    netWorth = netWorth,
-                    totalAssets = totalAssets,
-                    totalLiabilities = totalLiabilities
-                )
+        if (uiState.isLoading && accounts.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
             }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    NetWorthSummaryCard(
+                        netWorth = netWorth,
+                        totalAssets = totalAssets,
+                        totalLiabilities = totalLiabilities
+                    )
+                }
 
-            item {
-                Text(
-                    text = "Your Accounts (${accounts.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-            }
+                item {
+                    Text(
+                        text = "Your Accounts (${accounts.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                }
 
-            items(accounts, key = { it.id }) { account ->
-                AccountCardItem(
-                    account = account,
-                    onClick = { /* Account details filter */ }
-                )
+                items(accounts, key = { it.id }) { account ->
+                    AccountCardItem(
+                        account = account,
+                        onClick = { /* Account details screen can be wired here */ }
+                    )
+                }
+
+                if (accounts.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 48.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No accounts added",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 
-    if (showAddBottomSheet) {
+    if (showAddBottomSheet.value) {
         AddAccountBottomSheet(
-            onDismiss = { showAddBottomSheet = false },
+            onDismiss = { showAddBottomSheet.value = false },
             onAdd = { newAcc ->
-                accounts = accounts + newAcc
-                showAddBottomSheet = false
+                viewModel.addAccount(newAcc)
+                showAddBottomSheet.value = false
             }
         )
     }

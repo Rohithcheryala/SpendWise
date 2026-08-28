@@ -180,6 +180,9 @@ fun MainScaffold(
         ) { padding ->
             MainNavHost(
                 navController = tabNavController,
+                onOpenTransaction = { entryId ->
+                    rootNavController.navigate("transaction?entryId=$entryId")
+                },
                 modifier = Modifier.padding(padding)
             )
         }

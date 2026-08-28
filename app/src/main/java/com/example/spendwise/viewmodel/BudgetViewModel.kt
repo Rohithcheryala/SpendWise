@@ -1,29 +1,42 @@
 package com.example.spendwise.viewmodel
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
-import com.example.spendwise.data.repository.CategoryRepository
+import androidx.lifecycle.viewModelScope
+import com.example.spendwise.data.database.dao.BudgetDao
+import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.database.dao.EntryLineDao
+import com.example.spendwise.data.database.entity.BudgetEntity
+import com.example.spendwise.data.database.entity.CategoryEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.time.YearMonth
+import java.time.ZoneId
 import javax.inject.Inject
 
 @HiltViewModel
 class BudgetViewModel @Inject constructor(
-    private val repository: CategoryRepository
+    private val categoryDao: CategoryDao,
+    private val budgetDao: BudgetDao,
+    private val entryLineDao: EntryLineDao,
 ) : ViewModel() {
 
     data class UiState(
-        val month: String = "July 2026",
-        val spent: Double = 1118.9,
-        val budget: Double = 10_000.0,
+        val spent: Double = 0.0,
+        val budget: Double = 0.0,
         val isRefreshing: Boolean = false,
-        val categories: List<Category> = previewCategories
+        val categories: List<Category> = emptyList()
     )
 
     data class Category(
@@ -52,22 +65,43 @@ class BudgetViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
 
-    fun onAction(action: Action) {
-        when (action) {
-            Action.Refresh -> refresh()
+    /** Current month being viewed; starts at today and is moved by the screen. */
+    private var currentMonth: YearMonth = YearMonth.now()
 
-            Action.ManageBudgets -> manageBudgets()
+    /** Backing year-month exposed as a StateFlow so the screen recomposes on change. */
+    private val _displayMonth = MutableStateFlow(currentMonth)
+    val displayMonth = _displayMonth
 
-            is Action.ToggleCategory -> toggleCategory(action.id)
+    init {
+        refresh()
+    }
+
+    /** True when the user can move forward to a newer month (i.e. not past today). */
+    val canGoNext: Boolean
+        get() = currentMonth < YearMonth.now()
+
+    /** Move one month back; reloads totals. */
+    fun goToPreviousMonth() {
+        currentMonth = currentMonth.minusMonths(1)
+        _displayMonth.value = currentMonth
+        refresh()
+    }
+
+    /** Move one month forward (only allowed up to the current real month). */
+    fun goToNextMonth() {
+        if (canGoNext) {
+            currentMonth = currentMonth.plusMonths(1)
+            _displayMonth.value = currentMonth
+            refresh()
         }
     }
 
-    private fun refresh() {
-        // TODO
-    }
-
-    private fun manageBudgets() {
-        // TODO
+    fun onAction(action: Action) {
+        when (action) {
+            Action.Refresh -> refresh()
+            Action.ManageBudgets -> {} // budgets are edited per-category elsewhere
+            is Action.ToggleCategory -> toggleCategory(action.id)
+        }
     }
 
     private fun toggleCategory(categoryId: Long) {
@@ -84,72 +118,88 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    companion object {
+    /** Load real expense categories, their budgets and spend for [currentMonth]. */
+    fun refresh() {
+        viewModelScope.launch {
+            val monthStart = currentMonth.atDay(1)
+                .atTime(0, 0)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
+            val monthEnd = currentMonth.atEndOfMonth()
+                .atTime(23, 59, 59, 999_999_999)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli()
 
-        private val previewCategories = listOf(
-            Category(
-                id = 1,
-                icon = Icons.Outlined.Restaurant,
-                title = "Food & Drink",
-                spent = 1008.9,
-                budget = 4000.0,
-                children = listOf(
-                    Subcategory(
-                        id = 1,
-                        title = "Groceries",
-                        spent = 136.0,
-                        budget = 1000.0
-                    ),
-                    Subcategory(
-                        id = 2,
-                        title = "Restaurants",
-                        spent = 872.9,
-                        budget = 3000.0
-                    )
+            _uiState.update { it.copy(isRefreshing = true) }
+
+            runCatching {
+                val budgets = budgetDao.getActiveBudgets(monthStart).first()
+                    .associateBy { it.categoryId }
+                val roots = categoryDao.getRootCategories().first()
+                    .filter { it.kind == KIND_EXPENSE }
+
+                val categories = roots.map { root ->
+                    root.toCategory(budgets, monthStart, monthEnd)
+                }
+
+                UiState(
+                    spent = categories.sumOf { it.spent },
+                    budget = categories.sumOf { it.budget },
+                    isRefreshing = false,
+                    categories = categories,
                 )
-            ),
-            Category(
-                id = 2,
-                icon = Icons.Outlined.Home,
-                title = "Home",
-                spent = 0.0,
-                budget = 3000.0,
-                children = listOf(
-                    Subcategory(
-                        id = 3,
-                        title = "Rent",
-                        spent = 0.0,
-                        budget = 2500.0
-                    ),
-                    Subcategory(
-                        id = 4,
-                        title = "Utilities",
-                        spent = 0.0,
-                        budget = 500.0
-                    )
-                )
-            ),
-            Category(
-                id = 3,
-                icon = Icons.Outlined.DirectionsCar,
-                title = "Transport",
-                spent = 110.0,
-                budget = 1000.0,
-                children = listOf(
-                    Subcategory(
-                        id = 5,
-                        title = "Fuel",
-                        spent = 90.0,
-                        budget = 800.0
-                    ),
-                    Subcategory(
-                        id = 6,
-                        title = "Parking",
-                        spent = 20.0,
-                        budget = 200.0
-                    )
-                )
-            )
+            }.onSuccess { result ->
+                _uiState.value = result
+            }.onFailure {
+                _uiState.update { it.copy(isRefreshing = false) }
+            }
+        }
+    }
+
+    private suspend fun CategoryEntity.toCategory(
+        budgets: Map<Long, BudgetEntity>,
+        monthStart: Long,
+        monthEnd: Long,
+    ): Category {
+        val children = categoryDao.getChildren(id).first()
+            .filter { it.kind == KIND_EXPENSE }
+            .map { it.toSubcategory(budgets, monthStart, monthEnd) }
+        val ownSpent = entryLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd)
+        val ownBudget = budgets[id]?.amountPaise ?: 0L
+        return Category(
+            id = id,
+            icon = iconFor(icon),
+            title = name,
+            spent = (ownSpent + children.sumOf { (it.spent * 100).toLong() }) / 100.0,
+            budget = (ownBudget + children.sumOf { (it.budget * 100).toLong() }) / 100.0,
+            expanded = true,
+            children = children,
         )
+    }
+
+    private suspend fun CategoryEntity.toSubcategory(
+        budgets: Map<Long, BudgetEntity>,
+        monthStart: Long,
+        monthEnd: Long,
+    ): Subcategory = Subcategory(
+        id = id,
+        title = name,
+        spent = entryLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd) / 100.0,
+        budget = (budgets[id]?.amountPaise ?: 0L) / 100.0,
+    )
+
+            companion object {
+        const val KIND_EXPENSE = "expense"
+
+        /** Map a CategoryEntity icon-name hint to a vector icon; default to a generic. */
+        fun iconFor(name: String?): ImageVector = when (name?.trim()?.lowercase()) {
+            "food", "restaurant", "groceries", "shopping" -> Icons.Outlined.Restaurant
+            "home", "rent", "utilities" -> Icons.Outlined.Home
+            "transport", "car", "fuel", "parking" -> Icons.Outlined.DirectionsCar
+            "savings", "account", "bank" -> Icons.Outlined.AccountBalance
+            else -> Icons.Outlined.Category
+        }
     }
 }

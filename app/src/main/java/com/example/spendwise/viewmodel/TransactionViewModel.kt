@@ -17,6 +17,7 @@ import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
+import com.example.spendwise.data.database.dao.EntryProvanceDao
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.screens.transaction.DropdownOption
@@ -47,6 +48,7 @@ class TransactionViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
     private val counterpartyDao: CounterpartyDao,
+    private val provenanceDao: EntryProvanceDao,
     private val settingsRepository: SettingsRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -269,6 +271,8 @@ class TransactionViewModel @Inject constructor(
         val account = view.accountId?.let { accountDao.getById(it) }
         val toAccount = view.toAccountId?.let { accountDao.getById(it) }
         val category = view.categoryId?.let { categoryDao.getById(it) }
+        val rawSms = provenanceDao.getByEntry(id)?.rawText.orEmpty()
+            .ifBlank { view.note.orEmpty() }
         val counterparty = when (view.kind) {
             EntryKind.TRANSFER -> toAccount?.let {
                 DropdownOption(it.id.toString(), it.name)
@@ -302,6 +306,7 @@ class TransactionViewModel @Inject constructor(
                 tags = view.tags.map { TagUiModel(it, it) },
                 note = view.note.orEmpty(),
                 source = view.source,
+                rawSms = rawSms.takeIf { it.isNotBlank() },
                 canDelete = true,
                 counterparties = if (view.kind == EntryKind.TRANSFER) {
                     s.accounts.filter { account == null || it.id != account.id.toString() }

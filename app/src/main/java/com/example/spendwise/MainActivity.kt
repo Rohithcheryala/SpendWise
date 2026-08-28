@@ -50,7 +50,7 @@ fun AppRoot(
 
     SpendwiseTheme(darkTheme = darkTheme) {
         Log.d("isOnboardingComplete", "AppRoot: $isOnboardingComplete")
-        if (isOnboardingComplete || true) {
+        if (isOnboardingComplete) {
             SpendwiseAppComposable()
         } else {
             OnboardingNavGraph(viewModel = onboardingViewModel)

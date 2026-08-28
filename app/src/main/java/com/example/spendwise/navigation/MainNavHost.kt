@@ -17,7 +17,8 @@ import com.example.spendwise.ui.screens.scanner.ScannerScreen
 @Composable
 fun MainNavHost(
     navController: NavHostController,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenTransaction: (Long) -> Unit
 ) {
 
     NavHost(
@@ -36,7 +37,9 @@ fun MainNavHost(
         }
 
         composable(Destination.INBOX.route) {
-            InboxScreen()
+            InboxScreen(
+                onEditItem = onOpenTransaction
+            )
         }
 
         composable(Destination.FRIENDS.route) {

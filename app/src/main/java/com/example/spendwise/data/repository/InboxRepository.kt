@@ -31,6 +31,10 @@ data class InboxItem(
     /** Exposed so the UI/VM can enforce Strict mode before confirming. */
     val categoryId: Long?,
     val tags: List<String>,
+    /** The account the SMS was auto-matched to (null = orphan/unmatched). */
+    val assignedAccountId: Long? = null,
+    /** Real user accounts the user can re-point this entry to (id -> name). */
+    val accountChoices: List<Pair<Long, String>> = emptyList(),
 )
 
 /**
@@ -125,15 +129,24 @@ class InboxRepository @Inject constructor(
     suspend fun refreshBuffer() {
         val entries = ledgerApi.listEntries(status = EntryStatus.BUFFER)
         val accountNames = accountDao.listAll().associate { it.id to it.name }
+        val userAccounts = accountDao.listAll()
+            .filter { !it.slug.startsWith("sys-") }
+            .map { it.id to it.name }
         val partyNames = counterpartyDao.listAll().associate { it.id to it.displayName }
         _bufferItems.value = entries.map { entry ->
-            enrich(entry, accountNames, partyNames)
+            enrich(entry, accountNames, userAccounts, partyNames)
         }
     }
 
     /** Import = confirm the buffer entry (moves it into the real ledger). */
     suspend fun import(entryId: Long) {
         ledgerApi.confirmEntry(entryId)
+        refreshBuffer()
+    }
+
+    /** Re-point an entry's account leg onto the user's chosen account. */
+    suspend fun assignAccount(entryId: Long, accountId: Long) {
+        ledgerApi.assignAccount(entryId, accountId)
         refreshBuffer()
     }
 
@@ -146,6 +159,7 @@ class InboxRepository @Inject constructor(
     private suspend fun enrich(
         entry: EntryView,
         accountNames: Map<Long, String>,
+        userAccounts: List<Pair<Long, String>>,
         partyNames: Map<Long, String>,
     ): InboxItem {
         val provenance = provenanceDao.getByEntry(entry.id)
@@ -153,6 +167,7 @@ class InboxRepository @Inject constructor(
             ?.substringBefore('|')
             ?.takeIf { it.isNotBlank() }
         val party = entry.counterpartyId?.let { partyNames[it] }
+        val userAccountIds = userAccounts.mapTo(mutableSetOf()) { it.first }
         return InboxItem(
             entryId = entry.id,
             sender = bank ?: party ?: "Bank SMS",
@@ -163,6 +178,8 @@ class InboxRepository @Inject constructor(
             rawSms = provenance?.rawText.orEmpty().ifBlank { entry.note.orEmpty() },
             categoryId = entry.categoryId,
             tags = entry.tags,
+            assignedAccountId = entry.accountId?.takeIf { it in userAccountIds },
+            accountChoices = userAccounts,
         )
     }
 

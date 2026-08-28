@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +40,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,6 +64,7 @@ import com.example.spendwise.viewmodel.InboxViewModel
 @Composable
 fun InboxScreen(
     onNavigateBack: (() -> Unit)? = null,
+    onEditItem: (Long) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: InboxViewModel = hiltViewModel()
 ) {
@@ -205,6 +209,8 @@ fun InboxScreen(
                     items(items, key = { it.entryId }) { item ->
                         InboxPendingCard(
                             item = item,
+                            onOpen = { onEditItem(item.entryId) },
+                            onAssignAccount = { accountId -> viewModel.assignAccount(item.entryId, accountId) },
                             onApprove = { viewModel.import(item.entryId) },
                             onDismiss = { viewModel.dismiss(item.entryId) }
                         )
@@ -218,14 +224,19 @@ fun InboxScreen(
 @Composable
 fun InboxPendingCard(
     item: InboxItem,
+    onOpen: () -> Unit,
+    onAssignAccount: (Long) -> Unit,
     onApprove: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = SpendwiseTheme.colors
     var smsExpanded by remember { mutableStateOf(false) }
+    var showAccountPicker by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -261,11 +272,33 @@ fun InboxPendingCard(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = item.account ?: "Unmatched account",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Account is auto-matched from the SMS sender + last-4. Make
+                    // it visible and tappable so the user can correct the match.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAccountPicker = true }
+                    ) {
+                        Text(
+                            text = item.account ?: "Unmatched account",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (item.assignedAccountId != null) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            }
+                        )
+                        if (item.accountChoices.isNotEmpty()) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = "Change account",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
@@ -285,33 +318,39 @@ fun InboxPendingCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // Raw SMS is secondary evidence — collapsed to one line by default so
-            // the review list stays scannable. Tap to expand for the full message.
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { smsExpanded = !smsExpanded },
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+            // Raw SMS is secondary evidence — hidden by default so the review
+            // list stays dense (more rows fit per screen). Tap to reveal it.
+            TextButton(onClick = { smsExpanded = !smsExpanded }) {
+                Icon(
+                    Icons.Default.Sms,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = if (smsExpanded) "Hide SMS evidence" else "SMS evidence",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            androidx.compose.animation.AnimatedVisibility(visible = smsExpanded) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
                     Text(
                         text = item.rawSms,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = if (smsExpanded) Int.MAX_VALUE else 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = if (smsExpanded) "Show less" else "Show more",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(12.dp)
                     )
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -344,5 +383,51 @@ fun InboxPendingCard(
                 }
             }
         }
+    }
+
+    if (showAccountPicker && item.accountChoices.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showAccountPicker = false },
+            title = { Text("Correct account") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "This matches the recipient for this SMS, but you can pick the correct account.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    item.accountChoices.forEach { (id, name) ->
+                        val selected = id == item.assignedAccountId
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onAssignAccount(id)
+                                    showAccountPicker = false
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (selected) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainer
+                                }
+                            )
+                        ) {
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(14.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAccountPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

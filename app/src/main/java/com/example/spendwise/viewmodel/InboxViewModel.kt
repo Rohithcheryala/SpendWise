@@ -133,6 +133,19 @@ class InboxViewModel @Inject constructor(
         }
     }
 
+    /** Re-point the matched (or orphaned) account on a buffer entry. */
+    fun assignAccount(entryId: Long, accountId: Long) {
+        viewModelScope.launch {
+            runCatching {
+                repository.assignAccount(entryId, accountId)
+            }.onSuccess {
+                uiState = uiState.copy(actionMessage = "Account updated")
+            }.onFailure {
+                uiState = uiState.copy(error = it.message ?: "Could not update account")
+            }
+        }
+    }
+
     fun consumeActionMessage() {
         if (uiState.actionMessage != null) {
             uiState = uiState.copy(actionMessage = null)

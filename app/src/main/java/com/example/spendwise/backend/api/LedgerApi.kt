@@ -26,6 +26,13 @@ interface LedgerApi {
      */
     suspend fun confirmEntry(id: Long)
 
+    /**
+     * PUT /entries/{id}/account — re-point the account leg of a buffer entry
+     * onto [accountId]. Lets the user correct an auto-matched (or orphaned)
+     * SMS attribution from the inbox.
+     */
+    suspend fun assignAccount(entryId: Long, accountId: Long): EntryView
+
     /** POST /entries/{id}/void — audit-soft-delete; leaves balances alone. */
     suspend fun voidEntry(id: Long, reason: String?)
 

@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,27 +60,43 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionListItem
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
-    state: TransactionFilterState = TransactionFilterState(),
-    transactions: List<TransactionUi> = defaultTransactions,
+        state: TransactionFilterState = TransactionFilterState(),
+    transactions: List<TransactionUi> = emptyList(),
     onNavigateBack: (() -> Unit)? = null,
     onTransactionClick: ((Long) -> Unit)? = null,
     onAddTransactionClick: (() -> Unit)? = null,
     onEvent: (TransactionEvent) -> Unit = {},
+    onStatusChange: (TransactionStatus?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var searchQuery by remember { mutableStateOf("") }
 
-    val filteredTransactions = transactions.filter {
-        searchQuery.isBlank() || it.title.contains(
-            searchQuery,
-            ignoreCase = true
-        ) || (it.account?.contains(searchQuery, ignoreCase = true) == true)
+    val filteredTransactions = transactions.filter { tx ->
+        // Search: title or account
+        val matchesSearch = searchQuery.isBlank() ||
+            tx.title.contains(searchQuery, ignoreCase = true) ||
+            (tx.account?.contains(searchQuery, ignoreCase = true) == true)
+
+        // Status filter (null = keep whatever the ViewModel loaded)
+        val matchesStatus = state.status == null ||
+            tx.status == state.status
+
+        // Date-range filter (both bounds inclusive on the local date)
+        val txDate = Instant.ofEpochMilli(tx.occurredOn)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+        val matchesDate = (state.fromDate == null || !txDate.isBefore(state.fromDate)) &&
+            (state.toDate == null || !txDate.isAfter(state.toDate))
+
+        matchesSearch && matchesStatus && matchesDate
     }
 
     Scaffold(
@@ -202,7 +219,8 @@ fun TransactionsScreen(
             },
             onReset = {
                 onEvent(TransactionEvent.ResetFilters)
-            }
+            },
+            onStatusChange = onStatusChange
         )
     }
 }
@@ -214,7 +232,8 @@ fun TransactionFilterSheet(
     sheetState: SheetState,
     onDismiss: () -> Unit,
     onApply: () -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    onStatusChange: (TransactionStatus?) -> Unit
 ) {
 
     ModalBottomSheet(
@@ -237,11 +256,33 @@ fun TransactionFilterSheet(
 
             item {
 
-                FilterDropdown(
-                    title = "Status",
-                    value = state.status.toString(),
-                    onClick = {}
+                Text(
+                    "Status",
+                    style = MaterialTheme.typography.labelMedium
                 )
+
+                Spacer(Modifier.height(6.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = state.status == null,
+                        onClick = { onStatusChange(null) },
+                        label = { Text("Any") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = state.status == TransactionStatus.Confirmed,
+                        onClick = { onStatusChange(TransactionStatus.Confirmed) },
+                        label = { Text("Confirmed") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = state.status == TransactionStatus.Pending,
+                        onClick = { onStatusChange(TransactionStatus.Pending) },
+                        label = { Text("Pending") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
 
             item {
@@ -559,7 +600,11 @@ data class TransactionUi(
     val direction: TransactionDirection,
     val tags: List<String> = emptyList(),
     /** Day bucket label used for list section headers, e.g. "Today", "12 Aug" */
-    val dayLabel: String = ""
+    val dayLabel: String = "",
+    /** Ledger status surfaced so the list can be filtered (confirmed vs pended). */
+    val status: TransactionStatus = TransactionStatus.Confirmed,
+    /** Epoch millis the entry occurred; enables date-range filtering. */
+    val occurredOn: Long = 0L
 )
 
 data class TransactionFilterState(
@@ -615,6 +660,17 @@ data class TransactionFilterState(
                 add("Date")
             }
         }
+
+    /** Drop an active-filter chip by its label (used by RemoveFilter events). */
+    fun removeChip(label: String): TransactionFilterState = when {
+        status?.label == label -> copy(status = null)
+        category == label -> copy(category = null)
+        fromAccount == label -> copy(fromAccount = null)
+        toAccount == label -> copy(toAccount = null)
+        tag == label -> copy(tag = null)
+        label == "Date" -> copy(fromDate = null, toDate = null)
+        else -> this
+    }
 }
 
 enum class TransactionStatus(

@@ -33,7 +33,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,7 +44,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.ui.components.BudgetCategoryCard
 import com.example.spendwise.ui.components.BudgetSummaryCard
 import com.example.spendwise.viewmodel.BudgetViewModel
-import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,21 +52,19 @@ fun BudgetScreen(
     modifier: Modifier = Modifier,
     viewModel: BudgetViewModel = hiltViewModel()
 ) {
-    val state by viewModel.uiState.collectAsState()
+            val state by viewModel.uiState.collectAsState()
+    val displayMonth by viewModel.displayMonth.collectAsState()
     var showManageDialog by remember { mutableStateOf(false) }
-    // monthOffset: 0 = current month, 1 = one month back, 2 = two months back, etc.
-    var monthOffset by remember { mutableIntStateOf(0) }
-
     val formatter = DateTimeFormatter.ofPattern("MMMM yyyy")
-    val displayMonth = YearMonth.now().minusMonths(monthOffset.toLong()).format(formatter)
+    val currentMonthLabel = displayMonth.format(formatter)
 
     BudgetContent(
         modifier = modifier,
         state = state,
-        currentMonth = displayMonth,
-        canGoNext = monthOffset > 0,
-        onPrevMonth = { monthOffset++ },
-        onNextMonth = { if (monthOffset > 0) monthOffset-- },
+        currentMonth = currentMonthLabel,
+        canGoNext = viewModel.canGoNext,
+        onPrevMonth = { viewModel.goToPreviousMonth() },
+        onNextMonth = { viewModel.goToNextMonth() },
         onManageClick = {
             showManageDialog = true
         },

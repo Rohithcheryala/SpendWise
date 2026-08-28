@@ -68,6 +68,7 @@ fun AppNavHost(
             }
 
             TransactionsScreen(
+                state = vm.filterState,
                 transactions = vm.uiState.items,
                 onNavigateBack = { navController.popBackStack() },
                 onTransactionClick = { id ->
@@ -75,7 +76,9 @@ fun AppNavHost(
                 },
                 onAddTransactionClick = {
                     navController.navigate("transaction")
-                }
+                },
+                onEvent = vm::onEvent,
+                onStatusChange = vm::setStatusFilter
             )
         }
 
@@ -129,7 +132,10 @@ fun AppNavHost(
 
         composable(Screen.Inbox.route) {
             com.example.spendwise.ui.screens.inbox.InboxScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onEditItem = { entryId ->
+                    navController.navigate("transaction?entryId=$entryId")
+                }
             )
         }
 

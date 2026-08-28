@@ -161,5 +161,28 @@ interface EntryLineDao {
         WHERE entry_id = :entryId
     """
     )
-    suspend fun deleteByEntry(entryId: Long)
+        suspend fun deleteByEntry(entryId: Long)
+
+    /**
+     * Signed sum of confirmed, non-voided lines posted to [categoryId] whose
+     * entry occurred within [monthStart, monthEnd]. Used by the budget screen
+     * to derive real spend instead of placeholder figures.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(l.amount_paise), 0)
+        FROM entry_lines l
+        JOIN entries e ON e.id = l.entry_id
+        WHERE l.category_id = :categoryId
+          AND e.status = 'confirmed'
+          AND e.voided_at IS NULL
+          AND (:monthStart IS NULL OR e.occurred_on >= :monthStart)
+          AND (:monthEnd IS NULL OR e.occurred_on <= :monthEnd)
+        """
+    )
+    suspend fun sumConfirmedForCategoryInMonth(
+        categoryId: Long,
+        monthStart: Long?,
+        monthEnd: Long?,
+    ): Long
 }

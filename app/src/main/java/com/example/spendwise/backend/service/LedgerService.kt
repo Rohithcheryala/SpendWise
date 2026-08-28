@@ -411,6 +411,31 @@ class LedgerService @Inject constructor(
         }
     }
 
+    /**
+     * Re-point the account leg of a buffer entry onto [accountId] (PUT
+     * /entries/{id}/account). Lets the user correct an auto-matched or orphaned
+     * SMS attribution from the inbox. The "account leg" for an SMS entry is the
+     * single line that isn't a category/bucket contra.
+     */
+    override suspend fun assignAccount(entryId: Long, accountId: Long): EntryView {
+        val target = accountDao.getById(accountId)
+            ?: throw ApiException("account $accountId not found")
+        if (target.slug.startsWith("sys-")) {
+            throw ApiException("cannot assign a system account")
+        }
+        return db.withTransaction {
+            entryDao.getById(entryId) ?: throw ApiException("entry $entryId not found")
+            val lines = entryLineDao.getByEntryList(entryId).toMutableList()
+            val idx = lines.indexOfFirst {
+                it.accountId != null && it.categoryId == null && it.bucketId == null
+            }
+            if (idx < 0) throw ApiException("entry $entryId has no account leg to assign")
+            lines[idx] = lines[idx].copy(accountId = accountId)
+            entryLineDao.update(lines[idx])
+            requireView(entryId)
+        }
+    }
+
     /** Audit-soft-delete. Voided entries drop out of every balance and list. */
     override suspend fun voidEntry(id: Long, reason: String?) {
         val entry = entryDao.getById(id) ?: throw ApiException("entry $id not found")
