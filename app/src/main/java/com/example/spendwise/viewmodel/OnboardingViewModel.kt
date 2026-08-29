@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -62,13 +63,16 @@ class OnboardingViewModel @Inject constructor(
         emit(accountDao.listAll().filter { !it.slug.startsWith("sys-") && it.isActive })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val currentStep: StateFlow<OnboardingStep> = repository.state
-        .map { state -> computeStep(state) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), OnboardingStep.Welcome)
+    // Null until the persisted state has hydrated: the nav graph renders
+    // nothing for that first instant, so a user who already finished
+    // onboarding never sees the Welcome screen flash on relaunch.
+    val currentStep: StateFlow<OnboardingStep?> = combine(repository.ready, repository.state) { ready, state ->
+        if (ready) computeStep(state) else null
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val isOnboardingComplete: StateFlow<Boolean> = currentStep
         .map { it == OnboardingStep.Finished }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun completeWelcome() = repository.update { it.copy(welcomeSeen = true) }
     fun completeProfile() = repository.update { it.copy(profileCompleted = true) }

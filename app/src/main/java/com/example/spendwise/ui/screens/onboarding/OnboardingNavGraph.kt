@@ -18,6 +18,9 @@ fun OnboardingNavGraph(
 
     when (step) {
 
+        // Persisted state still hydrating — render nothing for this instant.
+        null -> {}
+
         OnboardingStep.Welcome -> {
             Log.d("TAG", "OnboardingNavGraph: inside welcome branch case")
             WelcomeScreen(
