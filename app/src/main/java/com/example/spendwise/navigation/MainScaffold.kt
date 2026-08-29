@@ -20,9 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -110,7 +112,29 @@ fun MainScaffold(
                 }
 
                 androidx.compose.material3.HorizontalDivider()
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
+
+                // Primary create action — the "＋" is no longer buried behind
+                // Transactions tab → FAB. Navigates to the create form directly.
+                Button(
+                    onClick = {
+                        scope.launch {
+                            drawerState.snapTo(DrawerValue.Closed)
+                            rootNavController.navigate("transaction")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Add Transaction")
+                }
+
+                Spacer(Modifier.height(12.dp))
 
                 Screen.entries
                     .filter { it != Screen.Transaction }

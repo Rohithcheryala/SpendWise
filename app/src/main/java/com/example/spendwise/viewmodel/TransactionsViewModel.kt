@@ -10,6 +10,7 @@ import com.example.spendwise.backend.api.EntryKind
 import com.example.spendwise.backend.api.EntryStatus
 import com.example.spendwise.backend.api.EntryView
 import com.example.spendwise.backend.api.LedgerApi
+import com.example.spendwise.backend.service.LedgerService
 import com.example.spendwise.core.extensions.toAmountString
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CategoryDao
@@ -133,6 +134,7 @@ class TransactionsViewModel @Inject constructor(
     ): TransactionUi {
         val title = counterpartyId?.let { parties[it] }
             ?: categoryId?.let { categories[it] }
+                ?.takeIf { it !in LedgerService.SYSTEM_CATEGORY_NAMES }
             ?: note?.takeIf { it.isNotBlank() }
             ?: kind.name.lowercase().replace('_', ' ')
                 .replaceFirstChar { it.uppercaseChar() }
@@ -153,6 +155,11 @@ class TransactionsViewModel @Inject constructor(
             account = accountName,
             amount = amountPaise.toAmountString(symbol),
             time = timeFormat.format(Date(timestamp)),
+            // The system contra category ("Unclassified") is bookkeeping
+            // noise, not a category — hide it until a real one is assigned.
+            category = categoryId
+                ?.let { categories[it] }
+                ?.takeIf { it !in LedgerService.SYSTEM_CATEGORY_NAMES },
             direction = when (kind) {
                 EntryKind.TRANSFER -> TransactionDirection.TRANSFER
                 else -> if (direction == Direction.IN) {

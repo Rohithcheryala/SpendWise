@@ -6,10 +6,13 @@ import com.example.spendwise.backend.api.EntryStatus
 import com.example.spendwise.backend.api.EntryView
 import com.example.spendwise.backend.api.LedgerApi
 import com.example.spendwise.backend.service.IngestionService
+import com.example.spendwise.backend.service.LedgerService
 import com.example.spendwise.core.messages.MessageReader
+import com.example.spendwise.core.notifications.TransactionNotifier
 import com.example.spendwise.core.parser_pw.TransactionType
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.database.dao.AccountDao
+import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.EntryProvanceDao
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +35,8 @@ data class InboxItem(
     /** Exposed so the UI/VM can enforce Strict mode before confirming. */
     val categoryId: Long?,
     val tags: List<String>,
+    /** Resolved category name for the row subtitle (null when unclassified). */
+    val category: String? = null,
     /** The account the SMS was auto-matched to (null = orphan/unmatched). */
     val assignedAccountId: Long? = null,
     /** Real user accounts the user can re-point this entry to (id -> name). */
@@ -55,7 +60,9 @@ class InboxRepository @Inject constructor(
     private val provenanceDao: EntryProvanceDao,
     private val accountDao: AccountDao,
     private val counterpartyDao: CounterpartyDao,
+    private val categoryDao: CategoryDao,
     private val settingsRepository: SettingsRepository,
+    private val notifier: TransactionNotifier,
 ) {
 
     private val _bufferItems = MutableStateFlow<List<InboxItem>>(emptyList())
@@ -82,8 +89,19 @@ class InboxRepository @Inject constructor(
         refreshBuffer()
     }
 
-    /** Parse + ingest one SMS. Unrecognized senders/bodies are ignored. */
-    suspend fun ingestRawSms(sender: String, body: String, timestamp: Long) {
+    /**
+     * Parse + ingest one SMS. Unrecognized senders/bodies are ignored.
+     *
+     * [notifyUser] posts a "captured" notification for freshly booked entries.
+     * Only the live receive path ([SmsBroadcastReceiver]) sets it — bulk
+     * backfills (inbox sync, onboarding scan) must not fire 30 alerts at once.
+     */
+    suspend fun ingestRawSms(
+        sender: String,
+        body: String,
+        timestamp: Long,
+        notifyUser: Boolean = false,
+    ) {
         if (sender.isBlank() || body.isBlank()) return
 
         val parsed = BankParserFactory.parse(
@@ -107,7 +125,7 @@ class InboxRepository @Inject constructor(
             else -> Direction.OUT
         }
 
-        ingestionService.ingestSms(
+        val result = ingestionService.ingestSms(
             IngestionService.SmsParseFacts(
                 sender = sender,
                 bank = parsed.bankName,
@@ -127,6 +145,16 @@ class InboxRepository @Inject constructor(
                 occurredOn = timestamp,
             )
         )
+
+        // Only brand-new captures alert; duplicates are silently ignored.
+        if (notifyUser && result is IngestionService.SmsIngestResult.Parsed) {
+            notifier.postCapturedTransaction(
+                party = parsed.merchant ?: parsed.bankName,
+                amountPaise = amountPaise,
+                isDebit = direction == Direction.OUT,
+                accountName = null,
+            )
+        }
     }
 
     // ── buffer list & actions ──
@@ -154,8 +182,14 @@ class InboxRepository @Inject constructor(
             .filter { !it.slug.startsWith("sys-") }
             .map { it.id to it.name }
         val partyNames = counterpartyDao.listAll().associate { it.id to it.displayName }
+        val categoryIds = entries.mapNotNull { it.categoryId }.distinct()
+        val categoryNames = if (categoryIds.isEmpty()) {
+            emptyMap()
+        } else {
+            categoryDao.getByIds(categoryIds).associate { it.id to it.name }
+        }
         _bufferItems.value = entries.map { entry ->
-            enrich(entry, accountNames, userAccounts, partyNames)
+            enrich(entry, accountNames, userAccounts, partyNames, categoryNames)
         }
     }
 
@@ -191,6 +225,7 @@ class InboxRepository @Inject constructor(
         accountNames: Map<Long, String>,
         userAccounts: List<Pair<Long, String>>,
         partyNames: Map<Long, String>,
+        categoryNames: Map<Long, String>,
     ): InboxItem {
         val provenance = provenanceDao.getByEntry(entry.id)
         val bank = provenance?.parsedFacts
@@ -201,10 +236,12 @@ class InboxRepository @Inject constructor(
         val userAccountIds = userAccounts.mapTo(mutableSetOf()) { it.first }
         return InboxItem(
             entryId = entry.id,
-            // Title priority: receiver/counterparty, then the matched account,
-            // then the bank. The bank alone is redundant — the account name
-            // already implies it — and hides who the transaction was with.
-            sender = party ?: accountName ?: bank ?: "Bank SMS",
+            // Title priority: the resolved payee, then the bank. The ACCOUNT
+            // must never be the title — it says nothing about who the
+            // transaction was with, and it made every row read as "account +
+            // time". (The account still shows as the red correction callout
+            // for unmatched entries, and in the detail view.)
+            sender = party ?: bank ?: "Bank SMS",
             amountPaise = entry.amountPaise,
             isDebit = entry.direction == Direction.OUT,
             account = accountName,
@@ -212,6 +249,11 @@ class InboxRepository @Inject constructor(
             rawSms = provenance?.rawText.orEmpty().ifBlank { entry.note.orEmpty() },
             categoryId = entry.categoryId,
             tags = entry.tags,
+            // The system contra category ("Unclassified") is bookkeeping
+            // noise, not a category — hide it until a real one is assigned.
+            category = entry.categoryId
+                ?.let { categoryNames[it] }
+                ?.takeIf { it !in LedgerService.SYSTEM_CATEGORY_NAMES },
             assignedAccountId = entry.accountId?.takeIf { it in userAccountIds },
             accountChoices = userAccounts,
         )

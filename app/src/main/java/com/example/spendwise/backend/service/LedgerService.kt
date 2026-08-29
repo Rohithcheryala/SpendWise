@@ -667,6 +667,13 @@ class LedgerService @Inject constructor(
         const val KIND_EXPENSE = "expense"
         const val KIND_INCOME = "income"
 
+        /**
+         * Contra categories auto-assigned by ingest when the user hasn't
+         * classified anything. They are bookkeeping placeholders, never real
+         * user intent — UI surfaces must not present them as a category.
+         */
+        val SYSTEM_CATEGORY_NAMES = setOf("Unclassified", "Uncategorized income")
+
         /** Single-user app today; a server would take this from auth. */
         const val USER_ID = 1L
 

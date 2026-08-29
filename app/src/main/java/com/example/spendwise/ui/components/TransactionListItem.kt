@@ -34,19 +34,20 @@ import com.example.spendwise.ui.theme.SpendwiseTheme
  * Density decisions:
  * - Flat row on the screen background (no per-row Card): cards doubled row
  *   height and pushed content below the fold.
- * - Tags are NOT shown here. They are secondary metadata that belongs to the
- *   transaction detail view; showing pills in the primary list forced every
- *   row taller without adding scan value.
+ * - Line 1 is the receiver/title. Line 2 is [time] • [category] • [tags] —
+ *   time first so it can never be ellipsized away; account is NOT shown
+ *   (detail-view metadata; day headers already carry the date).
  * - Target height ~56dp vs the previous ~86dp card+gap.
  */
 @Composable
 fun TransactionListItem(
     title: String,
-    account: String?,
+    category: String?,
     time: String,
     amount: String,
     direction: TransactionDirection,
     modifier: Modifier = Modifier,
+    tags: List<String> = emptyList(),
     showDivider: Boolean = false,
     onClick: (() -> Unit)? = null,
 ) {
@@ -74,8 +75,11 @@ fun TransactionListItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                val subtitle = listOfNotNull(account, time.takeIf { it.isNotBlank() })
-                    .joinToString(" • ")
+                val subtitle = listOfNotNull(
+                    time.takeIf { it.isNotBlank() },
+                    category?.takeIf { it.isNotBlank() },
+                    tags.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                ).joinToString(" • ")
                 if (subtitle.isNotBlank()) {
                     Text(
                         text = subtitle,
@@ -178,7 +182,7 @@ fun JustPreview() {
     Column {
         TransactionListItem(
             title = "Cotton Dhora",
-            account = "HDFC Savings",
+            category = "Others",
             time = "11:24 AM",
             amount = "₹10,000",
             direction = TransactionDirection.INCOME,
@@ -187,8 +191,8 @@ fun JustPreview() {
 
         TransactionListItem(
             title = "Amazon",
-            account = "HDFC Savings",
-            time = "Yesterday • 9:43 PM",
+            category = "Shopping",
+            time = "9:43 PM",
             amount = "₹252.90",
             direction = TransactionDirection.EXPENSE
         )

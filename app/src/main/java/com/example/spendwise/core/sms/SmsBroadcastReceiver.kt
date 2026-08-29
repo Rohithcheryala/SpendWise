@@ -47,7 +47,13 @@ class SmsBroadcastReceiver : BroadcastReceiver() {
                     ?: System.currentTimeMillis()
 
                 if (sender.isNotBlank() && body.isNotBlank()) {
-                    inboxRepository.ingestRawSms(sender, body, timestamp)
+                    // Live path: a freshly captured bank SMS is worth an alert.
+                    inboxRepository.ingestRawSms(
+                        sender = sender,
+                        body = body,
+                        timestamp = timestamp,
+                        notifyUser = true,
+                    )
                 }
             } catch (_: Exception) {
                 // Never crash on a system broadcast; the next inbox sync

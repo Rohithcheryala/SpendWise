@@ -194,10 +194,11 @@ fun TransactionsScreen(
 
                     TransactionListItem(
                         title = item.title,
-                        account = item.account,
+                        category = item.category,
                         time = item.time,
                         amount = item.amount,
                         direction = item.direction,
+                        tags = item.tags,
                         showDivider = showDivider,
                         onClick = { onTransactionClick?.invoke(item.id) }
                     )
@@ -557,6 +558,7 @@ val defaultTransactions = listOf(
         amount = "₹10,000",
         time = "11:24 AM",
         direction = TransactionDirection.INCOME,
+        category = "Others",
         tags = listOf("Repayment"),
         dayLabel = "Today"
     ),
@@ -567,6 +569,7 @@ val defaultTransactions = listOf(
         amount = "₹450",
         time = "10:43 AM",
         direction = TransactionDirection.EXPENSE,
+        category = "Food",
         tags = listOf("Food"),
         dayLabel = "Today"
     ),
@@ -577,6 +580,7 @@ val defaultTransactions = listOf(
         amount = "₹2,529.90",
         time = "9:41 PM",
         direction = TransactionDirection.EXPENSE,
+        category = "Shopping",
         tags = listOf("Shopping", "Electronics"),
         dayLabel = "Yesterday"
     ),
@@ -587,6 +591,7 @@ val defaultTransactions = listOf(
         amount = "₹85,000",
         time = "8:30 AM",
         direction = TransactionDirection.INCOME,
+        category = "Income",
         dayLabel = "01 Aug"
     )
 )
@@ -598,6 +603,8 @@ data class TransactionUi(
     val amount: String,
     val time: String,
     val direction: TransactionDirection,
+    /** Category name shown in the row subtitle (null when unclassified). */
+    val category: String? = null,
     val tags: List<String> = emptyList(),
     /** Day bucket label used for list section headers, e.g. "Today", "12 Aug" */
     val dayLabel: String = "",
@@ -713,6 +720,7 @@ private fun TransactionsScreenPreview() {
                 amount = "₹10,000",
                 time = "11:24 AM",
                 direction = TransactionDirection.INCOME,
+                category = "Others",
                 tags = listOf("Repayment")
             ),
             TransactionUi(
@@ -722,6 +730,7 @@ private fun TransactionsScreenPreview() {
                 amount = "₹19",
                 time = "10:43 AM",
                 direction = TransactionDirection.EXPENSE,
+                category = "Food",
                 tags = listOf("Rahul")
             ),
             TransactionUi(
@@ -729,8 +738,9 @@ private fun TransactionsScreenPreview() {
                 title = "Amazon",
                 account = "Credit Card",
                 amount = "₹252.90",
-                time = "Yesterday • 9:41 PM",
+                time = "9:41 PM",
                 direction = TransactionDirection.EXPENSE,
+                category = "Shopping",
                 tags = listOf("Shopping", "Home")
             ),
             TransactionUi(
@@ -739,7 +749,8 @@ private fun TransactionsScreenPreview() {
                 account = "HDFC Savings",
                 amount = "₹58,000",
                 time = "8:30 AM",
-                direction = TransactionDirection.INCOME
+                direction = TransactionDirection.INCOME,
+                category = "Income"
             )
         )
 
