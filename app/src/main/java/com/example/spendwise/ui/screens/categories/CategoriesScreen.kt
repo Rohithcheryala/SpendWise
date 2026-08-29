@@ -167,7 +167,13 @@ fun CategoryItemCard(
     category: CategoryUiModel,
     onToggleExpand: () -> Unit
 ) {
-    val progress = (category.spent / category.budget).coerceIn(0.0, 1.0).toFloat()
+    // Guard the division: real categories can have budget == 0.0 (no budget
+    // set), giving 0/0 = NaN or X/0 = Infinity — coerceIn passes NaN through
+    // and a NaN progress crashes LinearProgressIndicator. Same guard as
+    // BudgetCategoryCard/BudgetSummary.
+    val progress = if (category.budget > 0)
+        (category.spent / category.budget).coerceIn(0.0, 1.0).toFloat()
+    else 0f
     val progressColor = when {
         progress >= 0.9f -> MaterialTheme.colorScheme.error
         progress >= 0.75f -> Color(0xFFF59E0B)
