@@ -15,6 +15,7 @@ import com.example.spendwise.data.database.dao.EntryProvanceDao
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import java.math.RoundingMode
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -54,6 +55,7 @@ class InboxRepository @Inject constructor(
     private val provenanceDao: EntryProvanceDao,
     private val accountDao: AccountDao,
     private val counterpartyDao: CounterpartyDao,
+    private val settingsRepository: SettingsRepository,
 ) {
 
     private val _bufferItems = MutableStateFlow<List<InboxItem>>(emptyList())
@@ -157,9 +159,18 @@ class InboxRepository @Inject constructor(
         }
     }
 
-    /** Import = confirm the buffer entry (moves it into the real ledger). */
+    /**
+     * Import = confirm the buffer entry (moves it into the real ledger).
+     * If an [ActiveContext] is running (e.g. a trip tag), it is stamped onto
+     * the entry at confirm time — the bulk ✓-through-a-trip workflow.
+     */
     suspend fun import(entryId: Long) {
-        ledgerApi.confirmEntry(entryId)
+        val contextTag = settingsRepository.activeContext.first()?.tag
+        if (contextTag == null) {
+            ledgerApi.confirmEntry(entryId)
+        } else {
+            ledgerApi.confirmEntry(entryId, listOf(contextTag))
+        }
         refreshBuffer()
     }
 

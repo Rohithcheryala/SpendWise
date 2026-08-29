@@ -394,7 +394,7 @@ class LedgerService @Inject constructor(
      * 'unmatched' pot: confirming an orphan would book a payment against no
      * real account (old rule: "confirm requires account").
      */
-    override suspend fun confirmEntry(id: Long) {
+    override suspend fun confirmEntry(id: Long, extraTags: List<String>) {
         db.withTransaction {
             val entry = entryDao.getById(id) ?: throw ApiException("entry $id not found")
             val lines = entryLineDao.getByEntryList(id)
@@ -407,7 +407,16 @@ class LedgerService @Inject constructor(
                     "cannot confirm entry $id: no real account line yet (classify the orphan first)"
                 )
             }
-            entryDao.update(entry.copy(status = EntryStatus.CONFIRMED))
+            if (extraTags.isEmpty()) {
+                entryDao.update(entry.copy(status = EntryStatus.CONFIRMED))
+            } else {
+                // Union, order-preserving, deduped — same rule as QR bridging.
+                val tags = LinkedHashSet(TagCodec.decode(entry.tags))
+                tags.addAll(extraTags)
+                entryDao.update(
+                    entry.copy(status = EntryStatus.CONFIRMED, tags = TagCodec.encode(tags.toList()))
+                )
+            }
         }
     }
 

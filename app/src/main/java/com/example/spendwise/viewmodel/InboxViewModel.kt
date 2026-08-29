@@ -7,11 +7,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.backend.service.LedgerService
 import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.repository.ActiveContext
 import com.example.spendwise.data.repository.InboxItem
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -31,6 +35,24 @@ class InboxViewModel @Inject constructor(
 
     var uiState by mutableStateOf(InboxUiState())
         private set
+
+    /** The running tagging context (trip mode), null when none/inactive. */
+    val activeContext: StateFlow<ActiveContext?> = settingsRepository.activeContext
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Start auto-tagging every import/save with [tag] until it expires. */
+    fun startContext(tag: String, expiresAt: Long) {
+        viewModelScope.launch {
+            settingsRepository.setActiveContext(tag, expiresAt)
+        }
+    }
+
+    /** End the context early (before its expiry). */
+    fun endContext() {
+        viewModelScope.launch {
+            settingsRepository.clearActiveContext()
+        }
+    }
 
     /** The system suspense categories an SMS lands on before classification. */
     private var suspenseCategoryIds: Set<Long> = emptySet()

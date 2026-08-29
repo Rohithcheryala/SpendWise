@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -19,6 +20,18 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
 
 /** How the app picks its dark/light palette. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/**
+ * A temporary tagging context, e.g. a trip: until it expires, every
+ * transaction saved from the inbox or the editor is auto-tagged with it,
+ * so a 20-SMS burst during a holiday doesn't need 20 manual tags.
+ */
+data class ActiveContext(
+    val tag: String,
+    val expiresAt: Long,
+) {
+    fun isExpired(now: Long = System.currentTimeMillis()): Boolean = now >= expiresAt
+}
 
 /** Everything user-configurable that is not ledger data. */
 data class UserSettings(
@@ -49,6 +62,8 @@ class SettingsRepository @Inject constructor(
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val STRICT_MODE = booleanPreferencesKey("strict_mode")
         val PROFILE_NAME = stringPreferencesKey("profile_name")
+        val ACTIVE_CONTEXT_TAG = stringPreferencesKey("active_context_tag")
+        val ACTIVE_CONTEXT_EXPIRES_AT = longPreferencesKey("active_context_expires_at")
     }
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
@@ -89,6 +104,31 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setProfileName(name: String) {
         context.settingsDataStore.edit { it[Keys.PROFILE_NAME] = name }
+    }
+
+    /**
+     * The active tagging context, or null when none is set or it has expired.
+     * Expiry is checked at read time, so a context whose deadline passed while
+     * the app was closed can never tag a new transaction.
+     */
+    val activeContext: Flow<ActiveContext?> = context.settingsDataStore.data.map { prefs ->
+        val tag = prefs[Keys.ACTIVE_CONTEXT_TAG] ?: return@map null
+        val expiresAt = prefs[Keys.ACTIVE_CONTEXT_EXPIRES_AT] ?: return@map null
+        if (System.currentTimeMillis() >= expiresAt) null else ActiveContext(tag, expiresAt)
+    }
+
+    suspend fun setActiveContext(tag: String, expiresAt: Long) {
+        context.settingsDataStore.edit {
+            it[Keys.ACTIVE_CONTEXT_TAG] = tag
+            it[Keys.ACTIVE_CONTEXT_EXPIRES_AT] = expiresAt
+        }
+    }
+
+    suspend fun clearActiveContext() {
+        context.settingsDataStore.edit {
+            it.remove(Keys.ACTIVE_CONTEXT_TAG)
+            it.remove(Keys.ACTIVE_CONTEXT_EXPIRES_AT)
+        }
     }
 
     companion object {

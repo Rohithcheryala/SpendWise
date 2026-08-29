@@ -23,8 +23,10 @@ interface LedgerApi {
     /**
      * POST /entries/{id}/confirm — move buffer -> confirmed. Refused while the
      * money still sits only on the system 'unmatched' pot (an orphan ingest).
+     * [extraTags] are unioned into the entry's tags at confirm time (used by
+     * the active tagging context when importing from the inbox).
      */
-    suspend fun confirmEntry(id: Long)
+    suspend fun confirmEntry(id: Long, extraTags: List<String> = emptyList())
 
     /**
      * PUT /entries/{id}/account — re-point the account leg of a buffer entry

@@ -66,16 +66,45 @@ class TransactionViewModel @Inject constructor(
 
     private var realCounterparties: List<DropdownOption> = emptyList()
 
+    /**
+     * The active tagging context's tag, if any. New saves get it stamped on
+     * (trip mode); removing the tag chip in the editor suppresses it for that
+     * one save instead of fighting the user.
+     */
+    private var activeContextTag: String? = null
+    private var activeTagSuppressed = false
+
     init {
         loadOptions()
         if (entryId > 0) {
             viewModelScope.launch { loadEntry(entryId) }
+        }
+        // Seed the context tag so it is visible (and removable) in the editor;
+        // save() unions it for entries opened from the inbox too.
+        viewModelScope.launch {
+            val tag = settingsRepository.activeContext.first()?.tag
+            activeContextTag = tag
+            if (entryId <= 0 && tag != null) {
+                _uiState.update { s ->
+                    if (s.tags.any { it.id == tag }) s
+                    else s.copy(tags = s.tags + TagUiModel(tag, tag))
+                }
+            }
         }
     }
 
     fun updateState(transform: (TransactionUiState) -> TransactionUiState) {
         _uiState.update { current ->
             val next = transform(current)
+            // The user explicitly removed the context tag chip — respect that
+            // for this transaction instead of re-adding it at save.
+            val ctxTag = activeContextTag
+            if (ctxTag != null &&
+                current.tags.any { it.id == ctxTag } &&
+                next.tags.none { it.id == ctxTag }
+            ) {
+                activeTagSuppressed = true
+            }
             if (next.type != current.type) {
                 // Type switches change what the second dropdown means:
                 // TRANSFER -> destination accounts, CATEGORY/LOAN -> counterparties.
@@ -111,10 +140,11 @@ class TransactionViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = null) }
             try {
+                val contextTag = activeContextTag?.takeUnless { activeTagSuppressed }
                 when (s.type) {
-                    TransactionType.CATEGORY -> saveCategoryEntry(s, amountPaise!!)
+                    TransactionType.CATEGORY -> saveCategoryEntry(s, amountPaise!!, contextTag)
                     TransactionType.TRANSFER -> saveTransfer(s, amountPaise!!)
-                    TransactionType.LOAN -> saveLoan(s, amountPaise!!)
+                    TransactionType.LOAN -> saveLoan(s, amountPaise!!, contextTag)
                 }
                 // The save path can confirm/replace a buffer entry (opened from
                 // the inbox) — invalidate the shared inbox flow so the list and
@@ -129,7 +159,11 @@ class TransactionViewModel @Inject constructor(
         }
     }
 
-    private suspend fun saveCategoryEntry(s: TransactionUiState, amountPaise: Long) {
+    private suspend fun saveCategoryEntry(
+        s: TransactionUiState,
+        amountPaise: Long,
+        contextTag: String?,
+    ) {
         val category = s.category ?: throw IllegalArgumentException("Select a category")
 
         val strict = settingsRepository.settings.first().strictMode
@@ -158,7 +192,7 @@ class TransactionViewModel @Inject constructor(
                 source = EntrySource.MANUAL,
                 counterpartyId = s.counterparty?.id?.toLongOrNull(),
                 note = s.note.ifBlank { null },
-                tags = s.tags.map { it.label },
+                tags = withContextTag(s.tags.map { it.label }, contextTag),
             )
         )
     }
@@ -182,7 +216,11 @@ class TransactionViewModel @Inject constructor(
         )
     }
 
-    private suspend fun saveLoan(s: TransactionUiState, amountPaise: Long) {
+    private suspend fun saveLoan(
+        s: TransactionUiState,
+        amountPaise: Long,
+        contextTag: String?,
+    ) {
         val counterpartyId = s.counterparty?.id?.toLongOrNull()
             ?: throw IllegalArgumentException("Select a counterparty")
 
@@ -199,12 +237,18 @@ class TransactionViewModel @Inject constructor(
                 accountId = s.account!!.id.toLong(),
                 counterpartyId = counterpartyId,
                 intent = if (moneyIn) Intent.LOAN_REPAYMENT else Intent.LOAN,
-                tags = s.tags.map { it.label },
+                tags = withContextTag(s.tags.map { it.label }, contextTag),
                 status = EntryStatus.CONFIRMED,
                 source = EntrySource.MANUAL,
                 note = s.note.ifBlank { null },
             )
         )
+    }
+
+    /** [tags] plus the active context tag (deduped) — the trip-mode stamp. */
+    private fun withContextTag(tags: List<String>, contextTag: String?): List<String> {
+        if (contextTag == null || contextTag in tags) return tags
+        return tags + contextTag
     }
 
     fun delete() {

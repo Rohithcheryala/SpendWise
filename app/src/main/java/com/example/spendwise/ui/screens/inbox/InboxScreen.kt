@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -30,9 +33,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -56,7 +61,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.spendwise.core.extensions.toAmountString
+import com.example.spendwise.data.repository.ActiveContext
 import com.example.spendwise.data.repository.InboxItem
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionDirectionIcon
@@ -76,6 +83,8 @@ fun InboxScreen(
     viewModel: InboxViewModel = hiltViewModel()
 ) {
     val state = viewModel.uiState
+    val activeContext by viewModel.activeContext.collectAsStateWithLifecycle()
+    var showContextDialog by remember { mutableStateOf(false) }
 
     val items = state.items
     val snackbarHostState = remember { SnackbarHostState() }
@@ -104,6 +113,16 @@ fun InboxScreen(
             snackbarHostState.showSnackbar(message)
             viewModel.consumeError()
         }
+    }
+
+    if (showContextDialog) {
+        ContextDialog(
+            onDismiss = { showContextDialog = false },
+            onConfirm = { tag, expiresAt ->
+                viewModel.startContext(tag, expiresAt)
+                showContextDialog = false
+            }
+        )
     }
 
     Scaffold(
@@ -201,6 +220,14 @@ fun InboxScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    item(key = "context-banner") {
+                        ContextBanner(
+                            activeContext = activeContext,
+                            onSetContext = { showContextDialog = true },
+                            onEndContext = { viewModel.endContext() }
+                        )
+                    }
+
                     item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -403,6 +430,175 @@ fun InboxPendingCard(
 
 private val inboxTimeFormat = DateTimeFormatter.ofPattern("h:mm a")
 private val inboxDayFormat = DateTimeFormatter.ofPattern("d MMM")
+
+private const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1000
+
+/** Expiry presets for the tagging context. */
+private data class ContextDuration(val label: String, val expiresAt: () -> Long)
+
+private val contextDurations = listOf(
+    ContextDuration("Rest of today") {
+        LocalDate.now().plusDays(1)
+            .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    },
+    ContextDuration("24 hours") { System.currentTimeMillis() + ONE_DAY_MILLIS },
+    ContextDuration("3 days") { System.currentTimeMillis() + 3 * ONE_DAY_MILLIS },
+    ContextDuration("7 days") { System.currentTimeMillis() + 7 * ONE_DAY_MILLIS },
+)
+
+/**
+ * The trip-mode banner. When a context is active every import from this
+ * screen (✓ or Approve All) and every editor save is auto-tagged with it,
+ * so a burst of trip spends doesn't need one-by-one tagging.
+ */
+@Composable
+private fun ContextBanner(
+    activeContext: ActiveContext?,
+    onSetContext: () -> Unit,
+    onEndContext: () -> Unit
+) {
+    if (activeContext != null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Sell,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "\u201C${activeContext.tag}\u201D",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "Auto-tagging until ${formatExpiry(activeContext.expiresAt)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                TextButton(onClick = onEndContext) {
+                    Text("End")
+                }
+            }
+        }
+    } else {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Sell,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "On a trip? Auto-tag new saves with a context.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onSetContext) {
+                    Text("Set")
+                }
+            }
+        }
+    }
+}
+
+private val contextExpiryFormat = DateTimeFormatter.ofPattern("d MMM, h:mm a")
+
+private fun formatExpiry(epochMillis: Long): String =
+    contextExpiryFormat.format(Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()))
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ContextDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (tag: String, expiresAt: Long) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var selectedIdx by remember { mutableStateOf<Int?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Set context") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "While active, every transaction saved from the inbox or " +
+                        "the editor is tagged with this context — no per-SMS tagging " +
+                        "during a trip.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("e.g. Goa trip") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    contextDurations.forEachIndexed { idx, duration ->
+                        FilterChip(
+                            selected = selectedIdx == idx,
+                            onClick = {
+                                selectedIdx = if (selectedIdx == idx) null else idx
+                            },
+                            label = { Text(duration.label) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank() && selectedIdx != null,
+                onClick = {
+                    val expiresAt = selectedIdx?.let { contextDurations[it].expiresAt() }
+                        ?: return@TextButton
+                    onConfirm(name.trim(), expiresAt)
+                }
+            ) {
+                Text("Start")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
 
 /** Dense list label: the time for today, "Yesterday", otherwise a short date. */
 private fun compactDate(epochMillis: Long): String {
