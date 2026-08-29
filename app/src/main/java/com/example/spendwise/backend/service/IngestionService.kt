@@ -271,10 +271,17 @@ class IngestionService @Inject constructor(
         /**
          * Parser account-kind -> stored Account.kind bridge. Unknown parser
          * kinds intentionally map to nothing (stay orphans).
+         *
+         * "credit_card" covers BOTH plastic channels: a credit card (liability
+         * account) and a debit card (the asset account owning that card — the
+         * parser only says card vs non-card; the identifier-kind check is what
+         * stops a card number from hijacking an account-number match).
+         * "savings" includes "asset", the kind the app assigns to savings and
+         * checking accounts it creates, plus the legacy "available".
          */
         val KIND_BRIDGE: Map<String, Set<String>> = mapOf(
-            "credit_card" to setOf("liability"),
-            "savings" to setOf("available", "cash"),
+            "credit_card" to setOf("liability", "asset"),
+            "savings" to setOf("available", "asset", "cash"),
         )
 
         const val QR_SMS_MERGE_TOLERANCE = 0.01

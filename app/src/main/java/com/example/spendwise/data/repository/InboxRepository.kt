@@ -129,8 +129,23 @@ class InboxRepository @Inject constructor(
 
     // ── buffer list & actions ──
 
+    /**
+     * Re-run orphan claiming for every active user account. Attach-only and
+     * near-free when the unmatched pot is empty, so it can run on every buffer
+     * refresh — this heals entries stranded by a late account edit or a
+     * matching-rule fix without waiting for the next account creation.
+     */
+    private suspend fun claimOrphans() {
+        accountDao.listAll()
+            .filter { it.isActive && !it.slug.startsWith("sys-") && it.bank != null }
+            .forEach { account ->
+                runCatching { ingestionService.claimOrphansForAccount(account.id) }
+            }
+    }
+
     /** Reload the ledger's buffer entries — this IS the inbox. */
     suspend fun refreshBuffer() {
+        claimOrphans()
         val entries = ledgerApi.listEntries(status = EntryStatus.BUFFER)
         val accountNames = accountDao.listAll().associate { it.id to it.name }
         val userAccounts = accountDao.listAll()
