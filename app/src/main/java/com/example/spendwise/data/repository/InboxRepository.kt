@@ -91,11 +91,11 @@ class InboxRepository @Inject constructor(
      * within the last [FRESH_CAPTURE_WINDOW_MS] (bounded by
      * [MAX_FRESH_NOTIFICATIONS]); older backfill stays silent.
      */
-    suspend fun syncFromSms() {
+    suspend fun syncFromSms(freshWindowMs: Long = FRESH_CAPTURE_WINDOW_MS) {
         val metadata = appMetadataRepository.get()
         val from = metadata?.lastSmsSync ?: (System.currentTimeMillis() - DEFAULT_LOOKBACK_MS)
 
-        val freshCutoff = System.currentTimeMillis() - FRESH_CAPTURE_WINDOW_MS
+        val freshCutoff = System.currentTimeMillis() - freshWindowMs
         val freshCaptures = mutableListOf<CapturedSms>()
 
         val messages = messageReader.readSince(from)

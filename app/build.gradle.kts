@@ -66,6 +66,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
     // Scan & Pay: live camera preview + on-device QR decoding.
     implementation(libs.androidx.camera.core)
