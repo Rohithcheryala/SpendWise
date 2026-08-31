@@ -7,6 +7,7 @@ import android.net.Uri
 import android.view.MotionEvent
 import android.view.Surface
 import android.util.Rational
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -96,6 +98,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -253,24 +256,42 @@ fun ScannerScreen(
         torchOn = false
     }
 
+    fun dismissPayment() {
+        payTarget = null
+        sheetError = null
+        viewModel.clearError()
+        torchOn = false
+        camera?.cameraControl?.enableTorch(false)
+    }
+
+    // The payment form is a plain full-screen overlay, NOT a ModalBottomSheet:
+    // sheets intercept back and dismiss themselves, so the user's habitual
+    // back-gesture "just close the keyboard" killed the whole payment. Here
+    // back follows normal screen semantics — IME first, cancel second.
+    BackHandler(enabled = payTarget != null) { dismissPayment() }
+
     fun launchUpiApp() {
         val target = payTarget ?: return
         if (amount.toDoubleOrNull() == null || amount.toDouble() <= 0.0) {
             sheetError = "Enter a valid amount"
             return
         }
-        if (selectedAccount == null) {
-            sheetError = "Select the account to pay from"
-            return
-        }
+        // No account requirement here: a payment can fail at the last step and
+        // be retried from a different account, so the landing bank SMS — which
+        // names the account that actually paid — decides on merge.
         val intent = Intent(ACTION_UPI_PAY).also {
             it.data = buildUpiUri(target.vpa, target.name, amount, note)
         }
-        if (intent.resolveActivity(context.packageManager) == null) {
+        // Chooser + NO resolveActivity() pre-check (naa's UpiPayPlugin): on
+        // Android 11+ package visibility makes resolveActivity return null even
+        // with GPay/PhonePe/Paytm installed, which wrongly hard-failed every
+        // payment. The chooser is system-mediated; a genuine absence surfaces
+        // as ActivityNotFoundException.
+        try {
+            payLauncher.launch(Intent.createChooser(intent, "Pay with"))
+        } catch (_: android.content.ActivityNotFoundException) {
             sheetError = "No UPI app found on this device"
-            return
         }
-        payLauncher.launch(intent)
     }
 
     Scaffold(
@@ -443,9 +464,9 @@ fun ScannerScreen(
         }
     }
 
-    // ── the comprehensive payment sheet ──
+    // ── the payment overlay ──
     payTarget?.let { target ->
-        PaymentSheet(
+        PaymentOverlay(
             target = target,
             amount = amount,
             onAmountChange = { amount = it.filter { ch -> ch.isDigit() || ch == '.' } },
@@ -470,13 +491,7 @@ fun ScannerScreen(
             onCategoryClick = { showCategoryPicker = true },
             isSaving = uiState.isSaving,
             error = sheetError ?: uiState.error,
-            onDismiss = {
-                payTarget = null
-                sheetError = null
-                viewModel.clearError()
-                torchOn = false
-                camera?.cameraControl?.enableTorch(false)
-            },
+            onDismiss = { dismissPayment() },
             onPay = { launchUpiApp() }
         )
     }
@@ -874,14 +889,15 @@ private suspend fun <T> ListenableFuture<T>.await(context: android.content.Conte
     }
 
 /**
- * The full payment sheet: payee identity, amount, the account the money leaves,
- * an optional category (written as a real category leg, not left unclassified),
- * tags, and a note. "Pay" hands off to the user's UPI app; on return the intent
- * is recorded as a buffer entry.
+ * The payment view: full-screen overlay (deliberately not a bottom sheet —
+ * see [BackHandler] above), with payee identity, amount, the account the
+ * money leaves (optional; inferred from the bank SMS on merge), an optional
+ * category, tags, and a note. "Pay" hands off to the user's UPI app; on
+ * return the intent is recorded as a buffer entry.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun PaymentSheet(
+private fun PaymentOverlay(
     target: UpiTarget,
     amount: String,
     onAmountChange: (String) -> Unit,
@@ -903,16 +919,32 @@ private fun PaymentSheet(
     onDismiss: () -> Unit,
     onPay: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Pay ${target.name.ifBlank { target.vpa }}",
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = "Cancel payment")
+                    }
+                }
+            )
+        }
+    ) { padding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
+                .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Payee identity.
@@ -943,9 +975,9 @@ private fun PaymentSheet(
             )
 
             DropdownField(
-                label = "Pay from account",
+                label = "Pay from account (optional)",
                 value = selectedAccount?.label.orEmpty(),
-                placeholder = "Select account",
+                placeholder = "Inferred from bank SMS",
                 onClick = onAccountClick
             )
 

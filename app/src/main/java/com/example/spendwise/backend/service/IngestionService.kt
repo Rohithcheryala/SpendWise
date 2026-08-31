@@ -200,7 +200,12 @@ class IngestionService @Inject constructor(
         val matches = candidates.filter { qr ->
             val ad = amountDirection(qr.id)
             ad != null && ad.second == smsAd.second &&
-                amountsMatch(ad.first, smsAd.first, tolerance)
+                amountsMatch(
+                    a = ad.first,
+                    b = smsAd.first,
+                    tolerance = tolerance,
+                    increaseTolerance = QR_SMS_MERGE_INCREASE_TOLERANCE,
+                )
         }
         if (matches.size != 1) return null
         val qr = matches[0]
@@ -257,11 +262,33 @@ class IngestionService @Inject constructor(
 
     companion object {
         /** Equal-or-within-tolerance, in paise. tolerance=0.01 means ±1%. */
-        fun amountsMatch(a: Long, b: Long, tolerance: Double): Boolean {
+        /**
+         * Match rule for folding a QR scan (a) into the landing bank SMS (b).
+         *
+         * [tolerance] is the symmetric band from naa's `_amounts_match`
+         * (±1% of the larger amount). [increaseTolerance] additionally lets
+         * the bank SMS amount EXCEED the scanned amount by up to that
+         * fraction: UPI apps add a convenience/platform fee at the last
+         * confirmation step, so the debit is marginally larger than the QR
+         * promised. A decrease beyond the symmetric band still fails — fees
+         * never make you pay less, a mismatch means it's a different payment.
+         */
+        fun amountsMatch(
+            a: Long,
+            b: Long,
+            tolerance: Double,
+            increaseTolerance: Double = 0.0,
+        ): Boolean {
             if (a == b) return true
-            if (tolerance <= 0) return false
-            val allowed = maxOf(1L, Math.round(maxOf(a, b) * tolerance))
-            return Math.abs(a - b) <= allowed
+            if (tolerance > 0) {
+                val symmetricAllowed = maxOf(1L, Math.round(maxOf(a, b) * tolerance))
+                if (Math.abs(a - b) <= symmetricAllowed) return true
+            }
+            if (increaseTolerance > 0 && b > a) {
+                val increaseAllowed = maxOf(1L, Math.round(a * increaseTolerance))
+                return b - a <= increaseAllowed
+            }
+            return false
         }
 
         /** Money in defaults to income, money out to expense. */
@@ -285,6 +312,12 @@ class IngestionService @Inject constructor(
         )
 
         const val QR_SMS_MERGE_TOLERANCE = 0.01
+
+        /** Last-step convenience fees make the bank debit marginally LARGER
+         *  than the scanned amount — allowed up to 2% on top of the symmetric
+         *  ±1% band. See [amountsMatch]. */
+        const val QR_SMS_MERGE_INCREASE_TOLERANCE = 0.02
+
         const val QR_SMS_MERGE_WINDOW_MINUTES = 30L
         const val NOTIFICATION_SMS_MERGE_WINDOW_MINUTES = 3L
 

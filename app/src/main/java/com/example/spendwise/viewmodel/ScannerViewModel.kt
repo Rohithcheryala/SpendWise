@@ -40,6 +40,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ScannerViewModel @Inject constructor(
     private val ledgerApi: LedgerApi,
+    private val ledger: LedgerService,
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
     private val counterpartyService: CounterpartyService,
@@ -106,12 +107,13 @@ class ScannerViewModel @Inject constructor(
         if (_uiState.value.isSaving) return
 
         val amountPaise = amount.toPaiseOrNull()
-        when {
-            amountPaise == null || amountPaise <= 0 ->
-                return setError("Enter a valid amount")
-            accountId == null ->
-                return setError("Select an account")
+        if (amountPaise == null || amountPaise <= 0) {
+            return setError("Enter a valid amount")
         }
+        // Account is deliberately optional: payments fail at the last step and
+        // get retried from another account, so pinning it here lies. The
+        // landing bank SMS names the account that actually paid and wins on
+        // merge; until then the intent parks on the unmatched pot.
 
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, error = null) }
@@ -131,6 +133,9 @@ class ScannerViewModel @Inject constructor(
                     aliasSource = "upi",
                 )
 
+                val debitAccountId = accountId
+                    ?: ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
+
                 if (categoryId != null) {
                     // User picked a category: write a proper expense shape
                     // (account leg + category leg) so no unclassified contra
@@ -139,7 +144,7 @@ class ScannerViewModel @Inject constructor(
                         CreateEntryRequest(
                             occurredOn = occurredOn,
                             lines = listOf(
-                                LineSpec(-amountPaise, accountId = accountId),
+                                LineSpec(-amountPaise, accountId = debitAccountId),
                                 LineSpec(amountPaise, categoryId = categoryId),
                             ),
                             status = EntryStatus.BUFFER,
@@ -156,7 +161,7 @@ class ScannerViewModel @Inject constructor(
                             amountPaise = amountPaise,
                             direction = Direction.OUT,
                             occurredOn = occurredOn,
-                            accountId = accountId,
+                            accountId = debitAccountId,
                             counterpartyId = counterpartyId,
                             intent = Intent.EXPENSE,
                             tags = tags,

@@ -217,6 +217,81 @@ class IngestionServiceTest : BackendTestBase() {
     }
 
     @Test
+    fun `last-step fee increase is tolerated, matching decrease is not`() {
+        val inc = IngestionService.QR_SMS_MERGE_INCREASE_TOLERANCE
+        // 1.5% up: convenience fee added at the final confirmation step — match.
+        assertTrue(IngestionService.amountsMatch(10_000, 10_150, 0.01, inc))
+        // 3% up: beyond the fee allowance — a different payment.
+        assertTrue(!IngestionService.amountsMatch(10_000, 10_300, 0.01, inc))
+        // 1.5% DOWN: fees never shrink the debit — do not match.
+        assertTrue(!IngestionService.amountsMatch(10_000, 9_850, 0.01, inc))
+    }
+
+    @Test
+    fun `sms debiting qr amount plus a last-step fee still merges and keeps bank amount`() = runTest {
+        val bank = bankWithIdentifiers("hdfc", "HDFC Bank", "4921")
+        val merchant = counterparties.resolveOrCreate(LedgerService.USER_ID, "swiggy@ybl")!!
+
+        // Scanned ₹100.00; the UPI app added ₹1.50 at the final step, so the
+        // bank debited ₹101.50 (1.5% up — inside the 2% fee allowance).
+        val qrView = ledger.createEntry(
+            CreateEntryRequest(
+                occurredOn = 0L,
+                status = EntryStatus.BUFFER,
+                source = EntrySource.QR_SCAN,
+                counterpartyId = merchant,
+                lines = listOf(
+                    LineSpec(-100_00, accountId = bank),
+                    LineSpec(100_00, categoryId = db.CategoryDao().insert(newCategory("Food"))),
+                ),
+            )
+        )
+
+        val result = ingestion.ingestSms(
+            sms(
+                "debited Rs.101.50 from A/c XX4921 to swiggy@ybl",
+                "4921",
+                amountPaise = 101_50,
+            )
+        ) as IngestionService.SmsIngestResult.Parsed
+
+        assertEquals(qrView.id, result.mergedQrEntryId)
+        val merged = ledger.getEntry(result.entryId)!!
+        assertEquals(EntryStatus.CONFIRMED, merged.status)
+        // The bank's actual debit (fee included) is the recorded truth.
+        assertEquals(-101_50L, ledger.accountBalance(bank))
+    }
+
+    @Test
+    fun `sms amount below the scanned amount by more than the band does not merge`() = runTest {
+        val bank = bankWithIdentifiers("hdfc", "HDFC Bank", "4921")
+        val merchant = counterparties.resolveOrCreate(LedgerService.USER_ID, "swiggy@ybl")!!
+
+        ledger.createEntry(
+            CreateEntryRequest(
+                occurredOn = 0L,
+                status = EntryStatus.BUFFER,
+                source = EntrySource.QR_SCAN,
+                counterpartyId = merchant,
+                lines = listOf(
+                    LineSpec(-100_00, accountId = bank),
+                    LineSpec(100_00, categoryId = db.CategoryDao().insert(newCategory("Food"))),
+                ),
+            )
+        )
+
+        val result = ingestion.ingestSms(
+            sms(
+                "debited Rs.98.00 from A/c XX4921 to swiggy@ybl",
+                "4921",
+                amountPaise = 98_00,
+            )
+        ) as IngestionService.SmsIngestResult.Parsed
+
+        assertNull(result.mergedQrEntryId)
+    }
+
+    @Test
     fun `default intent follows direction`() {
         assertEquals(Intent.INCOME, IngestionService.defaultIntent(Direction.IN))
         assertEquals(Intent.EXPENSE, IngestionService.defaultIntent(Direction.OUT))
