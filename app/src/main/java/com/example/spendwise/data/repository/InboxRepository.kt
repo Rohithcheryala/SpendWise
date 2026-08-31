@@ -69,12 +69,34 @@ class InboxRepository @Inject constructor(
     val bufferItems: StateFlow<List<InboxItem>> = _bufferItems.asStateFlow()
 
     /**
+     * One successfully captured (parsed + freshly ingested) bank SMS.
+     * Returned by [ingestRawSms] so bulk syncs can alert on just-happened
+     * transactions the live SMS receiver missed. Duplicates return null.
+     */
+    data class CapturedSms(
+        val party: String,
+        val amountPaise: Long,
+        val isDebit: Boolean,
+        val happenedAt: Long,
+    )
+
+    /**
      * Read real bank SMS since the last sync watermark, parse and ingest each
      * one, then advance the watermark and reload the buffer list.
+     *
+     * Notifications: the LIVE receive path ([SmsBroadcastReceiver]) alerts on
+     * capture. But on many OEM ROMs that broadcast is suppressed while the app
+     * is backgrounded — in that case the transaction is only caught HERE, on
+     * the next inbox sync. So a sync also alerts for captures that happened
+     * within the last [FRESH_CAPTURE_WINDOW_MS] (bounded by
+     * [MAX_FRESH_NOTIFICATIONS]); older backfill stays silent.
      */
     suspend fun syncFromSms() {
         val metadata = appMetadataRepository.get()
         val from = metadata?.lastSmsSync ?: (System.currentTimeMillis() - DEFAULT_LOOKBACK_MS)
+
+        val freshCutoff = System.currentTimeMillis() - FRESH_CAPTURE_WINDOW_MS
+        val freshCaptures = mutableListOf<CapturedSms>()
 
         val messages = messageReader.readSince(from)
         for (message in messages) {
@@ -82,39 +104,54 @@ class InboxRepository @Inject constructor(
                 sender = message.address.orEmpty(),
                 body = message.body.orEmpty(),
                 timestamp = message.date,
-            )
+            )?.takeIf { it.happenedAt >= freshCutoff }
+                ?.let(freshCaptures::add)
         }
 
         appMetadataRepository.updateLastSmsSync(System.currentTimeMillis())
         refreshBuffer()
+
+        freshCaptures
+            .take(MAX_FRESH_NOTIFICATIONS)
+            .forEach {
+                notifier.postCapturedTransaction(
+                    party = it.party,
+                    amountPaise = it.amountPaise,
+                    isDebit = it.isDebit,
+                    accountName = null,
+                )
+            }
     }
 
     /**
      * Parse + ingest one SMS. Unrecognized senders/bodies are ignored.
      *
-     * [notifyUser] posts a "captured" notification for freshly booked entries.
-     * Only the live receive path ([SmsBroadcastReceiver]) sets it — bulk
-     * backfills (inbox sync, onboarding scan) must not fire 30 alerts at once.
+     * Returns the capture for freshly parsed entries (null for
+     * unrecognized/empty/duplicate messages) so bulk syncs can alert.
+     *
+     * [notifyUser] posts a "captured" notification immediately — only the
+     * live receive path sets it. Bulk syncs pass false and notify themselves
+     * for just-happened captures (see [syncFromSms]).
      */
     suspend fun ingestRawSms(
         sender: String,
         body: String,
         timestamp: Long,
         notifyUser: Boolean = false,
-    ) {
-        if (sender.isBlank() || body.isBlank()) return
+    ): CapturedSms? {
+        if (sender.isBlank() || body.isBlank()) return null
 
         val parsed = BankParserFactory.parse(
             smsBody = body,
             sender = sender,
             timestamp = timestamp
-        ) ?: return
+        ) ?: return null
 
         val amountPaise = parsed.amount
             .movePointRight(2)
             .setScale(0, RoundingMode.HALF_UP)
             .toLong()
-        if (amountPaise <= 0) return
+        if (amountPaise <= 0) return null
 
         // INCOME is money in. Everything else — EXPENSE, and CREDIT (which
         // every parser uses for credit-card SPEND, e.g. "Spent INR 80 … Avl
@@ -146,8 +183,10 @@ class InboxRepository @Inject constructor(
             )
         )
 
-        // Only brand-new captures alert; duplicates are silently ignored.
-        if (notifyUser && result is IngestionService.SmsIngestResult.Parsed) {
+        // Duplicates are silently ignored — no capture, no notification.
+        if (result !is IngestionService.SmsIngestResult.Parsed) return null
+
+        if (notifyUser) {
             notifier.postCapturedTransaction(
                 party = parsed.merchant ?: parsed.bankName,
                 amountPaise = amountPaise,
@@ -155,6 +194,12 @@ class InboxRepository @Inject constructor(
                 accountName = null,
             )
         }
+        return CapturedSms(
+            party = parsed.merchant ?: parsed.bankName,
+            amountPaise = amountPaise,
+            isDebit = direction == Direction.OUT,
+            happenedAt = timestamp,
+        )
     }
 
     // ── buffer list & actions ──
@@ -262,6 +307,16 @@ class InboxRepository @Inject constructor(
     companion object {
         /** When no watermark exists yet, scan the last 30 days of SMS. */
         const val DEFAULT_LOOKBACK_MS = 30L * 24 * 60 * 60 * 1000
+
+        /**
+         * A capture newer than this is "just happened" — a sync that catches
+         * one alerts the user (the live receiver likely never fired). Older
+         * backfill is silent: a 30-day first sync must not fire 50 alerts.
+         */
+        const val FRESH_CAPTURE_WINDOW_MS = 10L * 60 * 1000
+
+        /** Cap on per-capture notifications from a single sync. */
+        const val MAX_FRESH_NOTIFICATIONS = 5
     }
 
     /** One bank account spotted in the SMS history but not yet in the app. */

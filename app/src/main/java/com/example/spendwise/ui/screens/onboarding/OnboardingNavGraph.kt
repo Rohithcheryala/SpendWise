@@ -49,11 +49,20 @@ fun OnboardingNavGraph(
 
             PermissionScreen(
                 onGrantPermissions = {
-                    permissionLauncher.launch(
-                        arrayOf(
-                            android.Manifest.permission.READ_SMS,
-                        )
+                    // All three are load-bearing: READ_SMS backs the inbox
+                    // sync, RECEIVE_SMS is what makes the LIVE capture
+                    // receiver fire at all, and without POST_NOTIFICATIONS
+                    // (13+) the "notify you instantly" promise is dead code.
+                    val permissions = mutableListOf(
+                        android.Manifest.permission.READ_SMS,
+                        android.Manifest.permission.RECEIVE_SMS,
                     )
+                    if (android.os.Build.VERSION.SDK_INT >=
+                        android.os.Build.VERSION_CODES.TIRAMISU
+                    ) {
+                        permissions += android.Manifest.permission.POST_NOTIFICATIONS
+                    }
+                    permissionLauncher.launch(permissions.toTypedArray())
                 },
                 onSkip = {
                     viewModel.completePermissions()

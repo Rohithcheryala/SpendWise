@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.view.MotionEvent
+import android.view.Surface
+import android.util.Rational
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.Camera
@@ -13,8 +15,11 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceOrientedMeteringPointFactory
+import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.ViewPort
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +38,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -70,11 +84,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -91,10 +113,12 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
+import kotlin.math.hypot
 
 /** The NPCI-standard UPI deep-link action — no SDK constant exists for it. */
 private const val ACTION_UPI_PAY = "android.intent.action.UPI_PAY"
@@ -160,6 +184,24 @@ fun ScannerScreen(
     var payTarget by remember { mutableStateOf<UpiTarget?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var lastScanAt by remember { mutableStateOf(0L) }
+
+    // ── live vision feedback ──
+    // On-screen pixel size of the camera viewport (drives the shared ViewPort
+    // so analyzer coordinates map 1:1 onto the screen), the QR corner points
+    // in screen space (drives the detection brackets), and the last
+    // tap-to-focus position (drives the focus pulse ring).
+    var viewSizePx by remember { mutableStateOf(IntSize.Zero) }
+    var qrCorners by remember { mutableStateOf<List<FloatArray>?>(null) }
+    var focusPulse by remember { mutableStateOf<Pair<Float, Float>?>(null) }
+
+    // Missed detections happen a frame at a time — hold the last sighting for
+    // a beat so the brackets don't blink, then fall back to the scan sweep.
+    LaunchedEffect(qrCorners, payTarget) {
+        if (qrCorners != null && payTarget == null) {
+            delay(350)
+            qrCorners = null
+        }
+    }
 
     // ── payment-sheet form state (hoisted so the pay-result callback sees it) ──
     var upiInput by remember { mutableStateOf("") }
@@ -267,14 +309,18 @@ fun ScannerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .onSizeChanged { viewSizePx = it }
                     .clip(RoundedCornerShape(24.dp))
                     .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (hasCameraPermission) {
                     CameraPreviewWithQrAnalysis(
+                        viewSizePx = viewSizePx,
                         onCameraBound = { camera = it },
                         scanningPaused = payTarget != null,
+                        onQrCorners = { qrCorners = it },
+                        onFocusAt = { x, y -> focusPulse = x to y },
                         onQrDetected = { raw ->
                             val now = System.currentTimeMillis()
                             if (now - lastScanAt < 2_000) return@CameraPreviewWithQrAnalysis
@@ -309,6 +355,29 @@ fun ScannerScreen(
                         }
                     }
                 }
+
+                // Live vision feedback over the preview.
+                QrScanOverlay(
+                    corners = qrCorners,
+                    decoded = payTarget != null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                focusPulse?.let { (x, y) ->
+                    FocusPulseRing(x = x, y = y, modifier = Modifier.fillMaxSize())
+                }
+
+                ScannerStatusPill(
+                    text = when {
+                        payTarget != null -> "QR captured — review details"
+                        qrCorners != null -> "QR detected — reading…"
+                        else -> "Point your camera at a UPI QR code"
+                    },
+                    highlight = qrCorners != null,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp),
+                )
 
                 statusMessage?.let { message ->
                     Text(
@@ -455,8 +524,11 @@ fun ScannerScreen(
  */
 @Composable
 private fun CameraPreviewWithQrAnalysis(
+    viewSizePx: IntSize,
     onCameraBound: (Camera) -> Unit,
     scanningPaused: Boolean,
+    onQrCorners: (List<FloatArray>?) -> Unit,
+    onFocusAt: (Float, Float) -> Unit,
     onQrDetected: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -464,6 +536,8 @@ private fun CameraPreviewWithQrAnalysis(
     // The analyzer lambda lives across recompositions — always read the
     // CURRENT paused flag, not the one from the first composition.
     val currentPaused by rememberUpdatedState(scanningPaused)
+    // Analyzer threads read these without recomposition — keep them hot.
+    val currentViewSize by rememberUpdatedState(viewSizePx)
     // Camera handle for tap-to-focus; captured via MutableState so the touch
     // listener (set once) always reads the latest binding.
     val boundCamera = remember { mutableStateOf<Camera?>(null) }
@@ -487,6 +561,8 @@ private fun CameraPreviewWithQrAnalysis(
                             FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE,
                         ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
                     )
+                    // Show where the camera just focused — the user asked.
+                    onFocusAt(event.x, event.y)
                 }
                 view.performClick()
             }
@@ -514,23 +590,46 @@ private fun CameraPreviewWithQrAnalysis(
 
     // ProcessCameraProvider.getInstance returns a ListenableFuture; bridge it
     // into coroutines without pulling in the guava integration artifact.
-    LaunchedEffect(Unit) {
+    // Keyed on the viewport's pixel size: the shared ViewPort must match the
+    // on-screen view box, so (re)bind whenever it is first laid out or resized.
+    LaunchedEffect(viewSizePx) {
+        if (viewSizePx.width < 2 || viewSizePx.height < 2) return@LaunchedEffect
         runCatching {
             val provider = ProcessCameraProvider.getInstance(context).await(context)
+            val rotation = runCatching { previewView.display.rotation }
+                .getOrDefault(Surface.ROTATION_0)
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
+            // Baked rotation: the analyzer image arrives display-oriented, so
+            // its width/height (and ML Kit corner points) are directly mappable
+            // to screen coordinates without extra rotation math.
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageRotationEnabled(true)
+                .setTargetRotation(rotation)
                 .build()
-            runCatching { imageAnalysis.targetRotation = previewView.display.rotation }
+            // Shared ViewPort = the classic ML Kit scanner trick: preview and
+            // analysis are cropped to the SAME field of view, so a QR's corner
+            // points land exactly where the QR appears on screen.
+            val useCaseGroup = UseCaseGroup.Builder()
+                .setViewPort(
+                    // Aspect ratio of the on-screen view box: preview and
+                    // analysis end up cropped to the same FOV as the user sees.
+                    ViewPort.Builder(
+                        Rational(viewSizePx.width, viewSizePx.height),
+                        rotation,
+                    ).build()
+                )
+                .addUseCase(preview)
+                .addUseCase(imageAnalysis)
+                .build()
 
             provider.unbindAll()
             val camera = provider.bindToLifecycle(
                 lifecycleOwner,
                 CameraSelector.DEFAULT_BACK_CAMERA,
-                preview,
-                imageAnalysis,
+                useCaseGroup,
             )
             boundCamera.value = camera
             onCameraBound(camera)
@@ -570,7 +669,33 @@ private fun CameraPreviewWithQrAnalysis(
                     )
                     barcodeScanner.process(input)
                         .addOnSuccessListener { barcodes ->
-                            barcodes.firstOrNull()?.rawValue?.let(onQrDetected)
+                            val barcode = barcodes.firstOrNull()
+                            val corners = barcode?.cornerPoints
+                            if (corners != null && corners.size == 4) {
+                                // Map image-space corners onto the screen with
+                                // FILL_CENTER math (aspect ratios match thanks
+                                // to the shared ViewPort, so crop is minimal).
+                                val view = currentViewSize
+                                val rot = proxy.imageInfo.rotationDegrees
+                                val imgW = if (rot % 180 == 90) proxy.height else proxy.width
+                                val imgH = if (rot % 180 == 90) proxy.width else proxy.height
+                                if (imgW > 0 && imgH > 0 && view.width > 0 && view.height > 0) {
+                                    val scale = maxOf(
+                                        view.width / imgW.toFloat(),
+                                        view.height / imgH.toFloat(),
+                                    )
+                                    val dx = (view.width - imgW * scale) / 2f
+                                    val dy = (view.height - imgH * scale) / 2f
+                                    onQrCorners(
+                                        corners.map {
+                                            floatArrayOf(it.x * scale + dx, it.y * scale + dy)
+                                        }
+                                    )
+                                }
+                            } else {
+                                onQrCorners(null)
+                            }
+                            barcode?.rawValue?.let(onQrDetected)
                         }
                         .addOnCompleteListener { proxy.close() }
                 } catch (_: Exception) {
@@ -582,6 +707,154 @@ private fun CameraPreviewWithQrAnalysis(
     }
 
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+}
+
+/**
+ * Live vision feedback, ML Kit-scanner style. While nothing is detected a
+ * static rounded reticle sweeps a line (visible proof the camera is alive);
+ * the moment a QR is spotted the brackets snap onto its real corners on the
+ * preview, turning green when the code has been captured.
+ */
+@Composable
+private fun QrScanOverlay(
+    corners: List<FloatArray>?,
+    decoded: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val bracketColor by animateColorAsState(
+        targetValue = if (decoded) SpendwiseTheme.colors.income else Color.White,
+        animationSpec = tween(200),
+        label = "qrBracketColor",
+    )
+    val sweep = rememberInfiniteTransition(label = "qrSweep")
+    val sweepY by sweep.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "qrSweepY",
+    )
+
+    Canvas(modifier) {
+        if (corners != null && corners.size == 4) {
+            // Detection: hug the QR's actual corners.
+            val stroke = 5.dp.toPx()
+            val bracketLen = size.minDimension * 0.16f
+            corners.forEachIndexed { i, p ->
+                drawQrBracketArm(p, corners[(i + 3) % 4], bracketLen, bracketColor, stroke)
+                drawQrBracketArm(p, corners[(i + 1) % 4], bracketLen, bracketColor, stroke)
+            }
+        } else {
+            // Searching: centered reticle with a sweeping line.
+            val side = size.minDimension * 0.58f
+            val topLeft = Offset((size.width - side) / 2f, (size.height - side) / 2f)
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.75f),
+                topLeft = topLeft,
+                size = Size(side, side),
+                cornerRadius = CornerRadius(32f, 32f),
+                style = Stroke(width = 2.5.dp.toPx()),
+            )
+            val y = topLeft.y + sweepY * side
+            drawLine(
+                color = Color.White.copy(alpha = 0.9f),
+                start = Offset(topLeft.x + 20f, y),
+                end = Offset(topLeft.x + side - 20f, y),
+                strokeWidth = 3.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+        }
+    }
+}
+
+/** One bracket arm: from a corner, [length] pixels toward an adjacent corner. */
+private fun DrawScope.drawQrBracketArm(
+    from: FloatArray,
+    toward: FloatArray,
+    length: Float,
+    color: Color,
+    stroke: Float,
+) {
+    val vx = toward[0] - from[0]
+    val vy = toward[1] - from[1]
+    val len = hypot(vx, vy)
+    if (len < 1f) return
+    val t = (length / len).coerceAtMost(1f)
+    drawLine(
+        color = color,
+        start = Offset(from[0], from[1]),
+        end = Offset(from[0] + vx * t, from[1] + vy * t),
+        strokeWidth = stroke,
+        cap = StrokeCap.Round,
+    )
+}
+
+/** Expanding ring where the user tapped to focus — confirms the AF request. */
+@Composable
+private fun FocusPulseRing(
+    x: Float,
+    y: Float,
+    modifier: Modifier = Modifier,
+) {
+    val alpha = remember { Animatable(1f) }
+    LaunchedEffect(x, y) {
+        alpha.snapTo(1f)
+        alpha.animateTo(0f, animationSpec = tween(800, easing = LinearEasing))
+    }
+    Canvas(modifier) {
+        drawCircle(
+            color = Color.White.copy(alpha = alpha.value),
+            radius = 48.dp.toPx(),
+            center = Offset(x, y),
+            style = Stroke(width = 2.dp.toPx()),
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = alpha.value),
+            radius = 3.dp.toPx(),
+            center = Offset(x, y),
+        )
+    }
+}
+
+/** Status chip over the viewport: what the scanner is doing right now. */
+@Composable
+private fun ScannerStatusPill(
+    text: String,
+    highlight: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val background by animateColorAsState(
+        targetValue = if (highlight) {
+            SpendwiseTheme.colors.income.copy(alpha = 0.92f)
+        } else {
+            Color.Black.copy(alpha = 0.55f)
+        },
+        animationSpec = tween(200),
+        label = "statusPillBg",
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(background)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = if (highlight) 1f else 0.6f)),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
 }
 
 /** Await a ListenableFuture without the guava-coroutines integration module. */
