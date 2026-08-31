@@ -24,7 +24,7 @@ import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.screens.transaction.DropdownOption
 import com.example.spendwise.ui.screens.transaction.TagUiModel
 import com.example.spendwise.ui.screens.transaction.TransactionMode
-import com.example.spendwise.ui.screens.transaction.TransactionType
+import com.example.spendwise.ui.screens.transaction.OtherSide
 import com.example.spendwise.ui.screens.transaction.TransactionUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -105,18 +105,22 @@ class TransactionViewModel @Inject constructor(
             ) {
                 activeTagSuppressed = true
             }
-            if (next.type != current.type) {
+            if (next.otherSide != current.otherSide) {
                 // Type switches change what the second dropdown means:
                 // TRANSFER -> destination accounts, CATEGORY/LOAN -> counterparties.
                 next.copy(
                     counterparty = null,
-                    counterparties = if (next.type == TransactionType.TRANSFER) {
+                    counterparties = if (next.otherSide == OtherSide.TRANSFER) {
                         next.accounts.filter { it.id != next.account?.id }
                     } else {
                         realCounterparties
                     },
                     error = null,
                 )
+            } else if (next.otherSide == OtherSide.TRANSFER && next.account != current.account) {
+                // From-account changed while in transfer mode: a transfer to
+                // the same account is not a movement — re-exclude it.
+                next.copy(counterparties = next.accounts.filter { it.id != next.account?.id })
             } else {
                 next.copy(error = null)
             }
@@ -141,10 +145,10 @@ class TransactionViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true, error = null) }
             try {
                 val contextTag = activeContextTag?.takeUnless { activeTagSuppressed }
-                when (s.type) {
-                    TransactionType.CATEGORY -> saveCategoryEntry(s, amountPaise!!, contextTag)
-                    TransactionType.TRANSFER -> saveTransfer(s, amountPaise!!)
-                    TransactionType.LOAN -> saveLoan(s, amountPaise!!, contextTag)
+                when (s.otherSide) {
+                    OtherSide.CATEGORY -> saveCategoryEntry(s, amountPaise!!, contextTag)
+                    OtherSide.TRANSFER -> saveTransfer(s, amountPaise!!)
+                    OtherSide.LOAN -> saveLoan(s, amountPaise!!, contextTag)
                 }
                 // The save path can confirm/replace a buffer entry (opened from
                 // the inbox) — invalidate the shared inbox flow so the list and
@@ -284,7 +288,7 @@ class TransactionViewModel @Inject constructor(
                     .filter { !it.slug.startsWith("sys-") }
                     .map { DropdownOption(it.id.toString(), it.name) }
                 _uiState.update { s ->
-                    if (s.type == TransactionType.TRANSFER) {
+                    if (s.otherSide == OtherSide.TRANSFER) {
                         s.copy(
                             accounts = options,
                             counterparties = options.filter { it.id != s.account?.id },
@@ -302,7 +306,7 @@ class TransactionViewModel @Inject constructor(
                     DropdownOption(it.id.toString(), it.displayName)
                 }
                 _uiState.update { s ->
-                    if (s.type == TransactionType.TRANSFER) {
+                    if (s.otherSide == OtherSide.TRANSFER) {
                         s
                     } else {
                         s.copy(counterparties = realCounterparties)
@@ -347,10 +351,10 @@ class TransactionViewModel @Inject constructor(
                 } else {
                     TransactionDirection.EXPENSE
                 },
-                type = when (view.kind) {
-                    EntryKind.TRANSFER -> TransactionType.TRANSFER
-                    EntryKind.LOAN, EntryKind.LOAN_REPAYMENT -> TransactionType.LOAN
-                    else -> TransactionType.CATEGORY
+                otherSide = when (view.kind) {
+                    EntryKind.TRANSFER -> OtherSide.TRANSFER
+                    EntryKind.LOAN, EntryKind.LOAN_REPAYMENT -> OtherSide.LOAN
+                    else -> OtherSide.CATEGORY
                 },
                 amount = view.amountPaise.toRupeeInput(),
                 date = Instant.ofEpochMilli(view.occurredOn)

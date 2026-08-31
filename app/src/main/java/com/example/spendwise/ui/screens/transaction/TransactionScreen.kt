@@ -42,7 +42,7 @@ import com.example.spendwise.ui.components.TagSection
 import com.example.spendwise.ui.components.TransactionBottomBar
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionSummaryCard
-import com.example.spendwise.ui.components.TransactionTypeSelector
+import com.example.spendwise.ui.components.OtherSideSelector
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,6 +146,9 @@ fun TransactionScreen(
                 AmountSection(
                     direction = uiState.direction,
                     amount = uiState.amount,
+                    // Transfer has no in/out: money leaves one own-account and
+                    // lands in another. Chosen once below, not here too.
+                    showDirectionToggle = uiState.otherSide != OtherSide.TRANSFER,
                     onDirectionChange = { newDirection ->
                         onUpdateState { current -> current.copy(direction = newDirection) }
                     },
@@ -166,17 +169,21 @@ fun TransactionScreen(
             }
 
             item {
-                TransactionTypeSelector(
-                    selected = uiState.type,
-                    onSelected = { newType: TransactionType ->
-                        onUpdateState { current -> current.copy(type = newType) }
+                OtherSideSelector(
+                    selected = uiState.otherSide,
+                    onSelected = { newType: OtherSide ->
+                        onUpdateState { current -> current.copy(otherSide = newType) }
                     }
                 )
             }
 
             item {
                 DropdownField(
-                    label = "Account",
+                    label = if (uiState.otherSide == OtherSide.TRANSFER) {
+                        "From Account"
+                    } else {
+                        "Account"
+                    },
                     value = uiState.account?.label.orEmpty().ifBlank { "Select Account" },
                     onClick = {
                         activePickerType = PickerType.ACCOUNT
@@ -184,29 +191,31 @@ fun TransactionScreen(
                 )
             }
 
-            if (uiState.type != TransactionType.CATEGORY) {
-
-                item {
-                    DropdownField(
-                        label = if (uiState.type == TransactionType.TRANSFER) {
-                            "To Account"
-                        } else {
-                            "Counterparty"
-                        },
-                        value = uiState.counterparty?.label.orEmpty(),
-                        placeholder = if (uiState.type == TransactionType.TRANSFER) {
-                            "Select Account"
-                        } else {
-                            "Optional"
-                        },
-                        onClick = {
-                            activePickerType = PickerType.COUNTERPARTY
-                        }
-                    )
-                }
+            // The other side of the money — present in every mode (naa does
+            // the same): TRANSFER -> another of my accounts, LOAN -> the person
+            // (required), CATEGORY -> an optional counterparty naming who the
+            // payment was to/from; the category itself is just the internal
+            // division the money is filed under.
+            item {
+                DropdownField(
+                    label = if (uiState.otherSide == OtherSide.TRANSFER) {
+                        "To Account"
+                    } else {
+                        "Counterparty"
+                    },
+                    value = uiState.counterparty?.label.orEmpty(),
+                    placeholder = when (uiState.otherSide) {
+                        OtherSide.TRANSFER -> "Select Account"
+                        OtherSide.LOAN -> "Required"
+                        OtherSide.CATEGORY -> "Optional"
+                    },
+                    onClick = {
+                        activePickerType = PickerType.COUNTERPARTY
+                    }
+                )
             }
 
-            if (uiState.type == TransactionType.CATEGORY) {
+            if (uiState.otherSide == OtherSide.CATEGORY) {
 
                 item {
                     DropdownField(
@@ -289,7 +298,7 @@ fun TransactionScreen(
             PickerType.CATEGORY -> "Select Category" to uiState.categories
 
             PickerType.COUNTERPARTY -> (
-                if (uiState.type == TransactionType.TRANSFER) "Select Destination Account" else "Select Counterparty"
+                if (uiState.otherSide == OtherSide.TRANSFER) "Select Destination Account" else "Select Counterparty"
                 ) to uiState.counterparties
         }
 
@@ -468,7 +477,7 @@ data class TransactionUiState(
     val direction: TransactionDirection = TransactionDirection.EXPENSE,
     val amount: String = "",
     val date: LocalDate = LocalDate.now(),
-    val type: TransactionType = TransactionType.CATEGORY,
+    val otherSide: OtherSide = OtherSide.CATEGORY,
     val account: DropdownOption? = null,
     val counterparty: DropdownOption? = null,
     val category: DropdownOption? = null,
@@ -492,7 +501,14 @@ enum class TransactionMode {
 }
 
 
-enum class TransactionType {
+/**
+ * Which form the manual-entry screen fills — naa's "otherSide" question:
+ * where does the other side of the money land? A category (spend/earn),
+ * another of my own accounts (transfer), or a person who owes me (loan).
+ * NOT a transaction type: Expense/Income/Transfer on the saved entry is
+ * derived by the ledger from the resulting lines, never stored.
+ */
+enum class OtherSide {
     CATEGORY,
     TRANSFER,
     LOAN
@@ -525,7 +541,7 @@ sealed interface TransactionUiEvent {
     data object DateClicked : TransactionUiEvent
 
     data class TypeChanged(
-        val value: TransactionType,
+        val value: OtherSide,
     ) : TransactionUiEvent
 
     data object AccountClicked : TransactionUiEvent
@@ -559,7 +575,7 @@ object TransactionPreviewData {
         direction = TransactionDirection.EXPENSE,
         amount = "19",
         date = LocalDate.of(2026, 7, 8),
-        type = TransactionType.CATEGORY,
+        otherSide = OtherSide.CATEGORY,
         account = DropdownOption("1", "HDFC Savings"),
         counterparty = DropdownOption("2", "BHIM"),
         category = DropdownOption("3", "Unclassified"),

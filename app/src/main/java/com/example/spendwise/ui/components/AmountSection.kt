@@ -37,6 +37,7 @@ fun AmountSection(
     onDirectionChange: (TransactionDirection) -> Unit,
     onAmountChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    showDirectionToggle: Boolean = true,
 ) {
     val accentColor by animateColorAsState(
         targetValue = when (direction) {
@@ -57,26 +58,35 @@ fun AmountSection(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = "Transaction Type",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            )
+            // Direction is binary (money out / money in) — exactly naa's
+            // out|in toggle beside the amount. Transfer is NOT a direction:
+            // it's chosen once, in the Type selector below, and when it is,
+            // direction is meaningless (money leaves one account and lands in
+            // another), so the toggle is hidden entirely.
+            if (showDirectionToggle) {
+                Text(
+                    text = "Direction",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
 
-            // Custom Segmented Pill Tab Bar
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // Custom Segmented Pill Tab Bar
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
-                    TransactionDirection.entries.forEach { dir ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf(
+                            TransactionDirection.EXPENSE,
+                            TransactionDirection.INCOME,
+                        ).forEach { dir ->
                         val isSelected = direction == dir
                         val tabBg by animateColorAsState(
                             targetValue = if (isSelected) {
@@ -117,6 +127,7 @@ fun AmountSection(
                         }
                     }
                 }
+            }
             }
 
             // Amount Input Card

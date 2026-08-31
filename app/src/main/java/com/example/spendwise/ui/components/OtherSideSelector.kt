@@ -10,8 +10,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Handshake
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,12 +27,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.spendwise.ui.screens.transaction.TransactionType
+import androidx.compose.material.icons.outlined.SwapHoriz
+import com.example.spendwise.ui.screens.transaction.OtherSide
 
+/**
+ * The one structural question the in/out direction can't answer: where does
+ * the OTHER SIDE of the money land? A category — an internal division the
+ * money is filed under (counterparty still names who it was to/from) —,
+ * another of my own accounts (transfer), or a person who owes me (loan).
+ * Ported from naa's OtherSideToggle. Deliberately not called a "transaction
+ * type" and never offering Expense/Income: the direction pills cover those,
+ * and the Expense/Income/Transfer label on a saved entry is DERIVED from the
+ * resulting ledger lines, never stored.
+ */
 @Composable
-fun TransactionTypeSelector(
-    selected: TransactionType,
-    onSelected: (TransactionType) -> Unit,
+fun OtherSideSelector(
+    selected: OtherSide,
+    onSelected: (OtherSide) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -52,17 +68,17 @@ fun TransactionTypeSelector(
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                TransactionType.entries.forEach { type ->
-                    val isSelected = selected == type
+                OtherSide.entries.forEach { side ->
+                    val isSelected = selected == side
 
                     val bgColor by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        label = "type_bg"
+                        label = "otherside_bg"
                     )
 
                     val textColor by animateColorAsState(
                         targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        label = "type_text"
+                        label = "otherside_text"
                     )
 
                     Box(
@@ -71,15 +87,26 @@ fun TransactionTypeSelector(
                             .height(40.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(bgColor)
-                            .clickable { onSelected(type) },
+                            .clickable { onSelected(side) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = type.label,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = textColor
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = side.icon,
+                                contentDescription = null,
+                                tint = textColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = side.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = textColor
+                            )
+                        }
                     }
                 }
             }
@@ -87,18 +114,25 @@ fun TransactionTypeSelector(
     }
 }
 
-private val TransactionType.label: String
+private val OtherSide.label: String
     get() = when (this) {
-        TransactionType.CATEGORY -> "Category"
-        TransactionType.TRANSFER -> "Transfer"
-        TransactionType.LOAN -> "Loan"
+        OtherSide.CATEGORY -> "Category"
+        OtherSide.TRANSFER -> "Transfer"
+        OtherSide.LOAN -> "Loan"
+    }
+
+private val OtherSide.icon: androidx.compose.ui.graphics.vector.ImageVector
+    get() = when (this) {
+        OtherSide.CATEGORY -> Icons.Outlined.Sell          // a spending category
+        OtherSide.TRANSFER -> Icons.Outlined.SwapHoriz  // my account ↔ my account
+        OtherSide.LOAN -> Icons.Outlined.Handshake         // a person who owes me
     }
 
 @Preview(showBackground = true)
 @Composable
 private fun CategoryPreview() {
-    TransactionTypeSelector(
-        selected = TransactionType.CATEGORY,
+    OtherSideSelector(
+        selected = OtherSide.CATEGORY,
         onSelected = {}
     )
 }
