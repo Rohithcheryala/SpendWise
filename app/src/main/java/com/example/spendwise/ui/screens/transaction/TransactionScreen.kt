@@ -5,15 +5,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,6 +46,7 @@ import com.example.spendwise.ui.components.TransactionBottomBar
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionSummaryCard
 import com.example.spendwise.ui.components.OtherSideSelector
+import com.example.spendwise.core.extensions.toAmountString
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,10 +56,12 @@ fun TransactionScreen(
     uiState: TransactionUiState,
     onUpdateState: ((TransactionUiState) -> TransactionUiState) -> Unit,
     onEvent: (TransactionUiEvent) -> Unit,
+    onAddCounterparty: (String) -> Unit = {},
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var activePickerType by remember { mutableStateOf<PickerType?>(null) }
     var showAddTagDialog by remember { mutableStateOf(false) }
+    var showAddCounterpartyDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -149,6 +155,11 @@ fun TransactionScreen(
                     // Transfer has no in/out: money leaves one own-account and
                     // lands in another. Chosen once below, not here too.
                     showDirectionToggle = uiState.otherSide != OtherSide.TRANSFER,
+                    // naa leaves the raw out/in pills in loan mode, forcing the
+                    // user to know that "in" secretly means "repayment". Say it.
+                    directionLabels = if (uiState.otherSide == OtherSide.LOAN) {
+                        "Loan given" to "Repayment received"
+                    } else null,
                     onDirectionChange = { newDirection ->
                         onUpdateState { current -> current.copy(direction = newDirection) }
                     },
@@ -213,6 +224,24 @@ fun TransactionScreen(
                         activePickerType = PickerType.COUNTERPARTY
                     }
                 )
+            }
+
+            // Loan-mode check figure: catches the "meant repayment, filed a
+            // loan" (or vice versa) mistake before it saves.
+            if (uiState.otherSide == OtherSide.LOAN && uiState.counterparty != null) {
+                item {
+                    val net = uiState.loanOutstandingPaise
+                    Text(
+                        text = when {
+                            net == null -> "No outstanding balance with this person"
+                            net > 0 -> "They currently owe you ${net.toAmountString()}"
+                            else -> "You currently owe them ${(-net).toAmountString()}"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
             }
 
             if (uiState.otherSide == OtherSide.CATEGORY) {
@@ -305,6 +334,14 @@ fun TransactionScreen(
         OptionPickerBottomSheet(
             title = title,
             options = options,
+            // Can't record a loan to someone who's never transacted with you
+            // before — inline creation closes that hole (naa's free-text
+            // counterpartyName fallback).
+            onAddNew = if (currentPicker == PickerType.COUNTERPARTY &&
+                uiState.otherSide != OtherSide.TRANSFER
+            ) {
+                { showAddCounterpartyDialog = true }
+            } else null,
             onDismiss = { activePickerType = null },
             onSelect = { option ->
                 onUpdateState { current ->
@@ -314,6 +351,17 @@ fun TransactionScreen(
                         PickerType.COUNTERPARTY -> current.copy(counterparty = option)
                     }
                 }
+                activePickerType = null
+            }
+        )
+    }
+
+    if (showAddCounterpartyDialog) {
+        AddCounterpartyDialog(
+            onDismiss = { showAddCounterpartyDialog = false },
+            onAdd = { name ->
+                onAddCounterparty(name)
+                showAddCounterpartyDialog = false
                 activePickerType = null
             }
         )
@@ -346,7 +394,8 @@ private fun OptionPickerBottomSheet(
     title: String,
     options: List<DropdownOption>,
     onDismiss: () -> Unit,
-    onSelect: (DropdownOption) -> Unit
+    onSelect: (DropdownOption) -> Unit,
+    onAddNew: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -381,6 +430,33 @@ private fun OptionPickerBottomSheet(
                     )
                 }
             }
+
+            if (onAddNew != null) {
+                androidx.compose.material3.OutlinedCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onAddNew() },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Add new",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -408,6 +484,42 @@ private fun AddTagDialog(
             androidx.compose.material3.Button(
                 onClick = { onAdd(tagText.trim()) },
                 enabled = tagText.isNotBlank()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+/** Inline counterparty creation — the only manual path in the app. */
+@Composable
+private fun AddCounterpartyDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit
+) {
+    var nameText by remember { mutableStateOf("") }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Counterparty") },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = nameText,
+                onValueChange = { nameText = it },
+                label = { Text("Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.Button(
+                onClick = { onAdd(nameText.trim()) },
+                enabled = nameText.isNotBlank()
             ) {
                 Text("Add")
             }
@@ -493,6 +605,8 @@ data class TransactionUiState(
     val accounts: List<DropdownOption> = emptyList(),
     val counterparties: List<DropdownOption> = emptyList(),
     val categories: List<DropdownOption> = emptyList(),
+    /** Loan mode check figure: net the picked person already owes (positive = they owe you). */
+    val loanOutstandingPaise: Long? = null,
 )
 
 enum class TransactionMode {

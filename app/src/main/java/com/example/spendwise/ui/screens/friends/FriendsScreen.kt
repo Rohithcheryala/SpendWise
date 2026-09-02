@@ -12,11 +12,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.PersonAdd
+import androidx.compose.material.icons.outlined.PersonSearch
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,8 +28,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.ui.components.FriendAvatar
@@ -65,6 +67,7 @@ fun FriendsScreen(
         state = state,
         onNavigateBack = onNavigateBack,
         onAddFriend = viewModel::addFriend,
+        onLoadContacts = viewModel::loadContacts,
         modifier = modifier
     )
 }
@@ -74,13 +77,14 @@ fun FriendsScreen(
 fun FriendsContent(
     state: FriendsViewModel.UiState,
     onNavigateBack: (() -> Unit)? = null,
-    onAddFriend: (String) -> Unit = {},
+    onAddFriend: (String, String?) -> Unit = { _, _ -> },
+    onLoadContacts: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val friendList = state.friends
 
     var searchQuery by remember { mutableStateOf("") }
-    var showAddDialog by remember { mutableStateOf(false) }
+    var showAddSheet by remember { mutableStateOf(false) }
     var selectedFriendForDetail by remember { mutableStateOf<FriendUi?>(null) }
 
     val filteredFriends = friendList.filter {
@@ -103,7 +107,7 @@ fun FriendsContent(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
+                    IconButton(onClick = { showAddSheet = true }) {
                         Icon(Icons.Outlined.PersonAdd, contentDescription = "Add Friend")
                     }
                 }
@@ -111,7 +115,7 @@ fun FriendsContent(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddDialog = true },
+                onClick = { showAddSheet = true },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
@@ -183,26 +187,70 @@ fun FriendsContent(
                 }
             }
 
-            items(filteredFriends, key = { it.id }) { friend ->
-                FriendCard(
-                    name = friend.name,
-                    amountGiven = friend.amountGiven,
-                    amountReceived = friend.amountReceived,
-                    onClick = {
-                        selectedFriendForDetail = friend
+            if (state.error != null) {
+                item {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.errorContainer
+                    ) {
+                        Text(
+                            text = state.error ?: "",
+                            modifier = Modifier.padding(14.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     }
-                )
+                }
+            }
+
+            if (filteredFriends.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.PersonSearch,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "No friends yet.\nTap + to add from your contacts.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                items(filteredFriends, key = { it.id }) { friend ->
+                    FriendCard(
+                        name = friend.name,
+                        amountGiven = friend.amountGiven,
+                        amountReceived = friend.amountReceived,
+                        onClick = {
+                            selectedFriendForDetail = friend
+                        }
+                    )
+                }
             }
         }
     }
 
-    if (showAddDialog) {
-        AddFriendDialog(
-            onDismiss = { showAddDialog = false },
-            onAdd = { newFriend ->
-                onAddFriend(newFriend.name)
-                showAddDialog = false
-            }
+    if (showAddSheet) {
+        AddFriendSheet(
+            contacts = state.contacts,
+            contactsLoading = state.contactsLoading,
+            onLoadContacts = onLoadContacts,
+            onAdd = { name, phone ->
+                onAddFriend(name, phone)
+                showAddSheet = false
+            },
+            onDismiss = { showAddSheet = false }
         )
     }
 
@@ -217,50 +265,6 @@ fun FriendsContent(
             }
         )
     }
-}
-
-@Composable
-fun AddFriendDialog(
-    onDismiss: () -> Unit,
-    onAdd: (FriendUi) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Friend") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Friend's Name") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onAdd(
-                        FriendUi(
-                            id = System.currentTimeMillis(),
-                            name = name.ifBlank { "New Friend" },
-                            amountGiven = 0.0,
-                            amountReceived = 0.0
-                        )
-                    )
-                },
-                enabled = name.isNotBlank()
-            ) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

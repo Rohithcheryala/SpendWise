@@ -12,6 +12,8 @@ import com.example.spendwise.backend.api.IngestRequest
 import com.example.spendwise.backend.api.Intent
 import com.example.spendwise.backend.api.LedgerApi
 import com.example.spendwise.backend.api.LineSpec
+import com.example.spendwise.backend.service.CounterpartyService
+import com.example.spendwise.backend.service.LedgerService
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
@@ -49,6 +51,7 @@ class TransactionViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val categoryDao: CategoryDao,
     private val counterpartyDao: CounterpartyDao,
+    private val counterpartyService: CounterpartyService,
     private val provenanceDao: EntryProvanceDao,
     private val settingsRepository: SettingsRepository,
     private val inboxRepository: InboxRepository,
@@ -94,6 +97,7 @@ class TransactionViewModel @Inject constructor(
     }
 
     fun updateState(transform: (TransactionUiState) -> TransactionUiState) {
+        val before = _uiState.value
         _uiState.update { current ->
             val next = transform(current)
             // The user explicitly removed the context tag chip — respect that
@@ -123,6 +127,60 @@ class TransactionViewModel @Inject constructor(
                 next.copy(counterparties = next.accounts.filter { it.id != next.account?.id })
             } else {
                 next.copy(error = null)
+            }
+        }
+        // The "owes you" context line only makes sense in loan mode, and must
+        // track both the mode and the picked person.
+        val after = _uiState.value
+        if (after.otherSide != before.otherSide || after.counterparty != before.counterparty) {
+            viewModelScope.launch { refreshLoanOutstanding() }
+        }
+    }
+
+    private suspend fun refreshLoanOutstanding() {
+        val s = _uiState.value
+        val counterpartyId = s.counterparty?.id?.toLongOrNull()
+        if (s.otherSide != OtherSide.LOAN || counterpartyId == null) {
+            _uiState.update { it.copy(loanOutstandingPaise = null) }
+            return
+        }
+        // friendsOutstanding omits settled parties — null here reads as "no
+        // outstanding balance", a useful check figure before saving.
+        val net = runCatching {
+            ledgerApi.friendsOutstanding()
+                .firstOrNull { it.counterpartyId == counterpartyId }?.netPaise
+        }.getOrNull()
+        _uiState.update { it.copy(loanOutstandingPaise = net) }
+    }
+
+    /**
+     * Create (or resolve) a counterparty from a name typed inline in the
+     * picker — the only manual creation path in the app. Loan mode marks it
+     * as a person so it appears on the Friends ledger.
+     */
+    fun addCounterparty(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val id = counterpartyService.resolveOrCreate(
+                    userId = LedgerService.USER_ID,
+                    rawName = trimmed,
+                    displayName = trimmed,
+                    aliasSource = "manual",
+                ) ?: return@launch
+                if (_uiState.value.otherSide == OtherSide.LOAN) {
+                    counterpartyService.ensurePartyType(id, CounterpartyService.PARTY_PERSON)
+                }
+                val option = DropdownOption(id.toString(), trimmed)
+                _uiState.update {
+                    // The Room flow on counterpartyDao refreshes the list;
+                    // select it immediately so the picker can close.
+                    it.copy(counterparty = option)
+                }
+                refreshLoanOutstanding()
+            } catch (e: Exception) {
+                setError(e.message ?: "Could not add")
             }
         }
     }
@@ -375,6 +433,8 @@ class TransactionViewModel @Inject constructor(
                 },
             )
         }
+        // Edit mode: show the check figure for the loaded loan counterparty.
+        refreshLoanOutstanding()
     }
 
     private fun occurredOn(date: LocalDate): Long =

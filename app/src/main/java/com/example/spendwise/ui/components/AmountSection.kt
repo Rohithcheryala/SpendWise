@@ -38,6 +38,7 @@ fun AmountSection(
     onAmountChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     showDirectionToggle: Boolean = true,
+    directionLabels: Pair<String, String>? = null,
 ) {
     val accentColor by animateColorAsState(
         targetValue = when (direction) {
@@ -65,7 +66,9 @@ fun AmountSection(
             // another), so the toggle is hidden entirely.
             if (showDirectionToggle) {
                 Text(
-                    text = "Direction",
+                    // Loan mode overloads direction with meaning ("which side
+                    // of the loan am I on?") — say so instead of "Direction".
+                    text = if (directionLabels != null) "Loan" else "Direction",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
@@ -119,7 +122,10 @@ fun AmountSection(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = dir.name.take(1) + dir.name.drop(1).lowercase(),
+                                text = directionLabels?.let { (out, _) ->
+                                    if (dir == TransactionDirection.EXPENSE) out
+                                    else directionLabels.second
+                                } ?: dir.name.take(1) + dir.name.drop(1).lowercase(),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 color = tabTextColor

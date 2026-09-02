@@ -113,6 +113,7 @@ fun AppNavHost(
             TransactionScreen(
                 uiState = vm.uiState.collectAsStateWithLifecycle().value,
                 onUpdateState = vm::updateState,
+                onAddCounterparty = vm::addCounterparty,
                 onEvent = { event ->
                     when (event) {
                         is TransactionUiEvent.NavigateBack -> navController.popBackStack()
@@ -163,6 +164,12 @@ fun AppNavHost(
 
         composable(Screen.Friends.route) {
             com.example.spendwise.ui.screens.friends.FriendsScreen(
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.Counterparties.route) {
+            com.example.spendwise.ui.screens.counterparties.CounterpartiesScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
