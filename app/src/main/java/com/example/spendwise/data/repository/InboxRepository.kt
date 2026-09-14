@@ -3,12 +3,12 @@ package com.example.spendwise.data.repository
 
 import android.util.Log
 import com.example.spendwise.BuildConfig
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.EntryView
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.service.IngestionService
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.TransactionView
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.service.IngestionService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.messages.MessageReader
 import com.example.spendwise.core.notifications.TransactionNotifier
 import com.example.spendwise.core.parser_pw.TransactionType
@@ -231,7 +231,7 @@ class InboxRepository @Inject constructor(
     /** Reload the ledger's buffer entries — this IS the inbox. */
     suspend fun refreshBuffer() {
         claimOrphans()
-        val entries = ledgerApi.listEntries(status = EntryStatus.BUFFER)
+        val entries = ledgerApi.listTransactions(status = TransactionStatus.BUFFER)
         val accountNames = accountDao.listAll().associate { it.id to it.name }
         val userAccounts = accountDao.listAll()
             .filter { !it.slug.startsWith("sys-") }
@@ -256,9 +256,9 @@ class InboxRepository @Inject constructor(
     suspend fun import(entryId: Long) {
         val contextTag = settingsRepository.activeContext.first()?.tag
         if (contextTag == null) {
-            ledgerApi.confirmEntry(entryId)
+            ledgerApi.confirmTransaction(entryId)
         } else {
-            ledgerApi.confirmEntry(entryId, listOf(contextTag))
+            ledgerApi.confirmTransaction(entryId, listOf(contextTag))
         }
         refreshBuffer()
     }
@@ -271,7 +271,7 @@ class InboxRepository @Inject constructor(
 
     /** Dismiss = soft-delete (void) the buffer entry. */
     suspend fun dismiss(entryId: Long) {
-        ledgerApi.voidEntry(entryId, "Dismissed from inbox")
+        ledgerApi.voidTransaction(entryId, "Dismissed from inbox")
         refreshBuffer()
     }
 
@@ -307,7 +307,7 @@ class InboxRepository @Inject constructor(
     }
 
     private suspend fun enrich(
-        entry: EntryView,
+        entry: TransactionView,
         accountNames: Map<Long, String>,
         userAccounts: List<Pair<Long, String>>,
         partyNames: Map<Long, String>,

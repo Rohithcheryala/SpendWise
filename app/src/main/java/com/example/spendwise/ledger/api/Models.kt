@@ -1,4 +1,4 @@
-package com.example.spendwise.backend.api
+package com.example.spendwise.ledger.api
 
 /**
  * DTOs of the SpendWise ledger backend.
@@ -11,17 +11,17 @@ package com.example.spendwise.backend.api
 enum class Direction { IN, OUT }
 
 /** How an entry reads to the UI, derived from its lines (never stored). */
-enum class EntryKind {
+enum class TransactionKind {
     OPENING, RECONCILIATION, ALLOCATION, SPLIT, LOAN, LOAN_REPAYMENT,
     INVESTMENT, TRANSFER, EXPENSE, INCOME, OTHER
 }
 
-object EntryStatus {
+object TransactionStatus {
     const val BUFFER = "buffer"
     const val CONFIRMED = "confirmed"
 }
 
-object EntrySource {
+object TransactionSource {
     const val SMS = "sms"
     const val QR_SCAN = "qr_scan"
     const val MANUAL = "manual"
@@ -53,11 +53,11 @@ data class LineSpec(
     val counterpartyId: Long? = null,
 )
 
-data class CreateEntryRequest(
+data class CreateTransactionRequest(
     val occurredOn: Long,
     val lines: List<LineSpec>,
-    val status: String = EntryStatus.CONFIRMED,
-    val source: String = EntrySource.MANUAL,
+    val status: String = TransactionStatus.CONFIRMED,
+    val source: String = TransactionSource.MANUAL,
     val happenedAt: Long? = null,
     val counterpartyId: Long? = null,
     val groupId: Long? = null,
@@ -75,8 +75,8 @@ data class IngestRequest(
     val counterpartyId: Long? = null,
     val intent: String,
     val tags: List<String> = emptyList(),
-    val status: String = EntryStatus.BUFFER,
-    val source: String = EntrySource.SMS,
+    val status: String = TransactionStatus.BUFFER,
+    val source: String = TransactionSource.SMS,
     val happenedAt: Long? = null,
     val rawText: String? = null,
     val dedupeHash: String? = null,
@@ -101,9 +101,9 @@ data class SplitRequest(
  * logic. For multi-sided entries (split/transfer) categoryId is null and the
  * client should render the lines themselves.
  */
-data class EntryView(
+data class TransactionView(
     val id: Long,
-    val kind: EntryKind,
+    val kind: TransactionKind,
     val direction: Direction?,
     val amountPaise: Long,
     val accountId: Long?,

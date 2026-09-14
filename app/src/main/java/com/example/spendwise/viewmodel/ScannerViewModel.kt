@@ -2,16 +2,16 @@ package com.example.spendwise.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntrySource
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.IngestRequest
-import com.example.spendwise.backend.api.Intent
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.api.LineSpec
-import com.example.spendwise.backend.service.CounterpartyService
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionSource
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.IngestRequest
+import com.example.spendwise.ledger.api.Intent
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.service.CounterpartyService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.parser_pw.md5Hex
 import com.example.spendwise.data.database.dao.AccountDao
@@ -140,15 +140,15 @@ class ScannerViewModel @Inject constructor(
                     // User picked a category: write a proper expense shape
                     // (account leg + category leg) so no unclassified contra
                     // line has to be re-classified later.
-                    ledgerApi.createEntry(
-                        CreateEntryRequest(
+                    ledgerApi.createTransaction(
+                        CreateTransactionRequest(
                             occurredOn = occurredOn,
                             lines = listOf(
                                 LineSpec(-amountPaise, accountId = debitAccountId),
                                 LineSpec(amountPaise, categoryId = categoryId),
                             ),
-                            status = EntryStatus.BUFFER,
-                            source = EntrySource.QR_SCAN,
+                            status = TransactionStatus.BUFFER,
+                            source = TransactionSource.QR_SCAN,
                             happenedAt = now,
                             counterpartyId = counterpartyId,
                             note = note.ifBlank { null },
@@ -165,8 +165,8 @@ class ScannerViewModel @Inject constructor(
                             counterpartyId = counterpartyId,
                             intent = Intent.EXPENSE,
                             tags = tags,
-                            status = EntryStatus.BUFFER,
-                            source = EntrySource.QR_SCAN,
+                            status = TransactionStatus.BUFFER,
+                            source = TransactionSource.QR_SCAN,
                             happenedAt = now,
                             rawText = upiUri,
                             dedupeHash = md5Hex("qr|$vpa|$amountPaise|$note|${now / 60_000}"),

@@ -5,12 +5,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.EntryView
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.TransactionView
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toAmountString
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CategoryDao
@@ -19,7 +19,7 @@ import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.screens.transactions.TransactionEvent
 import com.example.spendwise.ui.screens.transactions.TransactionFilterState
-import com.example.spendwise.ui.screens.transactions.TransactionStatus
+import com.example.spendwise.ui.screens.transactions.TransactionFilterStatus
 import com.example.spendwise.ui.screens.transactions.TransactionUi
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
@@ -34,7 +34,7 @@ import java.util.Locale
 import javax.inject.Inject
 
 /**
- * The transactions list, read from the real ledger ([LedgerApi.listEntries]).
+ * The transactions list, read from the real ledger ([LedgerApi.listTransactions]).
  *
  * Defaults to CONFIRMED (finalized) entries only; buffer/orphan rows belong on
  * the Inbox screen. Applying a status filter re-queries the ledger for buffer
@@ -74,10 +74,10 @@ class TransactionsViewModel @Inject constructor(
                 val accounts = accountDao.listAll().associate { it.id to it.name }
                 val parties = counterpartyDao.listAll().associate { it.id to it.displayName }
                 val statusArg = when (filterState.status) {
-                    TransactionStatus.Pending -> EntryStatus.BUFFER
-                    else -> EntryStatus.CONFIRMED
+                    TransactionFilterStatus.Pending -> TransactionStatus.BUFFER
+                    else -> TransactionStatus.CONFIRMED
                 }
-                val entries = ledgerApi.listEntries(status = statusArg)
+                val entries = ledgerApi.listTransactions(status = statusArg)
                 val categoryIds = entries.mapNotNull { it.categoryId }.distinct()
                 val categories = if (categoryIds.isEmpty()) {
                     emptyMap()
@@ -122,11 +122,11 @@ class TransactionsViewModel @Inject constructor(
         }
     }
 
-    fun setStatusFilter(status: TransactionStatus?) {
+    fun setStatusFilter(status: TransactionFilterStatus?) {
         filterState = filterState.copy(status = status)
     }
 
-    private fun EntryView.toUi(
+    private fun TransactionView.toUi(
         symbol: String,
         accounts: Map<Long, String>,
         categories: Map<Long, String>,
@@ -161,7 +161,7 @@ class TransactionsViewModel @Inject constructor(
                 ?.let { categories[it] }
                 ?.takeIf { it !in LedgerService.SYSTEM_CATEGORY_NAMES },
             direction = when (kind) {
-                EntryKind.TRANSFER -> TransactionDirection.TRANSFER
+                TransactionKind.TRANSFER -> TransactionDirection.TRANSFER
                 else -> if (direction == Direction.IN) {
                     TransactionDirection.INCOME
                 } else {
@@ -170,10 +170,10 @@ class TransactionsViewModel @Inject constructor(
             },
             tags = tags,
             dayLabel = dayLabel(occurredOn),
-            status = if (status == EntryStatus.BUFFER) {
-                TransactionStatus.Pending
+            status = if (status == TransactionStatus.BUFFER) {
+                TransactionFilterStatus.Pending
             } else {
-                TransactionStatus.Confirmed
+                TransactionFilterStatus.Confirmed
             },
             occurredOn = occurredOn,
         )

@@ -3,17 +3,17 @@ package com.example.spendwise.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.api.EntrySource
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.IngestRequest
-import com.example.spendwise.backend.api.Intent
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.api.LineSpec
-import com.example.spendwise.backend.service.CounterpartyService
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionSource
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.IngestRequest
+import com.example.spendwise.ledger.api.Intent
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.service.CounterpartyService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
@@ -234,7 +234,7 @@ class TransactionViewModel @Inject constructor(
         }
 
         if (s.mode == TransactionMode.EDIT && s.id != null) {
-            ledgerApi.voidEntry(s.id!!, "edited")
+            ledgerApi.voidTransaction(s.id!!, "edited")
         }
 
         val accountAmount = if (s.direction == TransactionDirection.EXPENSE) {
@@ -243,15 +243,15 @@ class TransactionViewModel @Inject constructor(
             amountPaise
         }
 
-        ledgerApi.createEntry(
-            CreateEntryRequest(
+        ledgerApi.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = occurredOn(s.date),
                 lines = listOf(
                     LineSpec(accountAmount, accountId = s.account!!.id.toLong()),
                     LineSpec(-accountAmount, categoryId = category.id.toLong()),
                 ),
-                status = EntryStatus.CONFIRMED,
-                source = EntrySource.MANUAL,
+                status = TransactionStatus.CONFIRMED,
+                source = TransactionSource.MANUAL,
                 counterpartyId = s.counterparty?.id?.toLongOrNull(),
                 note = s.note.ifBlank { null },
                 tags = withContextTag(s.tags.map { it.label }, contextTag),
@@ -264,7 +264,7 @@ class TransactionViewModel @Inject constructor(
             ?: throw IllegalArgumentException("Select the destination account")
 
         if (s.mode == TransactionMode.EDIT && s.id != null) {
-            ledgerApi.voidEntry(s.id!!, "edited")
+            ledgerApi.voidTransaction(s.id!!, "edited")
         }
 
         ledgerApi.ingestTransfer(
@@ -272,8 +272,8 @@ class TransactionViewModel @Inject constructor(
             fromAccountId = s.account!!.id.toLong(),
             toAccountId = toAccountId,
             occurredOn = occurredOn(s.date),
-            status = EntryStatus.CONFIRMED,
-            source = EntrySource.MANUAL,
+            status = TransactionStatus.CONFIRMED,
+            source = TransactionSource.MANUAL,
             note = s.note.ifBlank { null },
         )
     }
@@ -287,7 +287,7 @@ class TransactionViewModel @Inject constructor(
             ?: throw IllegalArgumentException("Select a counterparty")
 
         if (s.mode == TransactionMode.EDIT && s.id != null) {
-            ledgerApi.voidEntry(s.id!!, "edited")
+            ledgerApi.voidTransaction(s.id!!, "edited")
         }
 
         val moneyIn = s.direction == TransactionDirection.INCOME
@@ -300,8 +300,8 @@ class TransactionViewModel @Inject constructor(
                 counterpartyId = counterpartyId,
                 intent = if (moneyIn) Intent.LOAN_REPAYMENT else Intent.LOAN,
                 tags = withContextTag(s.tags.map { it.label }, contextTag),
-                status = EntryStatus.CONFIRMED,
-                source = EntrySource.MANUAL,
+                status = TransactionStatus.CONFIRMED,
+                source = TransactionSource.MANUAL,
                 note = s.note.ifBlank { null },
             )
         )
@@ -316,7 +316,7 @@ class TransactionViewModel @Inject constructor(
     fun delete() {
         val id = _uiState.value.id ?: return
         viewModelScope.launch {
-            runCatching { ledgerApi.voidEntry(id, "deleted from app") }
+            runCatching { ledgerApi.voidTransaction(id, "deleted from app") }
                 .onSuccess {
                     runCatching { inboxRepository.refreshBuffer() }
                     finished.tryEmit(Unit)
@@ -328,7 +328,7 @@ class TransactionViewModel @Inject constructor(
     fun void() {
         val id = _uiState.value.id ?: return
         viewModelScope.launch {
-            runCatching { ledgerApi.voidEntry(id, null) }
+            runCatching { ledgerApi.voidTransaction(id, null) }
                 .onSuccess {
                     runCatching { inboxRepository.refreshBuffer() }
                     finished.tryEmit(Unit)
@@ -385,14 +385,14 @@ class TransactionViewModel @Inject constructor(
     }
 
     private suspend fun loadEntry(id: Long) {
-        val view = ledgerApi.getEntry(id) ?: return
+        val view = ledgerApi.getTransaction(id) ?: return
         val account = view.accountId?.let { accountDao.getById(it) }
         val toAccount = view.toAccountId?.let { accountDao.getById(it) }
         val category = view.categoryId?.let { categoryDao.getById(it) }
         val rawSms = provenanceDao.getByEntry(id)?.rawText.orEmpty()
             .ifBlank { view.note.orEmpty() }
         val counterparty = when (view.kind) {
-            EntryKind.TRANSFER -> toAccount?.let {
+            TransactionKind.TRANSFER -> toAccount?.let {
                 DropdownOption(it.id.toString(), it.name)
             }
             else -> view.counterpartyId?.let { counterpartyDao.getById(it) }?.let {
@@ -410,8 +410,8 @@ class TransactionViewModel @Inject constructor(
                     TransactionDirection.EXPENSE
                 },
                 otherSide = when (view.kind) {
-                    EntryKind.TRANSFER -> OtherSide.TRANSFER
-                    EntryKind.LOAN, EntryKind.LOAN_REPAYMENT -> OtherSide.LOAN
+                    TransactionKind.TRANSFER -> OtherSide.TRANSFER
+                    TransactionKind.LOAN, TransactionKind.LOAN_REPAYMENT -> OtherSide.LOAN
                     else -> OtherSide.CATEGORY
                 },
                 amount = view.amountPaise.toRupeeInput(),
@@ -426,7 +426,7 @@ class TransactionViewModel @Inject constructor(
                 source = view.source,
                 rawSms = rawSms.takeIf { it.isNotBlank() },
                 canDelete = true,
-                counterparties = if (view.kind == EntryKind.TRANSFER) {
+                counterparties = if (view.kind == TransactionKind.TRANSFER) {
                     s.accounts.filter { account == null || it.id != account.id.toString() }
                 } else {
                     realCounterparties

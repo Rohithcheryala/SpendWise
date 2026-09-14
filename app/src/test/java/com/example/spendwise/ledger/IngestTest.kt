@@ -1,11 +1,11 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.IngestRequest
-import com.example.spendwise.backend.service.LedgerService
-import com.example.spendwise.backend.service.Text
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.IngestRequest
+import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.ledger.service.Text
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -29,13 +29,13 @@ class IngestTest : BackendTestBase() {
                 occurredOn = 0L,
                 accountId = bank,
                 counterpartyId = null,
-                intent = com.example.spendwise.backend.api.Intent.EXPENSE,
+                intent = com.example.spendwise.ledger.api.Intent.EXPENSE,
                 rawText = "Rs.1,250 debited from A/c XX1234",
                 dedupeHash = Text.smsHash("SBIINB", "Rs.1,250 debited from A/c XX1234"),
             )
         )
 
-        assertEquals(EntryStatus.BUFFER, view.status)
+        assertEquals(TransactionStatus.BUFFER, view.status)
         assertEquals(0L, ledger.accountBalance(bank)) // buffer doesn't move balances
 
         // Contra line landed on the expense-side system category.
@@ -59,8 +59,8 @@ class IngestTest : BackendTestBase() {
                 occurredOn = 0L,
                 accountId = bank,
                 counterpartyId = null,
-                intent = com.example.spendwise.backend.api.Intent.INCOME,
-                status = EntryStatus.CONFIRMED,
+                intent = com.example.spendwise.ledger.api.Intent.INCOME,
+                status = TransactionStatus.CONFIRMED,
             )
         )
         val lines = db.EntryLineDao().getByEntryList(view.id)
@@ -79,11 +79,11 @@ class IngestTest : BackendTestBase() {
             IngestRequest(
                 amountPaise = 100_00, direction = Direction.OUT, occurredOn = 0L,
                 accountId = bank, counterpartyId = null,
-                intent = com.example.spendwise.backend.api.Intent.EXPENSE, dedupeHash = hash,
+                intent = com.example.spendwise.ledger.api.Intent.EXPENSE, dedupeHash = hash,
             )
         )
-        assertEquals(first.id, ledger.findEntryByDedupeHash(hash)!!.id)
-        assertNull(ledger.findEntryByDedupeHash("nope"))
+        assertEquals(first.id, ledger.findTransactionByDedupeHash(hash)!!.id)
+        assertNull(ledger.findTransactionByDedupeHash("nope"))
 
         // A second message with the same hash cannot double-book: the unique
         // index on entry_provenance.dedupe_hash rejects it.
@@ -92,7 +92,7 @@ class IngestTest : BackendTestBase() {
                 IngestRequest(
                     amountPaise = 100_00, direction = Direction.OUT, occurredOn = 0L,
                     accountId = bank, counterpartyId = null,
-                    intent = com.example.spendwise.backend.api.Intent.EXPENSE, dedupeHash = hash,
+                    intent = com.example.spendwise.ledger.api.Intent.EXPENSE, dedupeHash = hash,
                 )
             )
             false
@@ -112,11 +112,11 @@ class IngestTest : BackendTestBase() {
             fromAccountId = bank,
             toAccountId = cash,
             occurredOn = 0L,
-            status = EntryStatus.CONFIRMED,
+            status = TransactionStatus.CONFIRMED,
             balanceAfterPaise = 8_000_00,
         )
 
-        assertEquals(EntryKind.TRANSFER, view.kind)
+        assertEquals(TransactionKind.TRANSFER, view.kind)
         assertEquals(-200_00, ledger.accountBalance(bank))
         assertEquals(200_00, ledger.accountBalance(cash))
         assertEquals(8_000_00L, view.balanceAfterPaise)

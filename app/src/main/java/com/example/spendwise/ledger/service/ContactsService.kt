@@ -1,4 +1,4 @@
-package com.example.spendwise.backend.service
+package com.example.spendwise.ledger.service
 
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
@@ -109,9 +109,9 @@ class ContactsService(
      */
     suspend fun linkWithContact(counterpartyId: Long, phone: String?, name: String) {
         val cp = counterpartyDao.getById(counterpartyId)
-            ?: throw com.example.spendwise.backend.api.ApiException("counterparty $counterpartyId not found")
+            ?: throw com.example.spendwise.ledger.api.ApiException("counterparty $counterpartyId not found")
         if (name.isBlank()) {
-            throw com.example.spendwise.backend.api.ApiException("contact name must not be blank")
+            throw com.example.spendwise.ledger.api.ApiException("contact name must not be blank")
         }
 
         counterpartyDao.update(cp.copy(displayName = name.trim()))

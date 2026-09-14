@@ -1,11 +1,11 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.Intent
-import com.example.spendwise.backend.service.ContactsService
-import com.example.spendwise.backend.service.IngestionService
-import com.example.spendwise.backend.service.Text
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.Intent
+import com.example.spendwise.ledger.service.ContactsService
+import com.example.spendwise.ledger.service.IngestionService
+import com.example.spendwise.ledger.service.Text
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -94,7 +94,7 @@ class ContactsServiceTest : BackendTestBase() {
         val result = ingestion.ingestSms(sms("Sent Rs500 to 9876543210@okax. UPI/5432101"))
         val parsed = result as IngestionService.SmsIngestResult.Parsed
         // The counterparty rides on the entry, not the contra line.
-        val entry = ledger.getEntry(parsed.entryId)!!
+        val entry = ledger.getTransaction(parsed.entryId)!!
         val cp = db.CounterpartyDao().getById(entry.counterpartyId!!)!!
         assertEquals("Rahul Sharma", cp.displayName)
         // The handle itself was learned as an alias.
@@ -112,7 +112,7 @@ class ContactsServiceTest : BackendTestBase() {
     fun ingest_withoutSyncedContact_fallsBackToRawSlug() = backendTest {
         val result = ingestion.ingestSms(sms("Sent Rs500 to 9876543210@okax. UPI/5432102"))
         val entryId = (result as IngestionService.SmsIngestResult.Parsed).entryId
-        val entry = ledger.getEntry(entryId)!!
+        val entry = ledger.getTransaction(entryId)!!
         val cp = db.CounterpartyDao().getById(entry.counterpartyId!!)!!
         // Falls back to the raw VPA as the display name.
         assertEquals(
@@ -123,13 +123,13 @@ class ContactsServiceTest : BackendTestBase() {
 
     private suspend fun loanReq(amountPaise: Long, direction: Direction, cpId: Long) {
         ledger.ingest(
-            com.example.spendwise.backend.api.IngestRequest(
+            com.example.spendwise.ledger.api.IngestRequest(
                 amountPaise = amountPaise,
                 direction = direction,
                 occurredOn = 0L,
                 intent = if (direction == Direction.OUT) Intent.LOAN else Intent.LOAN_REPAYMENT,
                 counterpartyId = cpId,
-                status = EntryStatus.CONFIRMED,
+                status = TransactionStatus.CONFIRMED,
             )
         )
     }

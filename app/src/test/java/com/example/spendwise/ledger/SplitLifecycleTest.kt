@@ -1,15 +1,15 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.IngestRequest
-import com.example.spendwise.backend.api.Intent
-import com.example.spendwise.backend.api.LineSpec
-import com.example.spendwise.backend.api.SplitRequest
-import com.example.spendwise.backend.api.SplitShare
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.IngestRequest
+import com.example.spendwise.ledger.api.Intent
+import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.api.SplitRequest
+import com.example.spendwise.ledger.api.SplitShare
+import com.example.spendwise.ledger.service.LedgerService
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -24,10 +24,10 @@ class SplitLifecycleTest : BackendTestBase() {
         val bank = db.AccountDao().insert(newAccount("bank"))
         val merchant = counterparties.resolveOrCreate(LedgerService.USER_ID, "bigbasket")!!
         val food = db.CategoryDao().insert(newCategory("Food"))
-        val entry = ledger.createEntry(
-            CreateEntryRequest(
+        val entry = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
-                status = EntryStatus.CONFIRMED,
+                status = TransactionStatus.CONFIRMED,
                 counterpartyId = merchant,
                 lines = listOf(
                     LineSpec(-amountPaise, accountId = bank),
@@ -45,7 +45,7 @@ class SplitLifecycleTest : BackendTestBase() {
         val rahul = counterparties.resolveOrCreate(LedgerService.USER_ID, "rahul987@oksbi")!!
         val priya = counterparties.resolveOrCreate(LedgerService.USER_ID, "priya@ybl")!!
 
-        val view = ledger.splitEntry(
+        val view = ledger.splitTransaction(
             entryId,
             SplitRequest(
                 shares = listOf(SplitShare(rahul, 40_000), SplitShare(priya, 25_000)),
@@ -53,7 +53,7 @@ class SplitLifecycleTest : BackendTestBase() {
             ),
         )
 
-        assertEquals(EntryKind.SPLIT, view.kind)
+        assertEquals(TransactionKind.SPLIT, view.kind)
 
         val lines = db.EntryLineDao().getByEntryList(entryId)
         assertEquals(0L, lines.sumOf { it.amountPaise }) // still balanced
@@ -77,7 +77,7 @@ class SplitLifecycleTest : BackendTestBase() {
         val friend = counterparties.resolveOrCreate(LedgerService.USER_ID, "friend@upi")!!
 
         expectApiError("shares exceed the paid amount") {
-            ledger.splitEntry(entryId, SplitRequest(shares = listOf(SplitShare(friend, 60_000))))
+            ledger.splitTransaction(entryId, SplitRequest(shares = listOf(SplitShare(friend, 60_000))))
         }
     }
 
@@ -96,8 +96,8 @@ class SplitLifecycleTest : BackendTestBase() {
         )
         expectApiError(
             "cannot confirm entry ${orphan.id}: no real account line yet (classify the orphan first)"
-        ) { ledger.confirmEntry(orphan.id) }
-        assertEquals(EntryStatus.BUFFER, ledger.getEntry(orphan.id)!!.status)
+        ) { ledger.confirmTransaction(orphan.id) }
+        assertEquals(TransactionStatus.BUFFER, ledger.getTransaction(orphan.id)!!.status)
 
         // A matched ingest confirms fine.
         val bank = db.AccountDao().insert(newAccount("bank"))
@@ -111,8 +111,8 @@ class SplitLifecycleTest : BackendTestBase() {
                 intent = Intent.EXPENSE,
             )
         )
-        ledger.confirmEntry(matched.id)
-        assertEquals(EntryStatus.CONFIRMED, ledger.getEntry(matched.id)!!.status)
+        ledger.confirmTransaction(matched.id)
+        assertEquals(TransactionStatus.CONFIRMED, ledger.getTransaction(matched.id)!!.status)
     }
 
     @Test
@@ -129,15 +129,15 @@ class SplitLifecycleTest : BackendTestBase() {
                 dedupeHash = "hash-x",
             )
         )
-        ledger.voidEntry(entry.id, "wrong parse")
-        val voidedAt = ledger.getEntry(entry.id)!!.let { 1L } // marker
-        ledger.voidEntry(entry.id, "again")
+        ledger.voidTransaction(entry.id, "wrong parse")
+        val voidedAt = ledger.getTransaction(entry.id)!!.let { 1L } // marker
+        ledger.voidTransaction(entry.id, "again")
 
         assertEquals(voidedAt, 1L) // still fine after double-void
-        assertEquals(EntryStatus.BUFFER, ledger.getEntry(entry.id)!!.status) // status untouched by void
+        assertEquals(TransactionStatus.BUFFER, ledger.getTransaction(entry.id)!!.status) // status untouched by void
 
-        ledger.deleteEntry(entry.id)
-        assertEquals(null, ledger.getEntry(entry.id))
+        ledger.deleteTransaction(entry.id)
+        assertEquals(null, ledger.getTransaction(entry.id))
         assertEquals(null, db.EntryProvanceDao().getByDedupeHash("hash-x"))
     }
 

@@ -1,8 +1,8 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.ApiException
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.LineSpec
+import com.example.spendwise.ledger.api.ApiException
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.LineSpec
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -20,8 +20,8 @@ class LedgerValidationTest : BackendTestBase() {
         val bank = db.AccountDao().insert(newAccount("bank"))
 
         expectApiError("an entry needs at least two lines") {
-            ledger.createEntry(
-                CreateEntryRequest(
+            ledger.createTransaction(
+                CreateTransactionRequest(
                     occurredOn = 0L,
                     lines = listOf(LineSpec(-1000, accountId = bank)),
                 )
@@ -35,8 +35,8 @@ class LedgerValidationTest : BackendTestBase() {
         val food = db.CategoryDao().insert(newCategory("Food"))
 
         expectApiError("entry lines must sum to zero (got -100)") {
-            ledger.createEntry(
-                CreateEntryRequest(
+            ledger.createTransaction(
+                CreateTransactionRequest(
                     occurredOn = 0L,
                     // 1000 - 900 != 0
                     lines = listOf(
@@ -54,8 +54,8 @@ class LedgerValidationTest : BackendTestBase() {
         val food = db.CategoryDao().insert(newCategory("Food"))
 
         expectApiError("each line targets exactly one of accountId / categoryId") {
-            ledger.createEntry(
-                CreateEntryRequest(
+            ledger.createTransaction(
+                CreateTransactionRequest(
                     occurredOn = 0L,
                     lines = listOf(
                         LineSpec(-1000, accountId = bank),
@@ -73,8 +73,8 @@ class LedgerValidationTest : BackendTestBase() {
         val food = db.CategoryDao().insert(newCategory("Food"))
 
         expectApiError("each line targets exactly one of accountId / categoryId") {
-            ledger.createEntry(
-                CreateEntryRequest(
+            ledger.createTransaction(
+                CreateTransactionRequest(
                     occurredOn = 0L,
                     lines = listOf(
                         LineSpec(-1000, accountId = bank),
@@ -93,8 +93,8 @@ class LedgerValidationTest : BackendTestBase() {
         db.BucketDao().insert(newBucket(bank))
 
         expectApiError("bucketId is only valid on a real-account line") {
-            ledger.createEntry(
-                CreateEntryRequest(
+            ledger.createTransaction(
+                CreateTransactionRequest(
                     occurredOn = 0L,
                     lines = listOf(
                         LineSpec(-1000, accountId = bank),
@@ -111,8 +111,8 @@ class LedgerValidationTest : BackendTestBase() {
         val food = db.CategoryDao().insert(newCategory("Food"))
         val fun_ = db.CategoryDao().insert(newCategory("Fun"))
 
-        val view = ledger.createEntry(
-            CreateEntryRequest(
+        val view = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 note = "groceries + movie",
                 tags = listOf("night out"),

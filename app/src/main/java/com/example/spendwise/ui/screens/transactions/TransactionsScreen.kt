@@ -73,7 +73,7 @@ fun TransactionsScreen(
     onTransactionClick: ((Long) -> Unit)? = null,
     onAddTransactionClick: (() -> Unit)? = null,
     onEvent: (TransactionEvent) -> Unit = {},
-    onStatusChange: (TransactionStatus?) -> Unit = {},
+    onStatusChange: (TransactionFilterStatus?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -234,7 +234,7 @@ fun TransactionFilterSheet(
     onDismiss: () -> Unit,
     onApply: () -> Unit,
     onReset: () -> Unit,
-    onStatusChange: (TransactionStatus?) -> Unit
+    onStatusChange: (TransactionFilterStatus?) -> Unit
 ) {
 
     ModalBottomSheet(
@@ -272,14 +272,14 @@ fun TransactionFilterSheet(
                         modifier = Modifier.weight(1f)
                     )
                     FilterChip(
-                        selected = state.status == TransactionStatus.Confirmed,
-                        onClick = { onStatusChange(TransactionStatus.Confirmed) },
+                        selected = state.status == TransactionFilterStatus.Confirmed,
+                        onClick = { onStatusChange(TransactionFilterStatus.Confirmed) },
                         label = { Text("Confirmed") },
                         modifier = Modifier.weight(1f)
                     )
                     FilterChip(
-                        selected = state.status == TransactionStatus.Pending,
-                        onClick = { onStatusChange(TransactionStatus.Pending) },
+                        selected = state.status == TransactionFilterStatus.Pending,
+                        onClick = { onStatusChange(TransactionFilterStatus.Pending) },
                         label = { Text("Pending") },
                         modifier = Modifier.weight(1f)
                     )
@@ -609,7 +609,7 @@ data class TransactionUi(
     /** Day bucket label used for list section headers, e.g. "Today", "12 Aug" */
     val dayLabel: String = "",
     /** Ledger status surfaced so the list can be filtered (confirmed vs pended). */
-    val status: TransactionStatus = TransactionStatus.Confirmed,
+    val status: TransactionFilterStatus = TransactionFilterStatus.Confirmed,
     /** Epoch millis the entry occurred; enables date-range filtering. */
     val occurredOn: Long = 0L
 )
@@ -617,7 +617,7 @@ data class TransactionUi(
 data class TransactionFilterState(
     val showFilters: Boolean = false,
 
-    val status: TransactionStatus? = null,
+    val status: TransactionFilterStatus? = null,
     val category: String? = null,
 
     val fromAccount: String? = null,
@@ -680,7 +680,7 @@ data class TransactionFilterState(
     }
 }
 
-enum class TransactionStatus(
+enum class TransactionFilterStatus(
     val label: String
 ) {
     Confirmed("Confirmed"),
@@ -757,7 +757,7 @@ private fun TransactionsScreenPreview() {
         TransactionsScreen(
             state = TransactionFilterState(
                 showFilters = false,
-                status = TransactionStatus.Confirmed,
+                status = TransactionFilterStatus.Confirmed,
                 category = "Food",
                 tag = "Rahul"
             ),

@@ -1,7 +1,7 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.service.Reconciliation
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.service.Reconciliation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

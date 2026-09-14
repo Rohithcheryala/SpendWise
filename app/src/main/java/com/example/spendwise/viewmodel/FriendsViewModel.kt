@@ -5,11 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.backend.api.ApiException
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.service.ContactsService
-import com.example.spendwise.backend.service.CounterpartyService
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.ApiException
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.service.ContactsService
+import com.example.spendwise.ledger.service.CounterpartyService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.contacts.Contact
 import com.example.spendwise.core.contacts.ContactReader
 import com.example.spendwise.data.database.dao.CounterpartyDao

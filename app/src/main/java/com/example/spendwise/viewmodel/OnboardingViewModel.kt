@@ -6,7 +6,7 @@ import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
-import com.example.spendwise.backend.service.IngestionService
+import com.example.spendwise.ledger.service.IngestionService
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.OnboardingRepository
 import com.example.spendwise.ui.screens.onboarding.OnboardingState

@@ -1,12 +1,12 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.IngestRequest
-import com.example.spendwise.backend.api.LineSpec
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.IngestRequest
+import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.service.LedgerService
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -24,14 +24,14 @@ class DescribeEntryTest : BackendTestBase() {
         val bank = db.AccountDao().insert(newAccount("bank"))
         val food = db.CategoryDao().insert(newCategory("Food"))
 
-        val view = ledger.createEntry(
-            CreateEntryRequest(
+        val view = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 lines = listOf(LineSpec(-450_00, accountId = bank), LineSpec(450_00, categoryId = food)),
             )
         )
 
-        assertEquals(EntryKind.EXPENSE, view.kind)
+        assertEquals(TransactionKind.EXPENSE, view.kind)
         assertEquals(Direction.OUT, view.direction)
         assertEquals(450_00, view.amountPaise)
         assertEquals(bank, view.accountId)
@@ -44,8 +44,8 @@ class DescribeEntryTest : BackendTestBase() {
         val food = db.CategoryDao().insert(newCategory("Food"))
         val fun_ = db.CategoryDao().insert(newCategory("Fun"))
 
-        val view = ledger.createEntry(
-            CreateEntryRequest(
+        val view = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 lines = listOf(
                     LineSpec(-1000, accountId = bank),
@@ -56,7 +56,7 @@ class DescribeEntryTest : BackendTestBase() {
         )
         // Multi-sided: category is null so the client renders the lines.
         assertNull(view.categoryId)
-        assertEquals(EntryKind.EXPENSE, view.kind)
+        assertEquals(TransactionKind.EXPENSE, view.kind)
     }
 
     @Test
@@ -64,13 +64,13 @@ class DescribeEntryTest : BackendTestBase() {
         val bank = db.AccountDao().insert(newAccount("bank"))
         val cash = db.AccountDao().insert(newAccount("cash", kind = "cash"))
 
-        val view = ledger.createEntry(
-            CreateEntryRequest(
+        val view = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 lines = listOf(LineSpec(-200_00, accountId = bank), LineSpec(200_00, accountId = cash)),
             )
         )
-        assertEquals(EntryKind.TRANSFER, view.kind)
+        assertEquals(TransactionKind.TRANSFER, view.kind)
         assertEquals(bank, view.accountId)
         assertEquals(cash, view.toAccountId)
         assertNull(view.categoryId)
@@ -81,8 +81,8 @@ class DescribeEntryTest : BackendTestBase() {
         val bank = db.AccountDao().insert(newAccount("bank"))
         val bucket = db.BucketDao().insert(newBucket(bank))
 
-        val view = ledger.createEntry(
-            CreateEntryRequest(
+        val view = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 note = "Bucket opening allocation",
                 lines = listOf(
@@ -91,7 +91,7 @@ class DescribeEntryTest : BackendTestBase() {
                 ),
             )
         )
-        assertEquals(EntryKind.ALLOCATION, view.kind)
+        assertEquals(TransactionKind.ALLOCATION, view.kind)
         assertEquals(bucket, view.bucketId)
     }
 
@@ -107,10 +107,10 @@ class DescribeEntryTest : BackendTestBase() {
                 occurredOn = 0L,
                 accountId = bank,
                 counterpartyId = friend,
-                intent = com.example.spendwise.backend.api.Intent.LOAN,
+                intent = com.example.spendwise.ledger.api.Intent.LOAN,
             )
         )
-        assertEquals(EntryKind.LOAN, view.kind)
+        assertEquals(TransactionKind.LOAN, view.kind)
 
         // The receivable pot now carries +500 (money lent out).
         val loansPot = db.AccountDao().getBySlug("sys-loans-${LedgerService.USER_ID}")!!
@@ -130,11 +130,11 @@ class DescribeEntryTest : BackendTestBase() {
                 occurredOn = 0L,
                 accountId = null, // no account matched yet
                 counterpartyId = null,
-                intent = com.example.spendwise.backend.api.Intent.EXPENSE,
+                intent = com.example.spendwise.ledger.api.Intent.EXPENSE,
             )
         )
 
-        assertEquals(EntryKind.EXPENSE, view.kind)
+        assertEquals(TransactionKind.EXPENSE, view.kind)
         assertEquals(199_00, view.amountPaise)
         assertNull(view.accountId) // surfaced as "needs an account"
 
@@ -151,11 +151,11 @@ class DescribeEntryTest : BackendTestBase() {
                 occurredOn = 0L,
                 accountId = null,
                 counterpartyId = null,
-                intent = com.example.spendwise.backend.api.Intent.RECONCILIATION,
-                status = EntryStatus.CONFIRMED,
+                intent = com.example.spendwise.ledger.api.Intent.RECONCILIATION,
+                status = TransactionStatus.CONFIRMED,
             )
         )
-        assertEquals(EntryKind.RECONCILIATION, provenOrphan.kind)
+        assertEquals(TransactionKind.RECONCILIATION, provenOrphan.kind)
         assertEquals(-80_00, ledger.accountBalance(unmatchedPot.id))
     }
 }

@@ -46,7 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.example.spendwise.backend.service.CounterpartyService
+import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ui.components.FriendAvatar
 import com.example.spendwise.viewmodel.CounterpartyUi
 import com.example.spendwise.viewmodel.CounterpartiesViewModel

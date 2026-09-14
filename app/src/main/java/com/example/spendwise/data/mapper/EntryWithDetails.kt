@@ -23,18 +23,3 @@ data class EntryWithDetails(
     )
     val provenance: List<EntryProvenanceEntity>
 )
-
-
-enum class EntryStatus {
-    BUFFER,
-    CONFIRMED
-}
-
-enum class EntrySource {
-    SMS,
-    QR_SCAN,
-    MANUAL,
-    SPLIT,
-    NOTIFICATION,
-    STATEMENT
-}

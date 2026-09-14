@@ -1,10 +1,10 @@
-package com.example.spendwise.backend.service
+package com.example.spendwise.ledger.service
 
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntrySource
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.IngestRequest
-import com.example.spendwise.backend.api.Intent
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionSource
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.IngestRequest
+import com.example.spendwise.ledger.api.Intent
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.EntryDao
@@ -71,7 +71,7 @@ class IngestionService @Inject constructor(
      */
     suspend fun ingestSms(facts: SmsParseFacts): SmsIngestResult {
         val hash = Text.smsHash(facts.sender, facts.rawText)
-        ledger.findEntryByDedupeHash(hash)?.let { return SmsIngestResult.Duplicate(it.id) }
+        ledger.findTransactionByDedupeHash(hash)?.let { return SmsIngestResult.Duplicate(it.id) }
 
         val account = findAccount(facts.bank, facts.last4, facts.smsAccountKind, facts.idKinds)
 
@@ -96,8 +96,8 @@ class IngestionService @Inject constructor(
                 accountId = account?.id,
                 counterpartyId = cpId,
                 intent = defaultIntent(facts.direction),
-                status = EntryStatus.BUFFER,
-                source = EntrySource.SMS,
+                status = TransactionStatus.BUFFER,
+                source = TransactionSource.SMS,
                 happenedAt = facts.happenedAt,
                 rawText = facts.rawText,
                 dedupeHash = hash,
@@ -150,7 +150,7 @@ class IngestionService @Inject constructor(
      */
     suspend fun claimOrphansForAccount(accountId: Long): Int {
         val account = accountDao.getById(accountId)
-            ?: throw com.example.spendwise.backend.api.ApiException("account $accountId not found")
+            ?: throw com.example.spendwise.ledger.api.ApiException("account $accountId not found")
         val hasIdentifier = identifierDao.getByAccountList(accountId).any { it.isActive }
         if (account.bank == null || !hasIdentifier) return 0
 
@@ -158,7 +158,7 @@ class IngestionService @Inject constructor(
         var claimed = 0
         for (entryId in entryLineDao.entryIdsForAccount(unmatchedPot)) {
             val entry = entryDao.getById(entryId) ?: continue
-            if (entry.source != EntrySource.SMS || entry.voidedAt != null) continue
+            if (entry.source != TransactionSource.SMS || entry.voidedAt != null) continue
 
             val prov = provenanceDao.getByEntry(entryId) ?: continue
             val parts = prov.parsedFacts?.split("|") ?: continue
@@ -240,7 +240,7 @@ class IngestionService @Inject constructor(
                 counterpartyId = smsEntry.counterpartyId ?: qr.counterpartyId,
                 note = smsEntry.note ?: qr.note,
                 tags = TagCodec.encode(tags.toList()),
-                status = EntryStatus.CONFIRMED,
+                status = TransactionStatus.CONFIRMED,
             )
         )
         smsLines.forEach { entryLineDao.update(it) }

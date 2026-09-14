@@ -1,6 +1,6 @@
-package com.example.spendwise.backend.service
+package com.example.spendwise.ledger.service
 
-import com.example.spendwise.backend.api.ApiException
+import com.example.spendwise.ledger.api.ApiException
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.entity.CounterpartyAliasEntity

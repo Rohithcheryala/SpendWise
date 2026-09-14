@@ -1,14 +1,14 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.Direction
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.api.EntrySource
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.Intent
-import com.example.spendwise.backend.api.LineSpec
-import com.example.spendwise.backend.service.IngestionService
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.Direction
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionSource
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.Intent
+import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.service.IngestionService
+import com.example.spendwise.ledger.service.LedgerService
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -80,8 +80,8 @@ class IngestionServiceTest : BackendTestBase() {
 
         val parsed = result as IngestionService.SmsIngestResult.Parsed
         assertNull(parsed.accountId)
-        val view = ledger.getEntry(parsed.entryId)!!
-        assertEquals(EntryKind.EXPENSE, view.kind)
+        val view = ledger.getTransaction(parsed.entryId)!!
+        assertEquals(TransactionKind.EXPENSE, view.kind)
         assertNull(view.accountId) // surfaced as needing classification
     }
 
@@ -138,7 +138,7 @@ class IngestionServiceTest : BackendTestBase() {
         val newAccountId = bankWithIdentifiers("hdfc-main", "HDFC Bank", "9021")
 
         assertEquals(1, ingestion.claimOrphansForAccount(newAccountId))
-        assertEquals(newAccountId, ledger.getEntry(orphan.entryId)!!.accountId)
+        assertEquals(newAccountId, ledger.getTransaction(orphan.entryId)!!.accountId)
 
         // The line really moved: no account leg left on the unmatched pot.
         val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
@@ -156,7 +156,7 @@ class IngestionServiceTest : BackendTestBase() {
         // Another bank reuses the same last-4; claiming for it must not steal.
         val other = bankWithIdentifiers("icici", "ICICI Bank", "4921")
         assertEquals(0, ingestion.claimOrphansForAccount(other))
-        assertEquals(existing, ledger.getEntry(attached.entryId)!!.accountId)
+        assertEquals(existing, ledger.getTransaction(attached.entryId)!!.accountId)
     }
 
     @Test
@@ -166,11 +166,11 @@ class IngestionServiceTest : BackendTestBase() {
         val food = db.CategoryDao().insert(newCategory("Food"))
 
         // User scanned the QR first: deliberate category/party/note, buffer status.
-        val qrView = ledger.createEntry(
-            CreateEntryRequest(
+        val qrView = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
-                status = EntryStatus.BUFFER,
-                source = EntrySource.QR_SCAN,
+                status = TransactionStatus.BUFFER,
+                source = TransactionSource.QR_SCAN,
                 counterpartyId = merchant,
                 note = "lunch with team",
                 tags = listOf("lunch"),
@@ -194,15 +194,15 @@ class IngestionServiceTest : BackendTestBase() {
         assertNotNull(result.mergedQrEntryId)
         assertEquals(qrView.id, result.mergedQrEntryId)
 
-        val merged = ledger.getEntry(result.entryId)!!
-        assertEquals(EntryStatus.CONFIRMED, merged.status)
+        val merged = ledger.getTransaction(result.entryId)!!
+        assertEquals(TransactionStatus.CONFIRMED, merged.status)
         assertEquals(merchant, merged.counterpartyId)
         assertEquals(food, merged.categoryId)
         assertEquals(bank, merged.accountId)
         assertEquals(listOf("lunch"), merged.tags)
 
         // The QR entry itself is gone; the money actually moved.
-        assertNull(ledger.getEntry(qrView.id))
+        assertNull(ledger.getTransaction(qrView.id))
         assertEquals(-235_50L, ledger.accountBalance(bank))
     }
 
@@ -234,11 +234,11 @@ class IngestionServiceTest : BackendTestBase() {
 
         // Scanned ₹100.00; the UPI app added ₹1.50 at the final step, so the
         // bank debited ₹101.50 (1.5% up — inside the 2% fee allowance).
-        val qrView = ledger.createEntry(
-            CreateEntryRequest(
+        val qrView = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
-                status = EntryStatus.BUFFER,
-                source = EntrySource.QR_SCAN,
+                status = TransactionStatus.BUFFER,
+                source = TransactionSource.QR_SCAN,
                 counterpartyId = merchant,
                 lines = listOf(
                     LineSpec(-100_00, accountId = bank),
@@ -256,8 +256,8 @@ class IngestionServiceTest : BackendTestBase() {
         ) as IngestionService.SmsIngestResult.Parsed
 
         assertEquals(qrView.id, result.mergedQrEntryId)
-        val merged = ledger.getEntry(result.entryId)!!
-        assertEquals(EntryStatus.CONFIRMED, merged.status)
+        val merged = ledger.getTransaction(result.entryId)!!
+        assertEquals(TransactionStatus.CONFIRMED, merged.status)
         // The bank's actual debit (fee included) is the recorded truth.
         assertEquals(-101_50L, ledger.accountBalance(bank))
     }
@@ -267,11 +267,11 @@ class IngestionServiceTest : BackendTestBase() {
         val bank = bankWithIdentifiers("hdfc", "HDFC Bank", "4921")
         val merchant = counterparties.resolveOrCreate(LedgerService.USER_ID, "swiggy@ybl")!!
 
-        ledger.createEntry(
-            CreateEntryRequest(
+        ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
-                status = EntryStatus.BUFFER,
-                source = EntrySource.QR_SCAN,
+                status = TransactionStatus.BUFFER,
+                source = TransactionSource.QR_SCAN,
                 counterpartyId = merchant,
                 lines = listOf(
                     LineSpec(-100_00, accountId = bank),

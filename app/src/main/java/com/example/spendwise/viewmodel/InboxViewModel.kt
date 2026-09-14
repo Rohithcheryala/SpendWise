@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.repository.ActiveContext
 import com.example.spendwise.data.repository.InboxItem

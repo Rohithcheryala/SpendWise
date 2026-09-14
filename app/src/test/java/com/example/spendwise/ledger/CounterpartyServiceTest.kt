@@ -1,8 +1,8 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.service.CounterpartyService
-import com.example.spendwise.backend.service.LedgerService
-import com.example.spendwise.backend.service.Text
+import com.example.spendwise.ledger.service.CounterpartyService
+import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.ledger.service.Text
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

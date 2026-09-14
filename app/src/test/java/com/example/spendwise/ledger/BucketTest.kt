@@ -1,7 +1,7 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.EntryKind
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.service.LedgerService
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -21,7 +21,7 @@ class BucketTest : BackendTestBase() {
         val bucketId = db.BucketDao().insert(newBucket(accountId, allocation = 200_000))
 
         val alloc = ledger.recordBucketAllocation(bucketId)!!
-        assertEquals(EntryKind.ALLOCATION, alloc.kind)
+        assertEquals(TransactionKind.ALLOCATION, alloc.kind)
 
         // Account total unchanged (net zero); bucket now carries its baseline.
         assertEquals(0L, ledger.accountBalance(accountId))
@@ -31,7 +31,7 @@ class BucketTest : BackendTestBase() {
         db.BucketDao().update(db.BucketDao().getById(bucketId)!!.copy(manualAllocationPaise = 150_000))
         ledger.recordBucketAllocation(bucketId)
         assertEquals(150_000L, ledger.bucketValue(bucketId))
-        assertNull(ledger.getEntry(alloc.id))
+        assertNull(ledger.getTransaction(alloc.id))
     }
 
     @Test
@@ -41,18 +41,18 @@ class BucketTest : BackendTestBase() {
         ledger.recordBucketAllocation(bucketId)
 
         // Spend from within the travel kitty.
-        val view = ledger.createEntry(
-            com.example.spendwise.backend.api.CreateEntryRequest(
+        val view = ledger.createTransaction(
+            com.example.spendwise.ledger.api.CreateTransactionRequest(
                 occurredOn = 10L,
                 lines = listOf(
-                    com.example.spendwise.backend.api.LineSpec(-30_000, accountId = accountId, bucketId = bucketId),
-                    com.example.spendwise.backend.api.LineSpec(
+                    com.example.spendwise.ledger.api.LineSpec(-30_000, accountId = accountId, bucketId = bucketId),
+                    com.example.spendwise.ledger.api.LineSpec(
                         30_000, categoryId = db.CategoryDao().insert(newCategory("Travel")),
                     ),
                 ),
             )
         )
-        assertEquals(EntryKind.EXPENSE, view.kind)
+        assertEquals(TransactionKind.EXPENSE, view.kind)
         assertEquals(-30_000L, ledger.accountBalance(accountId))
         assertEquals(70_000L, ledger.bucketValue(bucketId))
     }
@@ -72,7 +72,7 @@ class BucketTest : BackendTestBase() {
         )
 
         val opening = ledger.recordOpeningBalance(cardId, onDate = 0L)!!
-        assertEquals(EntryKind.OPENING, opening.kind)
+        assertEquals(TransactionKind.OPENING, opening.kind)
         assertEquals(45_000L, ledger.accountBalance(cardId)) // owed
 
         // The open-equity pot took the contra.

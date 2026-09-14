@@ -1,8 +1,8 @@
-package com.example.spendwise.backend
+package com.example.spendwise.ledger
 
-import com.example.spendwise.backend.api.CreateEntryRequest
-import com.example.spendwise.backend.api.EntryStatus
-import com.example.spendwise.backend.api.LineSpec
+import com.example.spendwise.ledger.api.CreateTransactionRequest
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.LineSpec
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -21,8 +21,8 @@ class BalanceTest : BackendTestBase() {
     fun `expenses reduce and income raises a confirmed balance`() = runTest {
         val bank = setupAccount()
 
-        ledger.createEntry(
-            CreateEntryRequest(
+        ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 10L,
                 lines = listOf(
                     LineSpec(-500_00, accountId = bank),
@@ -32,8 +32,8 @@ class BalanceTest : BackendTestBase() {
         )
         assertEquals(-500_00, ledger.accountBalance(bank))
 
-        ledger.createEntry(
-            CreateEntryRequest(
+        ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 11L,
                 lines = listOf(
                     LineSpec(1_200_00, accountId = bank),
@@ -49,16 +49,16 @@ class BalanceTest : BackendTestBase() {
         val bank = setupAccount()
         val food = db.CategoryDao().insert(newCategory("Food"))
 
-        val buffered = ledger.createEntry(
-            CreateEntryRequest(
+        val buffered = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
-                status = EntryStatus.BUFFER,
+                status = TransactionStatus.BUFFER,
                 lines = listOf(LineSpec(-300_00, accountId = bank), LineSpec(300_00, categoryId = food)),
             )
         )
         assertEquals(0L, ledger.accountBalance(bank))
 
-        ledger.confirmEntry(buffered.id)
+        ledger.confirmTransaction(buffered.id)
         assertEquals(-300_00, ledger.accountBalance(bank))
     }
 
@@ -67,18 +67,18 @@ class BalanceTest : BackendTestBase() {
         val bank = setupAccount()
         val food = db.CategoryDao().insert(newCategory("Food"))
 
-        val entry = ledger.createEntry(
-            CreateEntryRequest(
+        val entry = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 lines = listOf(LineSpec(-700_00, accountId = bank), LineSpec(700_00, categoryId = food)),
             )
         )
         assertEquals(-700_00, ledger.accountBalance(bank))
 
-        ledger.voidEntry(entry.id, "duplicate")
+        ledger.voidTransaction(entry.id, "duplicate")
         assertEquals(0L, ledger.accountBalance(bank))
         // And it disappears from lists.
-        assertEquals(0, ledger.listEntries().size)
+        assertEquals(0, ledger.listTransactions().size)
     }
 
     @Test
@@ -87,8 +87,8 @@ class BalanceTest : BackendTestBase() {
         val shopping = db.CategoryDao().insert(newCategory("Shopping"))
 
         // Spending on a credit card increases what you owe.
-        ledger.createEntry(
-            CreateEntryRequest(
+        ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = 0L,
                 lines = listOf(
                     LineSpec(-250_00, accountId = card),
@@ -104,8 +104,8 @@ class BalanceTest : BackendTestBase() {
         val bank = setupAccount()
         val food = db.CategoryDao().insert(newCategory("Food"))
 
-        suspend fun spend(onDay: Long, paise: Long) = ledger.createEntry(
-            CreateEntryRequest(
+        suspend fun spend(onDay: Long, paise: Long) = ledger.createTransaction(
+            CreateTransactionRequest(
                 occurredOn = onDay,
                 lines = listOf(LineSpec(-paise, accountId = bank), LineSpec(paise, categoryId = food)),
             )
@@ -133,6 +133,6 @@ class BalanceTest : BackendTestBase() {
         db.AccountDao().update(bank.copy(openingBalancePaise = 15_000_00))
         ledger.recordOpeningBalance(bank.id, onDate = 0L)
         assertEquals(15_000_00, ledger.accountBalance(bank.id))
-        assertEquals(null, ledger.getEntry(opening.id))
+        assertEquals(null, ledger.getTransaction(opening.id))
     }
 }

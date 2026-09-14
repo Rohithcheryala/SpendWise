@@ -5,8 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.service.IngestionService
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.service.IngestionService
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountEntity

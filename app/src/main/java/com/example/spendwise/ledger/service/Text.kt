@@ -1,4 +1,4 @@
-package com.example.spendwise.backend.service
+package com.example.spendwise.ledger.service
 
 import java.security.MessageDigest
 

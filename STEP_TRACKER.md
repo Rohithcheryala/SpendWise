@@ -28,10 +28,15 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
 
 - [x] Commit `c922212` — PROJECT_REPORT.md added (TASK & STATUS.md removed).
 - [x] Commit `656477d` — STEP_TRACKER.md added.
-- [x] **Step 1 DONE** — legacy stack deleted, Room v15, destructive-only
-  migrations, `compileDebugKotlin` green.
-- [ ] **STEP 2 — NEXT** (rename backend→ledger, entry→transaction)
-- [ ] Step 3 — rebuild schema the Rust way (big; see checklist)
+- [x] Commit `2c44de9` — **Step 1 DONE**: legacy stack deleted, Room v15,
+  destructive-only migrations, compile green.
+- [x] **Step 2 DONE** — package `backend`→`ledger` (main + test dirs),
+  API renames Entry*→Transaction* (types + 8 methods). Collisions resolved:
+  dead duplicate enums in `data/mapper/EntryWithDetails.kt` deleted; UI
+  filter enum in TransactionsScreen renamed to `TransactionFilterStatus`
+  (VM `setStatusFilter` takes it). DI merge (BackendModule → top-level
+  `di/`) DEFERRED to step 3 — `ledger/di` for now. Compile + unit tests green.
+- [ ] **STEP 3 — NEXT** (rebuild schema the Rust way; sub-commits advised)
 - [ ] Step 5 — UI pass (MoneyText, typography, motion, charts, empty states)
 
 ## STEP 1 checklist (exact edits)

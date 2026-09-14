@@ -1,10 +1,10 @@
-package com.example.spendwise.backend.di
+package com.example.spendwise.ledger.di
 
-import com.example.spendwise.backend.api.LedgerApi
-import com.example.spendwise.backend.service.ContactsService
-import com.example.spendwise.backend.service.CounterpartyService
-import com.example.spendwise.backend.service.IngestionService
-import com.example.spendwise.backend.service.LedgerService
+import com.example.spendwise.ledger.api.LedgerApi
+import com.example.spendwise.ledger.service.ContactsService
+import com.example.spendwise.ledger.service.CounterpartyService
+import com.example.spendwise.ledger.service.IngestionService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.AppDatabase
 import dagger.Module
 import dagger.Provides

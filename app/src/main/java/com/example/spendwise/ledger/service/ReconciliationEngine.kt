@@ -1,6 +1,6 @@
-package com.example.spendwise.backend.service
+package com.example.spendwise.ledger.service
 
-import com.example.spendwise.backend.api.Direction
+import com.example.spendwise.ledger.api.Direction
 import java.time.LocalDate
 
 /**
