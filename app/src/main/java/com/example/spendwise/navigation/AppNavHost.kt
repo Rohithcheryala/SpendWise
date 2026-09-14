@@ -27,6 +27,7 @@ import com.example.spendwise.ui.screens.settings.SettingsScreen
 import com.example.spendwise.ui.screens.transaction.TransactionScreen
 import com.example.spendwise.ui.screens.transaction.TransactionUiEvent
 import com.example.spendwise.ui.screens.transactions.TransactionsScreen
+import com.example.spendwise.ui.screens.update.UpdateScreen
 import com.example.spendwise.viewmodel.TransactionViewModel
 import com.example.spendwise.viewmodel.TransactionsViewModel
 
@@ -185,6 +186,13 @@ fun AppNavHost(
 
         composable(Screen.Settings.route) {
             SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToUpdate = { navController.navigate(Screen.Update.route) }
+            )
+        }
+
+        composable(Screen.Update.route) {
+            UpdateScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }

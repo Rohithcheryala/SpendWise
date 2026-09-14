@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class Screen(
@@ -40,5 +41,6 @@ enum class Screen(
     Friends("friends", "Friends & Split", Icons.Filled.Group, "Friends"),
     Inbox("inbox", "Buffer Inbox", Icons.Filled.Inbox, "Inbox"),
     Settings("settings", "Settings", Icons.Filled.Settings, "Settings"),
+    Update("update", "App update", Icons.Filled.SystemUpdate, "App update"),
 }
 

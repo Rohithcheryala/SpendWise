@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.spendwise.R
@@ -41,15 +42,30 @@ class TransactionNotifier @Inject constructor(
         isDebit: Boolean,
         accountName: String?,
     ) {
-        if (!settingsRepository.settings.first().notificationsEnabled) return
+        if (!settingsRepository.settings.first().notificationsEnabled) {
+            Log.i(TAG, "No alert: Notifications toggle is OFF in app Settings")
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
+            Log.w(TAG, "No alert: POST_NOTIFICATIONS runtime grant denied (Android 13+)")
+            return
+        }
+        val notificationManager = NotificationManagerCompat.from(context)
+        if (!notificationManager.areNotificationsEnabled()) {
+            Log.w(TAG, "No alert: app notifications disabled system-wide in system settings")
             return
         }
 
         ensureChannel()
+        notificationManager.getNotificationChannel(CHANNEL_ID)?.let { channel ->
+            if (channel.importance == NotificationManager.IMPORTANCE_NONE) {
+                Log.w(TAG, "No alert: '$CHANNEL_ID' channel is muted in system settings")
+                return
+            }
+        }
 
         val amount = amountPaise.toAmountString()
         val title = if (isDebit) "Spent $amount" else "Received $amount"
@@ -85,8 +101,9 @@ class TransactionNotifier @Inject constructor(
             .build()
 
         runCatching {
-            NotificationManagerCompat.from(context)
-                .notify((System.currentTimeMillis() and 0x7FFFFFFF).toInt(), notification)
+            notificationManager.notify((System.currentTimeMillis() and 0x7FFFFFFF).toInt(), notification)
+        }.onFailure {
+            Log.w(TAG, "Alert post failed", it)
         }
     }
 
@@ -105,6 +122,7 @@ class TransactionNotifier @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "TransactionNotifier"
         const val CHANNEL_ID = "transaction_alerts"
     }
 }

@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Release signing — never commit these
+/spendwise-release.keystore
+/keystore.properties
+
+# wrangler local state (R2 uploads)
+.wrangler/

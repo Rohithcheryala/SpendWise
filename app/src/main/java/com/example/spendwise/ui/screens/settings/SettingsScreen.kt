@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -72,6 +73,7 @@ import com.example.spendwise.viewmodel.SettingsViewModel
 fun SettingsScreen(
     onNavigateBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onNavigateToUpdate: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val settings = viewModel.settings
@@ -350,12 +352,22 @@ fun SettingsScreen(
                         Column {
                             Text("Spendwise Android", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Version 1.0.0-beta",
+                                "Version ${com.example.spendwise.BuildConfig.VERSION_NAME} " +
+                                    "(code ${com.example.spendwise.BuildConfig.VERSION_CODE})",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+
+                    SettingsClickItem(
+                        icon = Icons.Filled.SystemUpdate,
+                        title = "App update",
+                        subtitle = "Check for and install the latest release",
+                        onClick = onNavigateToUpdate
+                    )
                 }
             }
         }

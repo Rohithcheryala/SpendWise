@@ -6,6 +6,17 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
+import java.util.Properties
+
+// Release signing credentials live in keystore.properties (gitignored) so the
+// keystore never enters version control. See scripts/release.sh for the flow.
+val keystoreProperties = Properties().apply {
+    val keystoreFile = rootProject.file("keystore.properties")
+    if (keystoreFile.exists()) {
+        keystoreFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     namespace = "com.example.spendwise"
 
@@ -16,9 +27,29 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        // X.Y.Z form so scripts/release.sh can auto-bump the patch segment.
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // In-app updater manifest served from the R2 release bucket
+        // (scripts/release.sh writes version.json on every release).
+        buildConfigField(
+            "String",
+            "UPDATE_MANIFEST_URL",
+            "\"https://apk.spendwise-api.rohithcheryala.dev/version.json\""
+        )
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties["KEY_ALIAS"] != null) {
+                storeFile = file(keystoreProperties["STORE_FILE"] as String)
+                storePassword = keystoreProperties["STORE_PASSWORD"] as String
+                keyAlias = keystoreProperties["KEY_ALIAS"] as String
+                keyPassword = keystoreProperties["KEY_PASSWORD"] as String
+            }
+        }
     }
 
     buildTypes {
@@ -28,6 +59,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
@@ -36,6 +68,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -65,6 +98,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation("androidx.hilt:hilt-navigation-compose:1.3.0")
+    // In-app updater: fetch version.json + download release APK (same as Veena)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.hilt.work)
