@@ -44,9 +44,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.spendwise.ui.components.EmptyState
 import com.example.spendwise.ui.components.FriendAvatar
 import com.example.spendwise.ui.components.FriendCard
+import com.example.spendwise.ui.components.MoneySemantic
+import com.example.spendwise.ui.components.MoneySize
+import com.example.spendwise.ui.components.MoneyText
+import com.example.spendwise.ui.components.formatRupees
 import com.example.spendwise.viewmodel.FriendsViewModel
+import kotlin.math.roundToLong
 
 data class FriendUi(
     val id: Long,
@@ -159,11 +165,10 @@ fun FriendsContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(6.dp))
-                            Text(
-                                "₹${"%,.0f".format(totalGiven)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
+                            MoneyText(
+                                amountPaise = (totalGiven * 100).roundToLong(),
+                                semantic = MoneySemantic.INCOME,
+                                size = MoneySize.TITLE
                             )
                         }
 
@@ -176,11 +181,10 @@ fun FriendsContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(6.dp))
-                            Text(
-                                "₹${"%,.0f".format(totalReceived)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.error,
-                                fontWeight = FontWeight.Bold
+                            MoneyText(
+                                amountPaise = (totalReceived * 100).roundToLong(),
+                                semantic = MoneySemantic.EXPENSE,
+                                size = MoneySize.TITLE
                             )
                         }
                     }
@@ -206,29 +210,35 @@ fun FriendsContent(
 
             if (filteredFriends.isEmpty()) {
                 item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.PersonSearch,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "No friends yet.\nTap + to add from your contacts.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
+                    EmptyState(
+                        icon = if (searchQuery.isBlank()) {
+                            Icons.Outlined.PersonAdd
+                        } else {
+                            Icons.Outlined.PersonSearch
+                        },
+                        title = if (searchQuery.isBlank()) {
+                            "No friends yet"
+                        } else {
+                            "No matches"
+                        },
+                        message = if (searchQuery.isBlank()) {
+                            "Add people you split with to track who owes whom. " +
+                                "Pick them straight from your contacts."
+                        } else {
+                            "No friend matches \"$searchQuery\"."
+                        },
+                        actionLabel = if (searchQuery.isBlank()) "Add friend" else null,
+                        onAction = if (searchQuery.isBlank()) {
+                            { showAddSheet = true }
+                        } else {
+                            null
+                        }
+                    )
                 }
             } else {
                 items(filteredFriends, key = { it.id }) { friend ->
                     FriendCard(
+                        modifier = Modifier.animateItem(),
                         name = friend.name,
                         amountGiven = friend.amountGiven,
                         amountReceived = friend.amountReceived,
@@ -298,8 +308,8 @@ fun FriendDetailBottomSheet(
 
             Text(
                 text = when {
-                    netBalance > 0 -> "${friend.name} owes you ₹${"%,.0f".format(netBalance)}"
-                    netBalance < 0 -> "You owe ${friend.name} ₹${"%,.0f".format(-netBalance)}"
+                    netBalance > 0 -> "${friend.name} owes you ${formatRupees(netBalance)}"
+                    netBalance < 0 -> "You owe ${friend.name} ${formatRupees(-netBalance)}"
                     else -> "All settled up!"
                 },
                 style = MaterialTheme.typography.titleMedium,

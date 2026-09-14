@@ -30,7 +30,9 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
@@ -58,6 +60,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.components.EmptyState
+import com.example.spendwise.ui.components.MoneySemantic
+import com.example.spendwise.ui.components.MoneySize
+import com.example.spendwise.ui.components.MoneyText
+import com.example.spendwise.ui.components.SpendBarChart
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionListItem
 import java.time.Instant
@@ -138,6 +145,12 @@ fun TransactionsScreen(
                 .padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
         ) {
+            if (transactions.isNotEmpty()) {
+                item(key = "spend-summary") {
+                    SpendSummaryHeader(transactions = transactions)
+                }
+            }
+
             item {
                 CompactSearchField(
                     query = searchQuery,
@@ -157,26 +170,33 @@ fun TransactionsScreen(
 
             if (filteredTransactions.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "No transactions found",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Try clearing your search or filters",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    EmptyState(
+                        icon = Icons.Rounded.ReceiptLong,
+                        title = if (transactions.isEmpty()) {
+                            "No transactions yet"
+                        } else {
+                            "No matches"
+                        },
+                        message = if (transactions.isEmpty()) {
+                            "Transactions detected from bank SMS and added by hand " +
+                                "will show up here."
+                        } else {
+                            "Nothing matches this search or these filters. " +
+                                "Try clearing them."
+                        },
+                        actionLabel = if (transactions.isNotEmpty() &&
+                            (searchQuery.isNotBlank() || state.activeFilters.isNotEmpty())
+                        ) {
+                            "Clear filters"
+                        } else {
+                            null
+                        },
+                        onAction = {
+                            searchQuery = ""
+                            onEvent(TransactionEvent.ResetFilters)
+                            onStatusChange(null)
                         }
-                    }
+                    )
                 }
             } else {
                 itemsIndexed(
@@ -188,20 +208,22 @@ fun TransactionsScreen(
                     val showDivider = index < filteredTransactions.lastIndex &&
                         filteredTransactions[index + 1].dayLabel == item.dayLabel
 
-                    if (showHeader && item.dayLabel.isNotBlank()) {
-                        DayHeader(label = item.dayLabel)
-                    }
+                    Column(modifier = Modifier.animateItem()) {
+                        if (showHeader && item.dayLabel.isNotBlank()) {
+                            DayHeader(label = item.dayLabel)
+                        }
 
-                    TransactionListItem(
-                        title = item.title,
-                        category = item.category,
-                        time = item.time,
-                        amount = item.amount,
-                        direction = item.direction,
-                        tags = item.tags,
-                        showDivider = showDivider,
-                        onClick = { onTransactionClick?.invoke(item.id) }
-                    )
+                        TransactionListItem(
+                            title = item.title,
+                            category = item.category,
+                            time = item.time,
+                            amount = item.amount,
+                            direction = item.direction,
+                            tags = item.tags,
+                            showDivider = showDivider,
+                            onClick = { onTransactionClick?.invoke(item.id) }
+                        )
+                    }
                 }
             }
         }
@@ -477,6 +499,88 @@ fun ActiveFilterRow(
     }
 }
 
+/**
+ * The 30-day spend spark at the top of the transactions list.
+ *
+ * Two things it has to do at once: give the screen a "hero" element so it
+ * doesn't open on a bare list, and answer "am I spending more than usual?"
+ * without a tap. Bars are expense-only (transfers and income aren't spend)
+ * and the total counts the same window.
+ */
+@Composable
+fun SpendSummaryHeader(
+    transactions: List<TransactionUi>,
+    modifier: Modifier = Modifier
+) {
+    val series = remember(transactions) { last30DaySpendSeries(transactions) }
+    val total = series.sum()
+
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Last 30 days",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                MoneyText(
+                    amountPaise = total,
+                    semantic = MoneySemantic.EXPENSE,
+                    size = MoneySize.TITLE
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            SpendBarChart(dailySpendPaise = series)
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "30 days ago",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Today",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Buckets expense transactions into the last 30 local days, oldest first, so
+ * the chart can render a continuous timeline (days with no spend come back as
+ * 0 rather than being skipped).
+ */
+fun last30DaySpendSeries(
+    transactions: List<TransactionUi>,
+    today: LocalDate = LocalDate.now()
+): List<Long> {
+    val zone = ZoneId.systemDefault()
+    val spendByDay = transactions
+        .filter { it.direction == TransactionDirection.EXPENSE && it.amountPaise > 0L }
+        .groupBy { Instant.ofEpochMilli(it.occurredOn).atZone(zone).toLocalDate() }
+        .mapValues { (_, dayTransactions) -> dayTransactions.sumOf { it.amountPaise } }
+
+    return (29 downTo 0).map { daysAgo ->
+        spendByDay[today.minusDays(daysAgo.toLong())] ?: 0L
+    }
+}
 @Composable
 fun DayHeader(label: String) {
     Text(
@@ -611,7 +715,9 @@ data class TransactionUi(
     /** Ledger status surfaced so the list can be filtered (confirmed vs pended). */
     val status: TransactionFilterStatus = TransactionFilterStatus.Confirmed,
     /** Epoch millis the entry occurred; enables date-range filtering. */
-    val occurredOn: Long = 0L
+    val occurredOn: Long = 0L,
+    /** Same value as [amount] but numeric, so charts never parse the string. */
+    val amountPaise: Long = 0L
 )
 
 data class TransactionFilterState(

@@ -110,19 +110,17 @@ private fun AmountText(
     direction: TransactionDirection,
     modifier: Modifier = Modifier
 ) {
-    val colors = SpendwiseTheme.colors
-    val (prefix, color) = when (direction) {
-        TransactionDirection.EXPENSE -> "−" to colors.expense
-        TransactionDirection.INCOME -> "+" to colors.income
-        TransactionDirection.TRANSFER -> "" to colors.transfer
+    val (prefix, semantic) = when (direction) {
+        TransactionDirection.EXPENSE -> "\u2212" to MoneySemantic.EXPENSE
+        TransactionDirection.INCOME -> "+" to MoneySemantic.INCOME
+        TransactionDirection.TRANSFER -> "" to MoneySemantic.TRANSFER
     }
 
-    Text(
+    MoneyText(
         text = prefix + amount,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = color,
-        modifier = modifier
+        modifier = modifier,
+        semantic = semantic,
+        size = MoneySize.BODY,
     )
 }
 

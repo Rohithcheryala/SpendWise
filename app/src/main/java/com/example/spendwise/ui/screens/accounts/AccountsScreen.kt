@@ -61,7 +61,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.spendwise.ui.components.MoneySemantic
+import com.example.spendwise.ui.components.MoneySize
+import com.example.spendwise.ui.components.MoneyText
 import com.example.spendwise.viewmodel.AccountsViewModel
+import kotlin.math.roundToLong
 import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -235,10 +239,9 @@ fun NetWorthSummaryCard(
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
             )
             Spacer(Modifier.height(4.dp))
-            Text(
-                text = "₹${"%,.2f".format(netWorth)}",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
+            MoneyText(
+                amountPaise = (netWorth * 100).roundToLong(),
+                size = MoneySize.BALANCE,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
 
@@ -254,11 +257,10 @@ fun NetWorthSummaryCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
-                    Text(
-                        text = "₹${"%,.2f".format(totalAssets)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF15803D)
+                    MoneyText(
+                        amountPaise = (totalAssets * 100).roundToLong(),
+                        semantic = MoneySemantic.INCOME,
+                        size = MoneySize.TITLE
                     )
                 }
 
@@ -268,11 +270,10 @@ fun NetWorthSummaryCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
-                    Text(
-                        text = "₹${"%,.2f".format(totalLiabilities)}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.error
+                    MoneyText(
+                        amountPaise = (totalLiabilities * 100).roundToLong(),
+                        semantic = MoneySemantic.EXPENSE,
+                        size = MoneySize.TITLE
                     )
                 }
             }
@@ -346,11 +347,14 @@ fun AccountCardItem(
             }
 
             Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "₹${"%,.2f".format(account.balance)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (account.balance >= 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error
+                MoneyText(
+                    amountPaise = (account.balance * 100).roundToLong(),
+                    size = MoneySize.TITLE,
+                    color = if (account.balance >= 0) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
                 )
                 Text(
                     text = account.bankName,

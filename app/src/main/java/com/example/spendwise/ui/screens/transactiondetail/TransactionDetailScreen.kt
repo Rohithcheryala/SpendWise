@@ -1,4 +1,4 @@
-package com.example.spendwise.ui.screens.transaction
+package com.example.spendwise.ui.screens.transactiondetail
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +51,7 @@ import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionScreen(
+fun TransactionDetailScreen(
     modifier: Modifier = Modifier,
     uiState: TransactionUiState,
     onUpdateState: ((TransactionUiState) -> TransactionUiState) -> Unit,
@@ -535,8 +535,8 @@ private fun AddCounterpartyDialog(
 
 @Preview(showBackground = true)
 @Composable
-private fun TransactionScreenPreview() {
-    TransactionScreen(
+private fun TransactionDetailScreenPreview() {
+    TransactionDetailScreen(
         uiState = TransactionPreviewData.state,
         onEvent = {},
         modifier = Modifier,

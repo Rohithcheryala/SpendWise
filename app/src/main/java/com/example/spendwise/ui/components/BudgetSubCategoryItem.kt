@@ -55,7 +55,7 @@ fun BudgetSubcategoryItem(
             )
 
             Text(
-                text = "₹${"%,.0f".format(item.spent)} / ₹${"%,.0f".format(item.budget)}",
+                text = "${formatRupees(item.spent)} of ${formatRupees(item.budget)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

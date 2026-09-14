@@ -77,7 +77,63 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
   balance drops, net worth unchanged — accepted semantics, tested).
 - [ ] **STEP 3b-2 — NEXT** (see checklist below; equity merge + stored kind
   + pure lines + @DatabaseView + groups + budgets period + receivable posting)
-- [ ] Step 5 — UI pass (MoneyText, typography, motion, charts, empty states)
+- [x] **Step 5 DONE (UI pass)** — done ahead of 3b-2 at the user's request;
+  3b-2 is untouched and still the next ledger step.
+  - **Typography**: `res/font/outfit_{regular,medium,semibold,bold,extrabold}.ttf`
+    (static Outfit instances, downloaded from Fontsource; chosen because Outfit
+    ships **true tabular figures** — verified `tnum` present in GSUB).
+    `ui/theme/Type.kt` rewritten to the Outfit family with tight, oversized
+    headlines.
+  - **`MoneyText`** (`ui/components/MoneyText.kt`): the single money renderer.
+    `MoneySemantic` (INCOME/EXPENSE/TRANSFER/NEUTRAL/WARNING) pulls from
+    `SpendwiseTheme.colors`; `MoneySize` (HERO/BALANCE/TITLE/HEADING/BODY/LABEL)
+    maps onto the type scale; `tnum` applied; `animateFloatAsState` count-up on
+    value change; Long (paise) and String overloads.
+    GOTCHA FOUND + FIXED: `DecimalFormat("##,##,##0")` does **not** produce
+    Indian grouping on the Android runtime (returns `153250` with no
+    separators). Replaced with a hand-rolled `groupIndian()` (last 3, then
+    pairs) — deterministic, locale-free. Pinned by `MoneyFormatTest`.
+  - **`EmptyState`** (`ui/components/EmptyState.kt`): shared medallion +
+    title + one-liner + optional action, with a spring-in on first composition.
+    Wired into **Transactions, Inbox, Friends, Budget** (each keeps its own copy
+    and action).
+  - **Motion**: `Modifier.animateItem()` on the Transactions, Inbox, Friends and
+    Budget lists; `animateContentSize()` on `BudgetCategoryCard`; the Inbox
+    approve tick now pops (`spring`) for `APPROVE_ANIMATION_MILLIS` before the
+    import fires, then the row animates away via `animateItem`.
+    NavHost slide+fade transitions were **already present** in `AppNavHost`
+    (directional slide) and `MainNavHost` (tab crossfade) — verified, no change
+    needed.
+  - **Charts** (hand-rolled Canvas, no new dependency):
+    `ui/components/SpendBarChart.kt` (30-day spend bars, today accented,
+    grow-in) shown in a new `SpendSummaryHeader` at the top of
+    TransactionsScreen (fed by the new numeric `TransactionUi.amountPaise`);
+    `ui/components/CategoryDonut.kt` (animated donut + legend via
+    `donutPalette()`) shown in a new `CategoryBreakdownCard` on Budget.
+  - **Renames**: `ui/screens/transaction/` → `ui/screens/transactiondetail/`
+    with `TransactionScreen` → `TransactionDetailScreen` (matches the screen's
+    own "Transaction Details" title); package + all 6 call sites updated.
+    **DEVIATION**: the checklist said `update/`→TransactionEdit — WRONG:
+    `ui/screens/update/UpdateScreen.kt` is the in-app **APK updater**
+    (`Screen.Update`, `UpdateViewModel`), not a transaction editor, so it was
+    deliberately left alone. `ui/screens/transactions/` keeps its name (plural
+    = the list).
+  - **ScannerScreen split**: 1,164 → **723 lines**. Extracted, verbatim:
+    `UpiQr.kt` (UpiTarget/parseUpiQr/buildUpiUri — pure, now unit-tested),
+    `ScannerOverlays.kt` (QrScanOverlay, reticle/bracket drawing,
+    FocusPulseRing, ScannerStatusPill), `PaymentOverlay.kt` (payment form,
+    OptionPickerSheet, SavedConfirmationSheet). ScannerScreen keeps the screen +
+    CameraX/ML Kit pipeline. Moved composables that the screen still calls went
+    `private`→`internal`.
+  - **Money formatting migration**: every `"%,.0f"/"%,.2f"` money string is gone
+    from `main/` (Accounts, Transactions, Inbox, Friends, Budget, Categories,
+    Counterparties, Budget* components, FriendCard, TransactionListItem).
+    Composites ("₹x of ₹y") use the shared `formatRupees()`.
+    AccountsScreen's hardcoded `Color(0xFF15803D)` for assets now uses
+    `MoneySemantic.INCOME`.
+  - **Tests added**: `MoneyFormatTest` (5) + `UpiQrTest` (7, Robolectric, incl. a
+    build→parse round-trip). Full `:app:testDebugUnitTest` +
+    `:app:assembleDebug` green.
 
 ## STEP 1 checklist (exact edits)
 
@@ -221,7 +277,7 @@ code on 3a's HEAD.
 - Rust cleanup NOT to port: 008 global contacts table; `user_id` columns
   (single-user, documented deviation).
 
-## STEP 5 checklist (UI)
+## STEP 5 checklist (UI) — ✅ DONE (see Status above)
 
 `MoneyText` composable (semantic colors, tnum, count-up) → typography with
 res/font (Outfit/Manrope/Space Grotesk) → NavHost slide+fade transitions →
@@ -229,4 +285,17 @@ res/font (Outfit/Manrope/Space Grotesk) → NavHost slide+fade transitions →
 bars, category donut) → empty states on Transactions/Inbox/Friends/Budget →
 rename screens transaction/→TransactionDetail, update/→TransactionEdit;
 split ScannerScreen (1,164 lines).
+
+Corrections to this checklist, confirmed against the code:
+- `update/` is the **in-app APK updater**, not a transaction editor — NOT renamed.
+- NavHost slide+fade was already implemented — nothing to do.
+- Remaining UI polish not in this pass (candidates for a follow-up): the
+  Transactions filter sheet's dropdowns are still non-functional stubs
+  (`onClick = {}`), and `ui/components/AmountSection.kt` (used by
+  `TransactionDetailScreen`) still takes a pre-formatted amount string rather
+  than paise.
+- DEAD CODE found, left in place (not deleted without asking):
+  `ui/components/BudgetProgress.kt` has **zero references** anywhere in
+  `app/src` — the new `CategoryDonut` is the budget visualisation now, so this
+  file is a deletion candidate.
 

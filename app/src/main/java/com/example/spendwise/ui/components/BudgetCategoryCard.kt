@@ -2,6 +2,7 @@ package com.example.spendwise.ui.components
 
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -61,7 +62,11 @@ fun BudgetCategoryCard(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            // The expand/collapse below changes height; animating the card
+            // keeps the list from snapping when subcategories appear.
+            .animateContentSize(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -107,7 +112,7 @@ fun BudgetCategoryCard(
                         Spacer(Modifier.height(2.dp))
 
                         Text(
-                            text = "₹${"%,.0f".format(category.spent)} of ₹${"%,.0f".format(category.budget)}",
+                            text = "${formatRupees(category.spent)} of ${formatRupees(category.budget)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

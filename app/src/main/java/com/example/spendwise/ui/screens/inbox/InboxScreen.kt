@@ -1,6 +1,9 @@
 package com.example.spendwise.ui.screens.inbox
 
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -73,8 +77,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.spendwise.core.extensions.toAmountString
 import com.example.spendwise.data.repository.ActiveContext
 import com.example.spendwise.data.repository.InboxItem
+import com.example.spendwise.ui.components.EmptyState
+import com.example.spendwise.ui.components.MoneySemantic
+import com.example.spendwise.ui.components.MoneySize
+import com.example.spendwise.ui.components.MoneyText
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionDirectionIcon
+import kotlinx.coroutines.delay
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.InboxViewModel
 import java.time.Instant
@@ -205,40 +214,13 @@ fun InboxScreen(
                         .padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(32.dp)
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(80.dp),
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Inbox,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = "Inbox Empty",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "All detected bank SMS transactions have been reviewed and imported!",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
+                    EmptyState(
+                        icon = Icons.Default.Inbox,
+                        title = "Inbox is clear",
+                        message = "Every bank SMS we detected has been reviewed and " +
+                            "imported. New ones land here first so nothing is posted " +
+                            "without your say-so."
+                    )
                 }
             }
 
@@ -284,6 +266,7 @@ fun InboxScreen(
 
                     items(items, key = { it.transactionId }) { item ->
                         InboxPendingCard(
+                            modifier = Modifier.animateItem(),
                             item = item,
                             onOpen = { onEditItem(item.transactionId) },
                             onApprove = { viewModel.import(item.transactionId) },
@@ -301,14 +284,30 @@ fun InboxPendingCard(
     item: InboxItem,
     onOpen: () -> Unit,
     onApprove: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val colors = SpendwiseTheme.colors
 
     val direction = if (item.isDebit) TransactionDirection.EXPENSE else TransactionDirection.INCOME
 
+    // Approving is the app's most-used gesture, so it gets a small payoff: the
+    // tick pops, then the row is imported and the list animates it away.
+    var approving by remember { mutableStateOf(false) }
+    val tickScale by animateFloatAsState(
+        targetValue = if (approving) 1.45f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "inbox_approve"
+    )
+    LaunchedEffect(approving) {
+        if (approving) {
+            delay(APPROVE_ANIMATION_MILLIS)
+            onApprove()
+        }
+    }
+
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen),
         shape = RoundedCornerShape(16.dp),
@@ -355,22 +354,27 @@ fun InboxPendingCard(
 
             Spacer(Modifier.width(8.dp))
 
-            Text(
-                text = (if (item.isDebit) "−" else "+") + item.amountPaise.toAmountString(),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (item.isDebit) MaterialTheme.colorScheme.error else colors.income
+            MoneyText(
+                text = (if (item.isDebit) "\u2212" else "+") + item.amountPaise.toAmountString(),
+                size = MoneySize.BODY,
+                semantic = if (item.isDebit) MoneySemantic.EXPENSE else MoneySemantic.INCOME
             )
 
             // Compact actions: import is the single primary action; dismiss is
             // a small secondary icon. Neither deserves a full-width button,
             // and the raw SMS belongs in the transaction detail screen only.
-            IconButton(onClick = onApprove, modifier = Modifier.size(32.dp)) {
+            IconButton(
+                onClick = { if (!approving) approving = true },
+                enabled = !approving,
+                modifier = Modifier.size(32.dp)
+            ) {
                 Icon(
                     Icons.Default.Check,
                     contentDescription = "Import",
                     tint = colors.income,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier
+                        .size(18.dp)
+                        .scale(tickScale)
                 )
             }
             IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
@@ -389,6 +393,13 @@ private val inboxTimeFormat = DateTimeFormatter.ofPattern("h:mm a")
 private val inboxDayFormat = DateTimeFormatter.ofPattern("d MMM")
 
 private const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1000
+
+/**
+ * How long the approve tick pops before the row is actually imported: long
+ * enough to register as feedback, short enough that a fast reviewer never
+ * feels the list lag behind their taps.
+ */
+private const val APPROVE_ANIMATION_MILLIS = 220L
 
 /** Expiry presets for the tagging context. */
 private data class ContextDuration(val label: String, val expiresAt: () -> Long)

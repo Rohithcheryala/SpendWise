@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.spendwise.ui.components.formatRupees
 import com.example.spendwise.viewmodel.CategoriesViewModel
 
 data class CategoryUiModel(
@@ -221,7 +222,7 @@ fun CategoryItemCard(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "₹${"%,.0f".format(category.spent)} of ₹${"%,.0f".format(category.budget)}",
+                        text = "${formatRupees(category.spent)} of ${formatRupees(category.budget)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -267,7 +268,7 @@ fun CategoryItemCard(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "₹${"%,.0f".format(sub.spent)} / ₹${"%,.0f".format(sub.budget)}",
+                                text = "${formatRupees(sub.spent)} of ${formatRupees(sub.budget)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

@@ -22,11 +22,11 @@ import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
-import com.example.spendwise.ui.screens.transaction.DropdownOption
-import com.example.spendwise.ui.screens.transaction.TagUiModel
-import com.example.spendwise.ui.screens.transaction.TransactionMode
-import com.example.spendwise.ui.screens.transaction.OtherSide
-import com.example.spendwise.ui.screens.transaction.TransactionUiState
+import com.example.spendwise.ui.screens.transactiondetail.DropdownOption
+import com.example.spendwise.ui.screens.transactiondetail.TagUiModel
+import com.example.spendwise.ui.screens.transactiondetail.TransactionMode
+import com.example.spendwise.ui.screens.transactiondetail.OtherSide
+import com.example.spendwise.ui.screens.transactiondetail.TransactionUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow

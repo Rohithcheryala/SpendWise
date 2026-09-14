@@ -48,6 +48,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ui.components.FriendAvatar
+import com.example.spendwise.ui.components.MoneySize
+import com.example.spendwise.ui.components.MoneyText
+import com.example.spendwise.ui.components.formatRupees
 import com.example.spendwise.viewmodel.CounterpartyUi
 import com.example.spendwise.viewmodel.CounterpartiesViewModel
 
@@ -295,10 +298,9 @@ private fun CounterpartyCard(
                 else
                     MaterialTheme.colorScheme.error to "you owe"
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "₹${"%,.0f".format(kotlin.math.abs(net))}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                    MoneyText(
+                        amountPaise = kotlin.math.abs(party.netPaise),
+                        size = MoneySize.TITLE,
                         color = color
                     )
                     Text(
@@ -365,8 +367,8 @@ private fun CounterpartyDetailSheet(
             if (isPerson && net != null) {
                 Text(
                     text = when {
-                        net > 0 -> "Owes you ₹${"%,.0f".format(net)}"
-                        net < 0 -> "You owe ₹${"%,.0f".format(-net)}"
+                        net > 0 -> "Owes you ${formatRupees(net)}"
+                        net < 0 -> "You owe ${formatRupees(-net)}"
                         else -> "All settled up!"
                     },
                     style = MaterialTheme.typography.titleMedium,

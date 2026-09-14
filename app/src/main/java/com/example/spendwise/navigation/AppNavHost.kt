@@ -24,8 +24,8 @@ import androidx.navigation.navArgument
 import com.example.spendwise.ui.screens.accounts.AccountsScreen
 import com.example.spendwise.ui.screens.categories.CategoriesScreen
 import com.example.spendwise.ui.screens.settings.SettingsScreen
-import com.example.spendwise.ui.screens.transaction.TransactionScreen
-import com.example.spendwise.ui.screens.transaction.TransactionUiEvent
+import com.example.spendwise.ui.screens.transactiondetail.TransactionDetailScreen
+import com.example.spendwise.ui.screens.transactiondetail.TransactionUiEvent
 import com.example.spendwise.ui.screens.transactions.TransactionsScreen
 import com.example.spendwise.ui.screens.update.UpdateScreen
 import com.example.spendwise.viewmodel.TransactionViewModel
@@ -111,7 +111,7 @@ fun AppNavHost(
                 vm.finished.collect { navController.popBackStack() }
             }
 
-            TransactionScreen(
+            TransactionDetailScreen(
                 uiState = vm.uiState.collectAsStateWithLifecycle().value,
                 onUpdateState = vm::updateState,
                 onAddCounterparty = vm::addCounterparty,

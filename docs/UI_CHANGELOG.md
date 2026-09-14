@@ -70,7 +70,7 @@
 ## 4. Known limitations / follow-ups (for our next session)
 1. **VM wiring**: `TransactionsScreen` still renders `defaultTransactions`; when you wire the real repository, populate `dayLabel` and drop tags into detail view only.
 2. **Filter sheet** dropdowns are non-functional stubs (`onClick = {}`) — needs real pickers.
-3. **Typography/font**: intentionally untouched pending your brand call.
+3. **Typography/font**: ~~intentionally untouched pending your brand call~~ → **done in §5.1** (Outfit, `res/font/`).
 4. `MainActivity.kt` still has the `|| true` onboarding bypass (dev velocity, pre-existing).
 5. Onboarding/Settings/Accounts screens reviewed but left alone this pass — they were already reasonable and the highest-impact fixes were density + identity.
 
@@ -86,3 +86,57 @@
 | `ui/screens/inbox/InboxScreen.kt` | Collapsible SMS, colors, spacing |
 
 Build status after changes: ✅ `compileDebugKotlin` clean.
+
+---
+
+## 5. UI pass v2 — identity, money, motion, charts (this session)
+
+The earlier pass (1–3) fixed *colour* and *density*. This pass fixes
+*typography, money rendering, motion and charts* — exactly what §1 of
+`PROJECT_REPORT.md` called out as "the app looks dead".
+
+### 5.1 Typography — Outfit (`ui/theme/Type.kt`, `res/font/`)
+**What:** Added 5 static Outfit cuts (400/500/600/700/800) to `res/font/` and rebuilt `Typography` on the Outfit family with tight, oversized headlines (negative tracking, reduced line height). *This supersedes item 3 under "Known limitations" below — the brand call has now been made.*
+
+**Why:** Stock Material type was the single biggest reason screens read as generic. Outfit was chosen over Manrope/Space Grotesk because it ships **true tabular figures** (verified `tnum` present in its GSUB table) — money rendering needs that.
+
+### 5.2 `MoneyText` (`ui/components/MoneyText.kt`) — one way to render money
+**What:** A single composable replacing every hand-rolled `"₹" + "%,.0f".format(x)`:
+- `MoneySemantic` (INCOME/EXPENSE/TRANSFER/NEUTRAL/WARNING) resolved from `SpendwiseTheme.colors`, so light **and** dark are correct.
+- `MoneySize` (HERO/BALANCE/TITLE/HEADING/BODY/LABEL) mapped onto the new type scale.
+- `fontFeatureSettings = "tnum"` on every call — columns stop jiggling as values scroll.
+- Count-up animation (`animateFloatAsState`) when a value changes.
+- Paise (`Long`) and pre-formatted (`String`) overloads, plus shared `formatPaise()` / `formatRupees()`.
+
+**Bug found while testing:** `DecimalFormat("##,##,##0")` silently produces **no grouping at all** on the Android runtime (renders `153250`), i.e. the obvious-looking "Indian grouping" pattern does not work. Replaced with a hand-rolled `groupIndian()` (last three digits, then pairs) that is deterministic and locale-free, pinned by `MoneyFormatTest`.
+
+**Migration:** every raw money format string is gone from `main/` — Accounts, Transactions, Inbox, Friends, Budget, Categories, Counterparties and the shared Budget/Friend/Transaction components. Composite strings ("₹x of ₹y") now use the shared `formatRupees()`. The last hardcoded green (assets, `Color(0xFF15803D)`) now uses `MoneySemantic.INCOME`.
+
+### 5.3 Empty states (`ui/components/EmptyState.kt`)
+**What:** Shared medallion + title + one-liner + optional action (springs in on first composition). Wired into **Transactions** (with a "Clear filters" action when a search/filter is what emptied it), **Inbox**, **Friends** (with "Add friend") and **Budget** (with "Set up budget").
+
+**Why:** An empty list with no guidance reads as a broken screen.
+
+### 5.4 Motion
+**What:** `Modifier.animateItem()` on the Transactions / Inbox / Friends / Budget lists; `animateContentSize()` on `BudgetCategoryCard`; the Inbox approve tick now pops (`spring`) before the import fires, then the row animates away.
+
+**Why:** Insert/remove and expand/collapse previously snapped. Approve is the app's most-used gesture, so it now has a visible payoff.
+(NavHost slide+fade transitions were already in place from an earlier pass — verified, left untouched.)
+
+### 5.5 Charts (`ui/components/SpendBarChart.kt`, `ui/components/CategoryDonut.kt`) — no new dependency
+**What:** Hand-rolled Canvas charts rather than pulling in Vico. A 30-day spend bar chart in a new `SpendSummaryHeader` at the top of the transactions list (fed by a new numeric `TransactionUi.amountPaise`, so nothing has to parse display strings), and an animated category donut + legend in a new `CategoryBreakdownCard` on Budget.
+
+**Why:** The report's §1.4 ask, done inside `ui.graphics` which is already on the classpath.
+
+### 5.6 Structure — renames + `ScannerScreen` split
+**What:** `ui/screens/transaction/` → `ui/screens/transactiondetail/` with `TransactionScreen` → `TransactionDetailScreen` (matches the screen's own "Transaction Details" title). `ScannerScreen.kt` went **1,164 → 723 lines**, split into `UpiQr.kt` (pure QR decode/encode — now unit-tested), `ScannerOverlays.kt` (brackets/reticle/focus ring/status pill) and `PaymentOverlay.kt` (payment form + picker + confirmation sheets), leaving the screen with the screen state + CameraX/ML Kit pipeline.
+
+**Not renamed:** `ui/screens/update/` — it is the **in-app APK updater**, not a transaction editor (the report's "update → TransactionEdit" guess was wrong).
+
+### 5.7 Tests
+`MoneyFormatTest` (formatter: Indian grouping, paise handling, negatives, rounding) and `UpiQrTest` (decode, rejections, malformed amount, `buildUpiUri` → `parseUpiQr` round-trip). Full unit suite + `assembleDebug` green.
+
+### 5.8 Follow-ups left open
+- Transactions filter-sheet dropdowns are still non-functional stubs (`onClick = {}`).
+- `ui/components/AmountSection.kt` still takes a pre-formatted amount string rather than paise (used by `TransactionDetailScreen`).
+- `ui/components/BudgetProgress.kt` now has **zero references** — dead code, deletion candidate (the donut replaces it).

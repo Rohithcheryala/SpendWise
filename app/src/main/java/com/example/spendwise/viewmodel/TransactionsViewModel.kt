@@ -152,6 +152,9 @@ class TransactionsViewModel @Inject constructor(
             title = title,
             account = accountName,
             amount = amountPaise.toAmountString(symbol),
+            // Numeric value kept alongside the display string so charts and
+            // count-up animations don't have to re-parse "₹1,234.56".
+            amountPaise = amountPaise,
             time = timeFormat.format(Date(timestamp)),
             // The system contra category ("Unclassified") is bookkeeping
             // noise, not a category — hide it until a real one is assigned.

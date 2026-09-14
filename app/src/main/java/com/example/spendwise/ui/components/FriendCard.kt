@@ -103,9 +103,9 @@ fun FriendCard(
 
                         Spacer(Modifier.width(4.dp))
 
-                        Text(
-                            "₹${"%,.0f".format(amountGiven)}",
-                            style = MaterialTheme.typography.bodyMedium,
+                        MoneyText(
+                            text = formatRupees(amountGiven),
+                            size = MoneySize.LABEL,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -123,9 +123,9 @@ fun FriendCard(
 
                         Spacer(Modifier.width(4.dp))
 
-                        Text(
-                            "₹${"%,.0f".format(amountReceived)}",
-                            style = MaterialTheme.typography.bodyMedium,
+                        MoneyText(
+                            text = formatRupees(amountReceived),
+                            size = MoneySize.LABEL,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -139,7 +139,7 @@ fun FriendCard(
                 ) {
 
                     Text(
-                        text = "Direct • ₹${"%,.0f".format(kotlin.math.abs(balance))}",
+                        text = "Direct • ${formatRupees(kotlin.math.abs(balance))}",
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 5.dp
@@ -155,13 +155,12 @@ fun FriendCard(
                 horizontalAlignment = Alignment.End
             ) {
 
-                Text(
+                MoneyText(
                     text = buildString {
                         if (balance > 0) append("+")
-                        append("₹${"%,.0f".format(kotlin.math.abs(balance))}")
+                        append(formatRupees(kotlin.math.abs(balance)))
                     },
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
+                    size = MoneySize.HEADING,
                     color = balanceColor
                 )
 

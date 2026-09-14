@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.theme.SpendwiseTheme
+import kotlin.math.roundToLong
 
 @Composable
 fun BudgetSummaryCard(
@@ -72,10 +73,9 @@ fun BudgetSummaryCard(
                 verticalAlignment = Alignment.Bottom
             ) {
                 Column {
-                    Text(
-                        text = "₹${"%,.0f".format(spent)}",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
+                    MoneyText(
+                        amountPaise = (spent * 100).roundToLong(),
+                        size = MoneySize.BALANCE,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
@@ -87,7 +87,7 @@ fun BudgetSummaryCard(
 
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "₹${"%,.0f".format(remaining.coerceAtLeast(0.0))} left",
+                        text = "${formatRupees(remaining.coerceAtLeast(0.0))} left",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (remaining >= 0)
@@ -96,7 +96,7 @@ fun BudgetSummaryCard(
                             MaterialTheme.colorScheme.error
                     )
                     Text(
-                        text = "of ₹${"%,.0f".format(budget)}",
+                        text = "of ${formatRupees(budget)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.65f)
                     )

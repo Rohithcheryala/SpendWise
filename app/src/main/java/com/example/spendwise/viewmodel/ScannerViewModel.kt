@@ -16,7 +16,7 @@ import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.parser_pw.md5Hex
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.repository.InboxRepository
-import com.example.spendwise.ui.screens.transaction.DropdownOption
+import com.example.spendwise.ui.screens.transactiondetail.DropdownOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

@@ -28,7 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.outlined.SwapHoriz
-import com.example.spendwise.ui.screens.transaction.OtherSide
+import com.example.spendwise.ui.screens.transactiondetail.OtherSide
 
 /**
  * The one structural question the in/out direction can't answer: where does
