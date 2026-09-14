@@ -16,7 +16,6 @@ import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.EntryDao
 import com.example.spendwise.data.database.dao.EntryLineDao
 import com.example.spendwise.data.database.dao.EntryProvanceDao
-import com.example.spendwise.data.database.dao.TransactionDao
 
 
 import dagger.Module
@@ -34,16 +33,8 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
         Room.databaseBuilder(context, AppDatabase::class.java, "spendwise.db")
-            .addMigrations(
-                AppDatabase.MIGRATION_11_12,
-                AppDatabase.MIGRATION_12_13,
-                AppDatabase.MIGRATION_13_14,
-            )
             .fallbackToDestructiveMigration(true)
             .build()
-
-    @Provides
-    fun provideTransactionDao(db: AppDatabase): TransactionDao = db.transactionDao()
 
     @Provides
     fun provideCategoryDao(db: AppDatabase): CategoryDao = db.CategoryDao()

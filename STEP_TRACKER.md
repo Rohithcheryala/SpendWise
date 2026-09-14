@@ -27,8 +27,10 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
 ## Status
 
 - [x] Commit `c922212` — PROJECT_REPORT.md added (TASK & STATUS.md removed).
-- [ ] **STEP 1 — IN PROGRESS (execute edits below, validate, commit)**
-- [ ] Step 2 — rename backend→ledger, entry→transaction
+- [x] Commit `656477d` — STEP_TRACKER.md added.
+- [x] **Step 1 DONE** — legacy stack deleted, Room v15, destructive-only
+  migrations, `compileDebugKotlin` green.
+- [ ] **STEP 2 — NEXT** (rename backend→ledger, entry→transaction)
 - [ ] Step 3 — rebuild schema the Rust way (big; see checklist)
 - [ ] Step 5 — UI pass (MoneyText, typography, motion, charts, empty states)
 

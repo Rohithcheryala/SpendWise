@@ -14,7 +14,6 @@ import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.EntryDao
 import com.example.spendwise.data.database.dao.EntryLineDao
 import com.example.spendwise.data.database.dao.EntryProvanceDao
-import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.data.database.entity.AppMetadataEntity
@@ -27,7 +26,6 @@ import com.example.spendwise.data.database.entity.CounterpartyEntity
 import com.example.spendwise.data.database.entity.EntryEntity
 import com.example.spendwise.data.database.entity.EntryLineEntity
 import com.example.spendwise.data.database.entity.EntryProvenanceEntity
-import com.example.spendwise.data.database.entity.TransactionEntity
 
 
 @Database(
@@ -44,10 +42,9 @@ import com.example.spendwise.data.database.entity.TransactionEntity
         CounterpartyAliasEntity::class,
         EntryEntity::class,
         EntryLineEntity::class,
-        EntryProvenanceEntity::class,
-        TransactionEntity::class
+        EntryProvenanceEntity::class
     ],
-    version = 14
+    version = 15
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -74,83 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun EntryProvanceDao(): EntryProvanceDao
 
-    abstract fun transactionDao(): TransactionDao
-
-    companion object {
-        /**
-         * v11 -> v12: categories gained `kind` ("income" | "expense") so the
-         * ledger service can classify entries and pick ingestion contra
-         * categories without guessing from the tree position. Existing rows
-         * default to "expense".
-         */
-        val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
-            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE categories ADD COLUMN kind TEXT NOT NULL DEFAULT 'expense'"
-                )
-            }
-        }
-
-        /**
-         * v12 -> v13: per-kind account identifiers (the old server's
-         * account_identifiers table) so SMS matching knows whether a last-4 is
-         * an account number or a card number, plus `parsed_facts` on
-         * provenance so orphan reclaim re-matches without re-parsing.
-         * Existing accounts' `last4` seeds an active 'account' identifier.
-         */
-        val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
-            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS account_identifiers (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        account_id INTEGER NOT NULL,
-                        value TEXT NOT NULL,
-                        kind TEXT NOT NULL,
-                        label TEXT,
-                        is_active INTEGER NOT NULL,
-                        created_at INTEGER NOT NULL,
-                        FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE CASCADE
-                    )
-                    """.trimIndent()
-                )
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS index_account_identifiers_account_id " +
-                        "ON account_identifiers(account_id)"
-                )
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS index_account_identifiers_value_is_active " +
-                        "ON account_identifiers(value, is_active)"
-                )
-                db.execSQL(
-                    """
-                    INSERT INTO account_identifiers (account_id, value, kind, is_active, created_at)
-                    SELECT id, last4, 'account', 1, 0 FROM accounts
-                    WHERE last4 IS NOT NULL AND length(last4) > 0
-                    """.trimIndent()
-                )
-                db.execSQL("ALTER TABLE entry_provenance ADD COLUMN parsed_facts TEXT")
-            }
-        }
-
-        /**
-         * v13 -> v14: synced-contacts cache (`contacts`), keyed by last-10
-         * digits. A lookup cache only — counterparties link to contacts softly
-         * via phone-prefixed aliases, never by foreign key.
-         */
-        val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
-            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS contacts (
-                        phone_last10 TEXT NOT NULL,
-                        display_name TEXT NOT NULL,
-                        photo_uri TEXT,
-                        PRIMARY KEY(phone_last10)
-                    )
-                    """.trimIndent()
-                )
-            }
-        }
-    }
+    // Migration policy: the schema is being rebuilt the Rust way and data is
+    // disposable — the builder uses fallbackToDestructiveMigration(); no
+    // incremental migrations are kept (see STEP_TRACKER.md, step 3).
 }
