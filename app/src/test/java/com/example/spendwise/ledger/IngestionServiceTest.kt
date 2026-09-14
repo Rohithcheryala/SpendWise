@@ -27,10 +27,10 @@ class IngestionServiceTest : BackendTestBase() {
         slug: String,
         bank: String,
         last4: String,
-        kind: String = "available",
+        accountClass: String = LedgerService.CLASS_ASSET,
         identifierKind: String = IngestionService.ID_KIND_ACCOUNT,
     ): Long {
-        val id = db.AccountDao().insert(newAccount(slug, kind = kind).copy(bank = bank))
+        val id = newAccount(slug, accountClass = accountClass, bank = bank)
         db.AccountIdentifierDao().insert(
             com.example.spendwise.data.database.entity.AccountIdentifierEntity(
                 accountId = id, value = last4, kind = identifierKind, createdAt = 0,
@@ -163,7 +163,7 @@ class IngestionServiceTest : BackendTestBase() {
     fun `qr scan merges into the landing sms - confirmed, intent adopted, qr removed`() = runTest {
         val bank = bankWithIdentifiers("hdfc", "HDFC Bank", "4921")
         val merchant = counterparties.resolveOrCreate(LedgerService.USER_ID, "swiggy@ybl")!!
-        val food = db.CategoryDao().insert(newCategory("Food"))
+        val food = newCategory("Food")
 
         // User scanned the QR first: deliberate category/party/note, buffer status.
         val qrView = ledger.createTransaction(
@@ -176,7 +176,7 @@ class IngestionServiceTest : BackendTestBase() {
                 tags = listOf("lunch"),
                 lines = listOf(
                     LineSpec(-235_50, accountId = bank),
-                    LineSpec(235_50, categoryId = food),
+                    LineSpec(235_50, accountId = food),
                 ),
             )
         )
@@ -242,7 +242,7 @@ class IngestionServiceTest : BackendTestBase() {
                 counterpartyId = merchant,
                 lines = listOf(
                     LineSpec(-100_00, accountId = bank),
-                    LineSpec(100_00, categoryId = db.CategoryDao().insert(newCategory("Food"))),
+                    LineSpec(100_00, accountId = newCategory("Food")),
                 ),
             )
         )
@@ -275,7 +275,7 @@ class IngestionServiceTest : BackendTestBase() {
                 counterpartyId = merchant,
                 lines = listOf(
                     LineSpec(-100_00, accountId = bank),
-                    LineSpec(100_00, categoryId = db.CategoryDao().insert(newCategory("Food"))),
+                    LineSpec(100_00, accountId = newCategory("Food")),
                 ),
             )
         )

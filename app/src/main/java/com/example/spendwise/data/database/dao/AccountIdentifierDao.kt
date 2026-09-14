@@ -20,6 +20,9 @@ interface AccountIdentifierDao {
     @Query("SELECT * FROM account_identifiers WHERE value = :last4 AND is_active = 1")
     suspend fun getActiveByValue(last4: String): List<AccountIdentifierEntity>
 
+    @Query("SELECT * FROM account_identifiers WHERE is_active = 1")
+    suspend fun getAllActive(): List<AccountIdentifierEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(identifier: AccountIdentifierEntity): Long
 

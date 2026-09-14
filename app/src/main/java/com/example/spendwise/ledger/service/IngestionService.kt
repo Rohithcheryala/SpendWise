@@ -113,10 +113,11 @@ class IngestionService @Inject constructor(
 
     /**
      * Port of `_find_account`: an SMS attaches only when the bank matches
-     * (case-insensitive contains), the account is active and non-system, its
-     * stored kind is reachable from the parser kind via [KIND_BRIDGE], AND it
-     * owns an active identifier equal to the SMS last-4 on the channel used.
-     * Unknown parser kinds map to nothing — orphan, never a wrong account.
+     * (case-insensitive contains), the account is active, non-system and
+     * non-category, its account class is reachable from the parser kind via
+     * [KIND_BRIDGE], AND it owns an active identifier equal to the SMS last-4
+     * on the channel used. Unknown parser kinds map to nothing — orphan,
+     * never a wrong account.
      */
     suspend fun findAccount(
         bank: String?,
@@ -125,18 +126,24 @@ class IngestionService @Inject constructor(
         idKinds: Set<String>? = null,
     ): AccountEntity? {
         if (last4.isNullOrBlank() || bank == null) return null
-        val dbKinds = KIND_BRIDGE[smsAccountKind] ?: return null
-        val allowedIds = identifierDao.getActiveByValue(last4)
+        val dbClasses = KIND_BRIDGE[smsAccountKind] ?: return null
+        val identifiers = identifierDao.getActiveByValue(last4)
             .filter { idKinds == null || it.kind in idKinds }
-            .map { it.accountId }
-            .toSet()
+        val allowedIds = identifiers.map { it.accountId }.toSet()
         if (allowedIds.isEmpty()) return null
         return accountDao.listAll().firstOrNull { acct ->
             acct.id in allowedIds &&
-                acct.isActive &&
-                !acct.slug.startsWith("sys-") &&
-                acct.kind in dbKinds &&
-                acct.bank?.contains(bank, ignoreCase = true) == true
+                !acct.isArchived &&
+                !acct.isSystem &&
+                acct.accountClass in dbClasses &&
+                acct.bank?.contains(bank, ignoreCase = true) == true &&
+                // A card SMS may only ride an asset account through a CARD-kind
+                // identifier (otherwise a coincidental account-number match
+                // would misbook the spend). A liability is always fair game —
+                // that is what a credit card is.
+                (smsAccountKind != "credit_card" ||
+                    acct.accountClass == LedgerService.CLASS_LIABILITY ||
+                    identifiers.any { it.accountId == acct.id && it.kind == ID_KIND_CARD })
         }
     }
 
@@ -166,7 +173,9 @@ class IngestionService @Inject constructor(
 
             val match = findAccount(parts[0], parts[1], parts[2])
             if (match?.id == accountId) {
-                val line = transactionLineDao.getByTransactionList(transactionId).singleOrNull { it.accountId != null }
+                // The orphan's parked leg is the unmatched pot line itself.
+                val line = transactionLineDao.getByTransactionList(transactionId)
+                    .firstOrNull { it.accountId == unmatchedPot }
                     ?: continue
                 transactionLineDao.update(line.copy(accountId = accountId))
                 claimed++
@@ -219,19 +228,34 @@ class IngestionService @Inject constructor(
 
         // If the SMS couldn't name an account but the user's scan did, adopt it.
         val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
-        val smsAcctIdx = smsLines.indexOfFirst { it.accountId != null }
-        val qrAcct = qrLines.firstOrNull { it.accountId != null && it.accountId != unmatchedPot }
+        suspend fun isRealAccountLeg(accountId: Long): Boolean {
+            val acct = accountDao.getById(accountId) ?: return false
+            return !acct.isSystem &&
+                (acct.accountClass == LedgerService.CLASS_ASSET ||
+                    acct.accountClass == LedgerService.CLASS_LIABILITY)
+        }
+        val smsAcctIdx = smsLines.indexOfFirst { isRealAccountLeg(it.accountId) }
+        val qrAcct = qrLines.firstOrNull { it.accountId != unmatchedPot && isRealAccountLeg(it.accountId) }
         if (smsAcctIdx >= 0 && qrAcct != null && smsLines[smsAcctIdx].accountId == unmatchedPot) {
             smsLines[smsAcctIdx] = smsLines[smsAcctIdx].copy(accountId = qrAcct.accountId)
         }
 
         // Category: adopt the scan's deliberate pick when the SMS contra is
-        // still the system suspense category.
-        val unclassified = ledger.systemCategory(LedgerService.KIND_EXPENSE, "Unclassified").id
-        val qrCat = qrLines.firstOrNull { it.categoryId != null }
-        val smsCatIdx = smsLines.indexOfFirst { it.categoryId != null }
-        if (qrCat != null && smsCatIdx >= 0 && smsLines[smsCatIdx].categoryId == unclassified) {
-            smsLines[smsCatIdx] = smsLines[smsCatIdx].copy(categoryId = qrCat.categoryId)
+        // still the system suspense category account.
+        val unclassified = ledger.systemCategoryAccount(LedgerService.CLASS_EXPENSE, "Unclassified").id
+        suspend fun categoryLeg(accountId: Long): AccountEntity? {
+            val acct = accountDao.getById(accountId) ?: return null
+            return acct.takeIf {
+                it.accountClass == LedgerService.CLASS_EXPENSE ||
+                    it.accountClass == LedgerService.CLASS_INCOME
+            }
+        }
+        val qrCat = qrLines.firstOrNull { categoryLeg(it.accountId) != null && it.accountId != unclassified }
+        val smsCatIdx = smsLines.indexOfFirst {
+            accountDao.getById(it.accountId)?.isSystem == true && categoryLeg(it.accountId) != null
+        }
+        if (qrCat != null && smsCatIdx >= 0 && smsLines[smsCatIdx].accountId == unclassified) {
+            smsLines[smsCatIdx] = smsLines[smsCatIdx].copy(accountId = qrCat.accountId)
         }
 
         // Persist merged SMS entry: user intent + bank proof = confirmed.
@@ -251,11 +275,15 @@ class IngestionService @Inject constructor(
         return qr.id
     }
 
-    /** (magnitude, direction) of an ingested entry, from its single account leg. */
+    /** (magnitude, direction) of an ingested transaction, from its single real-account leg. */
     private suspend fun amountDirection(transactionId: Long): Pair<Long, Direction>? {
         val line = transactionLineDao.getByTransactionList(transactionId)
-            .filter { it.accountId != null }
-            .singleOrNull() ?: return null
+            .firstOrNull { ln ->
+                val acct = accountDao.getById(ln.accountId)
+                acct != null && !acct.isSystem &&
+                    (acct.accountClass == LedgerService.CLASS_ASSET ||
+                        acct.accountClass == LedgerService.CLASS_LIABILITY)
+            } ?: return null
         return kotlin.math.abs(line.amountPaise) to
             (if (line.amountPaise > 0) Direction.IN else Direction.OUT)
     }
@@ -296,19 +324,21 @@ class IngestionService @Inject constructor(
             if (direction == Direction.IN) Intent.INCOME else Intent.EXPENSE
 
         /**
-         * Parser account-kind -> stored Account.kind bridge. Unknown parser
-         * kinds intentionally map to nothing (stay orphans).
+         * Parser account-kind -> stored account-class bridge (the Rust shape:
+         * accounts carry class/subtype, not the old free-form `kind`).
+         * Unknown parser kinds intentionally map to nothing (stay orphans).
          *
-         * "credit_card" covers BOTH plastic channels: a credit card (liability
-         * account) and a debit card (the asset account owning that card — the
-         * parser only says card vs non-card; the identifier-kind check is what
-         * stops a card number from hijacking an account-number match).
-         * "savings" includes "asset", the kind the app assigns to savings and
-         * checking accounts it creates, plus the legacy "available".
+         * "credit_card" covers BOTH plastic channels: a credit card
+         * (liability account) and a debit card (the asset account owning
+         * that card — the parser only says card vs non-card; the
+         * identifier-kind check is what stops a card number from hijacking
+         * an account-number match).
+         * "savings" covers every asset pot the app creates (savings,
+         * checking, cash, wallet).
          */
         val KIND_BRIDGE: Map<String, Set<String>> = mapOf(
-            "credit_card" to setOf("liability", "asset"),
-            "savings" to setOf("available", "asset", "cash"),
+            "credit_card" to setOf(LedgerService.CLASS_LIABILITY, LedgerService.CLASS_ASSET),
+            "savings" to setOf(LedgerService.CLASS_ASSET),
         )
 
         const val QR_SMS_MERGE_TOLERANCE = 0.01

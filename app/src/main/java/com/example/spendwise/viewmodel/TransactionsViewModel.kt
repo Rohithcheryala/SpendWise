@@ -13,7 +13,6 @@ import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toAmountString
 import com.example.spendwise.data.database.dao.AccountDao
-import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
@@ -44,7 +43,6 @@ import javax.inject.Inject
 class TransactionsViewModel @Inject constructor(
     private val ledgerApi: LedgerApi,
     private val accountDao: AccountDao,
-    private val categoryDao: CategoryDao,
     private val counterpartyDao: CounterpartyDao,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
@@ -82,7 +80,7 @@ class TransactionsViewModel @Inject constructor(
                 val categories = if (categoryIds.isEmpty()) {
                     emptyMap()
                 } else {
-                    categoryDao.getByIds(categoryIds).associate { it.id to it.name }
+                    accountDao.getByIds(categoryIds).associate { it.id to it.name }
                 }
                 transactions.map { entry ->
                     entry.toUi(symbol, accounts, categories, parties)

@@ -21,16 +21,6 @@ import androidx.room.PrimaryKey
             childColumns = ["account_id"]
         ),
         ForeignKey(
-            entity = CategoryEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["category_id"]
-        ),
-        ForeignKey(
-            entity = BucketEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["bucket_id"]
-        ),
-        ForeignKey(
             entity = CounterpartyEntity::class,
             parentColumns = ["id"],
             childColumns = ["counterparty_id"]
@@ -39,11 +29,17 @@ import androidx.room.PrimaryKey
     indices = [
         Index("transaction_id"),
         Index("account_id"),
-        Index("category_id"),
-        Index("bucket_id"),
         Index("counterparty_id")
     ]
 )
+/**
+ * One posting, onto exactly one account node — which may be a bank account,
+ * a category account (class income/expense) or a system pot. Pure lines
+ * (transaction_id, account_id, amount_paise) plus the two transitional
+ * enrichments [counterpartyId] (who owes, on receivable legs) and
+ * [balanceAfterPaise] (SMS-stated running balance), both slated to move in
+ * 3b-2.
+ */
 data class TransactionLineEntity(
 
     @PrimaryKey(autoGenerate = true)
@@ -53,19 +49,13 @@ data class TransactionLineEntity(
     val transactionId: Long,
 
     @ColumnInfo(name = "account_id")
-    val accountId: Long? = null,
-
-    @ColumnInfo(name = "category_id")
-    val categoryId: Long? = null,
-
-    @ColumnInfo(name = "bucket_id")
-    val bucketId: Long? = null,
-
-    @ColumnInfo(name = "counterparty_id")
-    val counterpartyId: Long? = null,
+    val accountId: Long,
 
     @ColumnInfo(name = "amount_paise")
     val amountPaise: Long,
+
+    @ColumnInfo(name = "counterparty_id")
+    val counterpartyId: Long? = null,
 
     @ColumnInfo(name = "balance_after_paise")
     val balanceAfterPaise: Long? = null

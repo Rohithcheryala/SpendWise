@@ -3,6 +3,7 @@ package com.example.spendwise.ledger
 import com.example.spendwise.ledger.api.CreateTransactionRequest
 import com.example.spendwise.ledger.api.TransactionStatus
 import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.service.LedgerService
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -14,8 +15,8 @@ import org.junit.Test
  */
 class BalanceTest : BackendTestBase() {
 
-    private suspend fun setupAccount(kind: String = "available"): Long =
-        db.AccountDao().insert(newAccount("acct", kind = kind))
+    private suspend fun setupAccount(accountClass: String = LedgerService.CLASS_ASSET): Long =
+        newAccount("acct", accountClass = accountClass)
 
     @Test
     fun `expenses reduce and income raises a confirmed balance`() = runTest {
@@ -26,7 +27,7 @@ class BalanceTest : BackendTestBase() {
                 occurredOn = 10L,
                 lines = listOf(
                     LineSpec(-500_00, accountId = bank),
-                    LineSpec(500_00, categoryId = db.CategoryDao().insert(newCategory("Food"))),
+                    LineSpec(500_00, accountId = newCategory("Food")),
                 ),
             )
         )
@@ -37,7 +38,7 @@ class BalanceTest : BackendTestBase() {
                 occurredOn = 11L,
                 lines = listOf(
                     LineSpec(1_200_00, accountId = bank),
-                    LineSpec(-1_200_00, categoryId = db.CategoryDao().insert(newCategory("Salary", "income"))),
+                    LineSpec(-1_200_00, accountId = newCategory("Salary", LedgerService.CLASS_INCOME)),
                 ),
             )
         )
@@ -47,13 +48,13 @@ class BalanceTest : BackendTestBase() {
     @Test
     fun `buffer transactions do not count until confirmed`() = runTest {
         val bank = setupAccount()
-        val food = db.CategoryDao().insert(newCategory("Food"))
+        val food = newCategory("Food")
 
         val buffered = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = 0L,
                 status = TransactionStatus.BUFFER,
-                lines = listOf(LineSpec(-300_00, accountId = bank), LineSpec(300_00, categoryId = food)),
+                lines = listOf(LineSpec(-300_00, accountId = bank), LineSpec(300_00, accountId = food)),
             )
         )
         assertEquals(0L, ledger.accountBalance(bank))
@@ -65,12 +66,12 @@ class BalanceTest : BackendTestBase() {
     @Test
     fun `voided transactions drop out of balances`() = runTest {
         val bank = setupAccount()
-        val food = db.CategoryDao().insert(newCategory("Food"))
+        val food = newCategory("Food")
 
         val entry = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = 0L,
-                lines = listOf(LineSpec(-700_00, accountId = bank), LineSpec(700_00, categoryId = food)),
+                lines = listOf(LineSpec(-700_00, accountId = bank), LineSpec(700_00, accountId = food)),
             )
         )
         assertEquals(-700_00, ledger.accountBalance(bank))
@@ -83,8 +84,8 @@ class BalanceTest : BackendTestBase() {
 
     @Test
     fun `liability balance is inverted to the amount owed`() = runTest {
-        val card = db.AccountDao().insert(newAccount("card", kind = "liability"))
-        val shopping = db.CategoryDao().insert(newCategory("Shopping"))
+        val card = newAccount("card", accountClass = LedgerService.CLASS_LIABILITY)
+        val shopping = newCategory("Shopping")
 
         // Spending on a credit card increases what you owe.
         ledger.createTransaction(
@@ -92,7 +93,7 @@ class BalanceTest : BackendTestBase() {
                 occurredOn = 0L,
                 lines = listOf(
                     LineSpec(-250_00, accountId = card),
-                    LineSpec(250_00, categoryId = shopping),
+                    LineSpec(250_00, accountId = shopping),
                 ),
             )
         )
@@ -102,12 +103,12 @@ class BalanceTest : BackendTestBase() {
     @Test
     fun `through bounds the balance for reconciliation continuity`() = runTest {
         val bank = setupAccount()
-        val food = db.CategoryDao().insert(newCategory("Food"))
+        val food = newCategory("Food")
 
         suspend fun spend(onDay: Long, paise: Long) = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = onDay,
-                lines = listOf(LineSpec(-paise, accountId = bank), LineSpec(paise, categoryId = food)),
+                lines = listOf(LineSpec(-paise, accountId = bank), LineSpec(paise, accountId = food)),
             )
         )
 
@@ -122,17 +123,15 @@ class BalanceTest : BackendTestBase() {
 
     @Test
     fun `opening balance entry contributes to the computed balance`() = runTest {
-        val id = db.AccountDao().insert(newAccount("bank", openingBalancePaise = 12_000_00))
-        val bank = db.AccountDao().getById(id)!!
+        val bank = newAccount("bank")
 
-        val opening = ledger.recordOpeningBalance(bank.id, onDate = 0L)!!
-        assertEquals(12_000_00, ledger.accountBalance(bank.id))
+        val opening = ledger.recordOpeningBalance(bank, 12_000_00, onDate = 0L)!!
+        assertEquals(12_000_00, ledger.accountBalance(bank))
         assertEquals("Opening balance", opening.note)
 
         // Idempotent replace: editing the opening balance swaps the baseline.
-        db.AccountDao().update(bank.copy(openingBalancePaise = 15_000_00))
-        ledger.recordOpeningBalance(bank.id, onDate = 0L)
-        assertEquals(15_000_00, ledger.accountBalance(bank.id))
+        ledger.recordOpeningBalance(bank, 15_000_00, onDate = 0L)
+        assertEquals(15_000_00, ledger.accountBalance(bank))
         assertEquals(null, ledger.getTransaction(opening.id))
     }
 }

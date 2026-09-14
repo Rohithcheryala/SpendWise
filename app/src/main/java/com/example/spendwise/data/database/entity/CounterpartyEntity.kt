@@ -10,13 +10,19 @@ import androidx.room.PrimaryKey
     tableName = "counterparties",
     foreignKeys = [
         ForeignKey(
-            entity = CategoryEntity::class,
+            entity = AccountEntity::class,
             parentColumns = ["id"],
-            childColumns = ["default_category_id"]
+            childColumns = ["default_account_id"]
+        ),
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["receivable_account_id"]
         ),
     ],
     indices = [
-        Index("default_category_id")
+        Index("default_account_id"),
+        Index("receivable_account_id")
     ]
 )
 data class CounterpartyEntity(
@@ -47,6 +53,15 @@ data class CounterpartyEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Long,
 
-    @ColumnInfo(name = "default_category_id")
-    val defaultCategoryId: Long? = null
+    /** Default posting account (a category account under the unified model). */
+    @ColumnInfo(name = "default_account_id")
+    val defaultAccountId: Long? = null,
+
+    /**
+     * The per-person child account under the loans-receivable pot — the one
+     * counterparty→ledger bridge (Rust migration 003). Wired into the loan
+     * posting paths in 3b-2 when lines go pure.
+     */
+    @ColumnInfo(name = "receivable_account_id")
+    val receivableAccountId: Long? = null
 )

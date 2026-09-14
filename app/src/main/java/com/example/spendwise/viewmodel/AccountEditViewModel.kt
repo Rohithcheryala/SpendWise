@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.ledger.api.ApiException
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
@@ -57,21 +58,24 @@ class AccountEditViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             val account = accountDao.getById(accountId)
-            if (account == null || account.slug.startsWith("sys-")) {
+            if (account == null || account.isSystem) {
                 _uiState.value = UiState(isLoading = false, error = "Account not found")
                 return@launch
             }
+            // The masked number lives on the active identifier, not the account.
+            val last4 = identifierDao.getByAccountList(accountId)
+                .firstOrNull { it.isActive }?.value
             _uiState.value = UiState(
                 isLoading = false,
                 name = account.name,
                 bankName = account.bank.orEmpty(),
-                last4 = account.last4.orEmpty(),
-                typeLabel = when (account.kind) {
-                    "liability" -> "Credit card"
-                    "cash" -> "Cash"
+                last4 = last4.orEmpty(),
+                typeLabel = when {
+                    account.accountClass == LedgerService.CLASS_LIABILITY -> "Credit card"
+                    account.subtype == "cash" -> "Cash"
                     else -> "Bank account"
                 },
-                isActive = account.isActive,
+                isActive = !account.isArchived,
             )
         }
     }
@@ -102,12 +106,11 @@ class AccountEditViewModel @Inject constructor(
                     account.copy(
                         name = s.name.trim(),
                         bank = s.bankName.trim().ifBlank { null },
-                        last4 = digits.ifBlank { null },
                     )
                 )
 
                 // Keep the SMS identifier in sync when the last-4 changes.
-                if (digits.isNotEmpty() && digits != account.last4) {
+                if (digits.isNotEmpty() && digits != s.last4) {
                     val existing = identifierDao.getByAccountList(accountId)
                     val kind = existing.firstOrNull()?.kind ?: "account"
                     existing.filter { it.isActive }.forEach { identifierDao.deactivate(it.id) }
@@ -138,9 +141,8 @@ class AccountEditViewModel @Inject constructor(
             runCatching {
                 val account = accountDao.getById(accountId)
                     ?: throw ApiException("account not found")
-                accountDao.update(
-                    account.copy(isActive = false, closedAt = System.currentTimeMillis())
-                )
+                // Archive: deactivated, hidden everywhere, ledger history kept.
+                accountDao.update(account.copy(isArchived = true))
             }.onSuccess {
                 finished.tryEmit(Unit)
             }.onFailure { e ->

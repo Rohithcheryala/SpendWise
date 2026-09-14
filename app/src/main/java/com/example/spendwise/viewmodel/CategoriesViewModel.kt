@@ -4,9 +4,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.data.database.dao.BudgetDao
-import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
-import com.example.spendwise.data.database.entity.CategoryEntity
+import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.ui.screens.categories.CategoryUiModel
 import com.example.spendwise.ui.screens.categories.SubcategoryUiModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,7 +25,7 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class CategoriesViewModel @Inject constructor(
-    private val categoryDao: CategoryDao,
+    private val accountDao: AccountDao,
     private val budgetDao: BudgetDao,
     private val transactionLineDao: TransactionLineDao,
 ) : ViewModel() {
@@ -61,24 +61,24 @@ class CategoriesViewModel @Inject constructor(
 
             runCatching {
                 val budgets = budgetDao.getActiveBudgets(monthStart).first()
-                    .associateBy { it.categoryId }
-                val roots = categoryDao.getRootCategories().first()
-                    .filter { it.kind == KIND_EXPENSE }
+                    .associateBy { it.accountId }
+                val roots = accountDao.getRootCategoryAccounts().first()
+                    .filter { it.accountClass == KIND_EXPENSE }
 
                 roots.mapIndexed { index, root ->
-                    val children = categoryDao.getChildren(root.id).first()
-                        .filter { it.kind == KIND_EXPENSE }
+                    val children = accountDao.listChildren(root.id)
+                        .filter { it.accountClass == KIND_EXPENSE }
                         .map { child ->
                             SubcategoryUiModel(
                                 id = child.id,
                                 title = child.name,
-                                spent = transactionLineDao.sumConfirmedForCategoryInMonth(
+                                spent = transactionLineDao.sumConfirmedForAccountInMonth(
                                     child.id, monthStart, monthEnd
                                 ) / 100.0,
                                 budget = (budgets[child.id]?.amountPaise ?: 0L) / 100.0,
                             )
                         }
-                    val ownSpent = transactionLineDao.sumConfirmedForCategoryInMonth(
+                    val ownSpent = transactionLineDao.sumConfirmedForAccountInMonth(
                         root.id, monthStart, monthEnd
                     )
                     CategoryUiModel(
@@ -108,10 +108,10 @@ class CategoriesViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val now = System.currentTimeMillis()
-                val id = categoryDao.insert(
-                    CategoryEntity(
+                val id = accountDao.insert(
+                    AccountEntity(
                         name = name.trim(),
-                        kind = KIND_EXPENSE,
+                        accountClass = KIND_EXPENSE,
                         createdAt = now,
                     )
                 )
@@ -119,7 +119,7 @@ class CategoriesViewModel @Inject constructor(
                 if (budgetPaise > 0) {
                     budgetDao.insert(
                         com.example.spendwise.data.database.entity.BudgetEntity(
-                            categoryId = id,
+                            accountId = id,
                             amountPaise = budgetPaise,
                             effectiveFrom = YearMonth.now().atDay(1)
                                 .atTime(0, 0)

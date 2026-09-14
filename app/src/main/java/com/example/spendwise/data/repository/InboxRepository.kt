@@ -14,7 +14,7 @@ import com.example.spendwise.core.notifications.TransactionNotifier
 import com.example.spendwise.core.parser_pw.TransactionType
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.database.dao.AccountDao
-import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,8 +61,8 @@ class InboxRepository @Inject constructor(
     private val ledgerApi: LedgerApi,
     private val provenanceDao: TransactionProvenanceDao,
     private val accountDao: AccountDao,
+    private val identifierDao: AccountIdentifierDao,
     private val counterpartyDao: CounterpartyDao,
-    private val categoryDao: CategoryDao,
     private val settingsRepository: SettingsRepository,
     private val notifier: TransactionNotifier,
 ) {
@@ -222,7 +222,7 @@ class InboxRepository @Inject constructor(
      */
     private suspend fun claimOrphans() {
         accountDao.listAll()
-            .filter { it.isActive && !it.slug.startsWith("sys-") && it.bank != null }
+            .filter { !it.isArchived && !it.isSystem && it.bank != null }
             .forEach { account ->
                 runCatching { ingestionService.claimOrphansForAccount(account.id) }
             }
@@ -234,14 +234,14 @@ class InboxRepository @Inject constructor(
         val transactions = ledgerApi.listTransactions(status = TransactionStatus.BUFFER)
         val accountNames = accountDao.listAll().associate { it.id to it.name }
         val userAccounts = accountDao.listAll()
-            .filter { !it.slug.startsWith("sys-") }
+            .filter { !it.isSystem }
             .map { it.id to it.name }
         val partyNames = counterpartyDao.listAll().associate { it.id to it.displayName }
         val categoryIds = transactions.mapNotNull { it.categoryId }.distinct()
         val categoryNames = if (categoryIds.isEmpty()) {
             emptyMap()
         } else {
-            categoryDao.getByIds(categoryIds).associate { it.id to it.name }
+            accountDao.getByIds(categoryIds).associate { it.id to it.name }
         }
         _bufferItems.value = transactions.map { entry ->
             enrich(entry, accountNames, userAccounts, partyNames, categoryNames)
@@ -390,7 +390,7 @@ class InboxRepository @Inject constructor(
     suspend fun scanFrom(startMillis: Long): ScanReport {
         val messages = messageReader.readSince(startMillis)
 
-        val existingLast4 = accountDao.listAll().mapNotNull { it.last4 }.toSet()
+        val existingLast4 = identifierDao.getAllActive().map { it.value }.toSet()
         val detected = LinkedHashMap<String, DetectedAccount>()
         var parsedCount = 0
 

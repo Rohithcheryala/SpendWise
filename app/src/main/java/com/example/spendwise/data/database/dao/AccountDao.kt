@@ -12,23 +12,72 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AccountDao {
 
-    @Query("SELECT * FROM accounts ORDER BY name ASC")
+    @Query("SELECT * FROM accounts ORDER BY sort_order ASC, name ASC")
     fun getAll(): Flow<List<AccountEntity>>
 
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getById(id: Long): AccountEntity?
 
-    @Query("SELECT * FROM accounts WHERE slug = :slug LIMIT 1")
-    suspend fun getBySlug(slug: String): AccountEntity?
-
-    @Query("SELECT * FROM accounts WHERE last4 = :last4")
-    suspend fun getByLast4(last4: String): List<AccountEntity>
-
     @Query("SELECT * FROM accounts ORDER BY id ASC")
     suspend fun listAll(): List<AccountEntity>
 
-    @Query("SELECT * FROM accounts WHERE is_active = 1 ORDER BY name ASC")
+    @Query("SELECT * FROM accounts WHERE is_archived = 0 ORDER BY sort_order ASC, name ASC")
     fun getActive(): Flow<List<AccountEntity>>
+
+    /** User-visible accounts of one class (categories live here too). */
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE account_class = :cls AND is_system = 0 AND is_archived = 0
+        ORDER BY sort_order ASC, name ASC
+    """
+    )
+    fun getByClass(cls: String): Flow<List<AccountEntity>>
+
+    /** All user category accounts (class income/expense) — the old categories table. */
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE account_class IN ('income', 'expense') AND is_system = 0 AND is_archived = 0
+        ORDER BY sort_order ASC, name ASC
+    """
+    )
+    fun getCategoryAccounts(): Flow<List<AccountEntity>>
+
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE account_class IN ('income', 'expense') AND is_system = 0 AND is_archived = 0
+          AND parent_id IS NULL
+        ORDER BY sort_order ASC, name ASC
+    """
+    )
+    fun getRootCategoryAccounts(): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<AccountEntity>
+
+    @Query("SELECT * FROM accounts WHERE parent_id = :parentId ORDER BY sort_order ASC, name ASC")
+    fun getChildren(parentId: Long): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM accounts WHERE parent_id = :parentId AND is_archived = 0 ORDER BY sort_order ASC, name ASC")
+    suspend fun listChildren(parentId: Long): List<AccountEntity>
+
+    /** System category accounts ("Unclassified" etc.) — get-or-create target. */
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE account_class = :cls AND name = :name AND is_system = 1
+        LIMIT 1
+    """
+    )
+    suspend fun findSystemByName(cls: String, name: String): AccountEntity?
+
+    @Query("SELECT * FROM accounts WHERE is_system = 1 AND subtype = :subtype LIMIT 1")
+    suspend fun findSystemBySubtype(subtype: String): AccountEntity?
+
+    @Query("SELECT COUNT(*) FROM accounts")
+    suspend fun count(): Int
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(account: AccountEntity): Long

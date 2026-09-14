@@ -43,14 +43,15 @@ object Intent {
     val ALL = setOf(EXPENSE, INCOME, INVESTMENT, LOAN, LOAN_REPAYMENT, TRANSFER, RECONCILIATION)
 }
 
-/** One posting. Targets exactly one of accountId/categoryId. */
+/**
+ * One posting, onto exactly one account node — a real account, a category
+ * account (class income/expense) or a system pot.
+ */
 data class LineSpec(
     val amountPaise: Long,
-    val accountId: Long? = null,
-    val categoryId: Long? = null,
-    val bucketId: Long? = null,
-    val balanceAfterPaise: Long? = null,
+    val accountId: Long,
     val counterpartyId: Long? = null,
+    val balanceAfterPaise: Long? = null,
 )
 
 data class CreateTransactionRequest(
@@ -82,7 +83,6 @@ data class IngestRequest(
     val dedupeHash: String? = null,
     val bankRef: String? = null,
     val balanceAfterPaise: Long? = null,
-    val bucketId: Long? = null,
     val note: String? = null,
     /** Parse facts frozen for orphan reclaim ("bank|last4|accountKind"). */
     val parsedFacts: String? = null,

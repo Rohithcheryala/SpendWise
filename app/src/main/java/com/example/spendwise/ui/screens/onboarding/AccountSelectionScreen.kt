@@ -116,7 +116,9 @@ private fun AccountRow(account: AccountEntity) {
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = account.bank ?: account.kind.replaceFirstChar { it.uppercaseChar() },
+                    text = account.bank
+                        ?: account.subtype?.replaceFirstChar { it.uppercaseChar() }
+                        ?: "Account",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

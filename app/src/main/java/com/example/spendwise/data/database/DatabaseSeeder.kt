@@ -1,10 +1,11 @@
 package com.example.spendwise.data.database
 
 
+import com.example.spendwise.data.database.dao.AccountDao
+import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.mapper.AppMetadata
-import com.example.spendwise.data.mapper.Category
 import com.example.spendwise.data.repository.AppMetadataRepository
-import com.example.spendwise.data.repository.CategoryRepository
+import com.example.spendwise.ledger.service.LedgerService
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -13,7 +14,7 @@ import javax.inject.Singleton
 
 @Singleton
 class DatabaseSeeder @Inject constructor(
-    private val categoryRepository: CategoryRepository,
+    private val accountDao: AccountDao,
     private val appMetadataRepository: AppMetadataRepository,
 ) {
 
@@ -21,14 +22,17 @@ class DatabaseSeeder @Inject constructor(
         val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
 
 
-        if (categoryRepository.count() == 0) {
-            categoryRepository.insert(
-                Category(
-                    name = "Food",
+        if (accountDao.count() == 0) {
+            // Default category accounts (categories ARE accounts now).
+            listOf("Food", "Transport", "Shopping").forEach { name ->
+                accountDao.insert(
+                    AccountEntity(
+                        name = name,
+                        accountClass = LedgerService.CLASS_EXPENSE,
+                        createdAt = System.currentTimeMillis(),
+                    )
                 )
-            )
-            categoryRepository.insert(Category(name = "Transport"))
-            categoryRepository.insert(Category(name = "Shopping"))
+            }
         }
 
         if (appMetadataRepository.count() == 0) {

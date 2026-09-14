@@ -70,25 +70,7 @@ interface TransactionLineDao {
     )
     suspend fun sumConfirmedForAccount(accountId: Long, throughMillis: Long?): Long
 
-    /** Same as [sumConfirmedForAccount] but for bucket-tagged lines. */
-    @Query(
-        """
-        SELECT COALESCE(SUM(l.amount_paise), 0)
-        FROM transaction_lines l
-        JOIN transactions e ON e.id = l.transaction_id
-        WHERE l.bucket_id = :bucketId
-          AND e.status = 'confirmed'
-          AND e.voided_at IS NULL
-          AND (:throughMillis IS NULL OR e.occurred_on <= :throughMillis)
-    """
-    )
-    suspend fun sumConfirmedForBucket(bucketId: Long, throughMillis: Long?): Long
-
-    /** Detach a bucket tag from every line (bucket deletion cleanup). */
-    @Query("UPDATE transaction_lines SET bucket_id = NULL WHERE bucket_id = :bucketId")
-    suspend fun detachBucket(bucketId: Long)
-
-    /** Entry ids having a line on the given account. */
+    /** Transaction ids having a line on the given account. */
     @Query("SELECT DISTINCT transaction_id FROM transaction_lines WHERE account_id = :accountId")
     suspend fun transactionIdsForAccount(accountId: Long): List<Long>
 
@@ -115,24 +97,6 @@ interface TransactionLineDao {
     """
     )
     fun getByAccount(accountId: Long): Flow<List<TransactionLineEntity>>
-
-    @Query(
-        """
-        SELECT * FROM transaction_lines
-        WHERE category_id = :categoryId
-        ORDER BY id DESC
-    """
-    )
-    fun getByCategory(categoryId: Long): Flow<List<TransactionLineEntity>>
-
-    @Query(
-        """
-        SELECT * FROM transaction_lines
-        WHERE bucket_id = :bucketId
-        ORDER BY id DESC
-    """
-    )
-    fun getByBucket(bucketId: Long): Flow<List<TransactionLineEntity>>
 
     @Query(
         """
@@ -164,24 +128,25 @@ interface TransactionLineDao {
         suspend fun deleteByTransaction(transactionId: Long)
 
     /**
-     * Signed sum of confirmed, non-voided lines posted to [categoryId] whose
-     * entry occurred within [monthStart, monthEnd]. Used by the budget screen
-     * to derive real spend instead of placeholder figures.
+     * Signed sum of confirmed, non-voided lines posted to [accountId] (a
+     * category account under the unified model) whose transaction occurred
+     * within [monthStart, monthEnd]. Used by the budget screen to derive real
+     * spend instead of placeholder figures.
      */
     @Query(
         """
         SELECT COALESCE(SUM(l.amount_paise), 0)
         FROM transaction_lines l
         JOIN transactions e ON e.id = l.transaction_id
-        WHERE l.category_id = :categoryId
+        WHERE l.account_id = :accountId
           AND e.status = 'confirmed'
           AND e.voided_at IS NULL
           AND (:monthStart IS NULL OR e.occurred_on >= :monthStart)
           AND (:monthEnd IS NULL OR e.occurred_on <= :monthEnd)
         """
     )
-    suspend fun sumConfirmedForCategoryInMonth(
-        categoryId: Long,
+    suspend fun sumConfirmedForAccountInMonth(
+        accountId: Long,
         monthStart: Long?,
         monthEnd: Long?,
     ): Long

@@ -4,49 +4,46 @@ import androidx.room.withTransaction
 import com.example.spendwise.ledger.api.ApiException
 import com.example.spendwise.ledger.api.CreateTransactionRequest
 import com.example.spendwise.ledger.api.Direction
-import com.example.spendwise.ledger.api.TransactionKind
-import com.example.spendwise.ledger.api.TransactionSource
-import com.example.spendwise.ledger.api.TransactionStatus
-import com.example.spendwise.ledger.api.TransactionView
 import com.example.spendwise.ledger.api.FriendBalance
 import com.example.spendwise.ledger.api.IngestRequest
 import com.example.spendwise.ledger.api.Intent
 import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.api.LineSpec
 import com.example.spendwise.ledger.api.SplitRequest
+import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionSource
+import com.example.spendwise.ledger.api.TransactionStatus
+import com.example.spendwise.ledger.api.TransactionView
 import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.dao.AccountDao
-import com.example.spendwise.data.database.dao.BucketDao
-import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.database.dao.BankAccountDetailsDao
 import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
-import com.example.spendwise.data.database.entity.CategoryEntity
 import com.example.spendwise.data.database.entity.TransactionEntity
 import com.example.spendwise.data.database.entity.TransactionLineEntity
 import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
 import javax.inject.Inject
 
 /**
- * Double-entry ledger service — port of the old server's services/ledger.py.
- * The one place transactions are written and balances are read.
+ * Double-entry ledger service. The one place transactions are written and
+ * balances are read.
  *
  * Invariants enforced here (SQLite can't express them all):
- *  - an entry has >= 2 lines whose amounts sum to exactly zero
- *  - each line targets exactly one of accountId / categoryId
- *  - bucketId is only valid on a real-account line
+ *  - a transaction has >= 2 lines whose amounts sum to exactly zero
+ *  - every line posts onto exactly one account node — a real account, a
+ *    category account (class income/expense) or a system pot
  *
- * Balances are COMPUTED at read time, never stored: an account balance is the
- * signed sum of its confirmed, non-voided lines, inverted for liabilities
- * (where the balance is the amount owed). A bucket's value is the signed sum
- * of its tagged lines.
+ * Balances are COMPUTED at read time, never stored: an account balance is
+ * the signed sum of its confirmed, non-voided lines, inverted for
+ * liabilities (where the balance is the amount owed). Buckets are plain
+ * child accounts, so their value is just [accountBalance] on the child.
  */
 class LedgerService @Inject constructor(
     private val db: AppDatabase,
     private val accountDao: AccountDao,
-    private val bucketDao: BucketDao,
-    private val categoryDao: CategoryDao,
+    private val detailsDao: BankAccountDetailsDao,
     private val transactionDao: TransactionDao,
     private val transactionLineDao: TransactionLineDao,
     private val provenanceDao: TransactionProvenanceDao,
@@ -84,9 +81,9 @@ class LedgerService @Inject constructor(
     /**
      * POST /ingest. The real account leg (or the 'unmatched' pot for an
      * orphan) signed by direction, plus one contra line chosen by intent —
-     * loans to the sys-loans receivable pot, reconciliation to recon equity,
+     * loans to the receivable pot, reconciliation to reconciliation equity,
      * investments to the invest pot, everything else to an unclassified
-     * income/expense category. Attaches provenance when any is given.
+     * income/expense category account. Attaches provenance when any is given.
      */
     override suspend fun ingest(request: IngestRequest): TransactionView {
         if (request.intent !in Intent.ALL) throw ApiException("unknown intent '${request.intent}'")
@@ -98,7 +95,6 @@ class LedgerService @Inject constructor(
             LineSpec(
                 amountPaise = sign * request.amountPaise,
                 accountId = primaryAccount,
-                bucketId = request.bucketId,
                 balanceAfterPaise = request.balanceAfterPaise,
             ),
             contraLine(request.intent, request.direction, request.amountPaise, request.counterpartyId),
@@ -133,7 +129,7 @@ class LedgerService @Inject constructor(
         return view
     }
 
-    /** Two account legs, no category — reads back as kind=transfer. */
+    /** Two real-account legs — reads back as kind=transfer. */
     override suspend fun ingestTransfer(
         amountPaise: Long,
         fromAccountId: Long,
@@ -173,7 +169,7 @@ class LedgerService @Inject constructor(
         return view
     }
 
-    /** The single balancing line for an ingested entry, chosen by intent. */
+    /** The single balancing line for an ingested transaction, chosen by intent. */
     private suspend fun contraLine(
         intent: String,
         direction: Direction,
@@ -197,25 +193,22 @@ class LedgerService @Inject constructor(
 
             else -> {
                 val cat = if (direction == Direction.OUT) {
-                    systemCategory(KIND_EXPENSE, "Unclassified")
+                    systemCategoryAccount(CLASS_EXPENSE, "Unclassified")
                 } else {
-                    systemCategory(KIND_INCOME, "Uncategorized income")
+                    systemCategoryAccount(CLASS_INCOME, "Uncategorized income")
                 }
-                LineSpec(contra, categoryId = cat.id)
+                LineSpec(contra, accountId = cat.id)
             }
         }
     }
 
     private fun validateLines(lines: List<LineSpec>) {
-        if (lines.size < 2) throw ApiException("an entry needs at least two lines")
+        if (lines.size < 2) throw ApiException("a transaction needs at least two lines")
         val total = lines.sumOf { it.amountPaise }
-        if (total != 0L) throw ApiException("entry lines must sum to zero (got $total)")
+        if (total != 0L) throw ApiException("transaction lines must sum to zero (got $total)")
         for (ln in lines) {
-            if ((ln.accountId == null) == (ln.categoryId == null)) {
-                throw ApiException("each line targets exactly one of accountId / categoryId")
-            }
-            if (ln.bucketId != null && ln.accountId == null) {
-                throw ApiException("bucketId is only valid on a real-account line")
+            if (ln.accountId <= 0L) {
+                throw ApiException("each line must post onto an account")
             }
         }
     }
@@ -223,8 +216,6 @@ class LedgerService @Inject constructor(
     private fun LineSpec.toEntity(transactionId: Long) = TransactionLineEntity(
         transactionId = transactionId,
         accountId = accountId,
-        categoryId = categoryId,
-        bucketId = bucketId,
         counterpartyId = counterpartyId,
         amountPaise = amountPaise,
         balanceAfterPaise = balanceAfterPaise,
@@ -240,7 +231,7 @@ class LedgerService @Inject constructor(
     }
 
     private suspend fun requireView(id: Long): TransactionView =
-        getTransaction(id) ?: throw ApiException("entry $id vanished after write")
+        getTransaction(id) ?: throw ApiException("transaction $id vanished after write")
 
     override suspend fun listTransactions(
         status: String?,
@@ -259,59 +250,54 @@ class LedgerService @Inject constructor(
     /**
      * Signed sum of an account's confirmed, non-voided lines. Liabilities are
      * inverted (balance = amount owed). [through] bounds it for reconciliation
-     * continuity checks.
+     * continuity checks. Buckets — being plain child accounts — use the same
+     * read path.
      */
     override suspend fun accountBalance(accountId: Long, through: Long?): Long {
         val account = accountDao.getById(accountId)
             ?: throw ApiException("account $accountId not found")
         val total = transactionLineDao.sumConfirmedForAccount(accountId, through)
-        return if (account.kind == "liability") -total else total
+        return if (account.accountClass == CLASS_LIABILITY) -total else total
     }
 
-    /** Sum of confirmed, non-voided lines tagged to this bucket. */
-    override suspend fun bucketValue(bucketId: Long, through: Long?): Long =
-        transactionLineDao.sumConfirmedForBucket(bucketId, through)
-
-
     /**
-     * Derive an [TransactionView] from the lines so the client needs no accounting
-     * logic. Classification precedence mirrors the old server's describe_entry:
-     * opening/reconciliation equity, bucket allocation, loans/splits on the
-     * receivable pot, investment, transfer, then expense/income by category kind.
+     * Derive a [TransactionView] from the lines so the client needs no
+     * accounting logic. Classification precedence: opening/reconciliation
+     * equity, loans/splits on the receivable pot, investment, transfer, then
+     * expense/income by category-account class. (Stored `kind` in 3b-2 makes
+     * this derivation write-time only.)
      */
     private suspend fun buildView(entry: TransactionEntity, lines: List<TransactionLineEntity>): TransactionView {
         val accounts = HashMap<Long, AccountEntity>()
-        val categories = HashMap<Long, CategoryEntity>()
         for (ln in lines) {
-            ln.accountId?.let { aid ->
-                accounts.getOrPut(aid) { accountDao.getById(aid) ?: fakeAccount(aid) }
-            }
-            ln.categoryId?.let { cid ->
-                categories.getOrPut(cid) { categoryDao.getById(cid) ?: fakeCategory(cid) }
-            }
+            accounts.getOrPut(ln.accountId) { accountDao.getById(ln.accountId) ?: fakeAccount(ln.accountId) }
         }
 
-        fun role(accountId: Long?): String? =
-            accountId?.let { systemRole(accounts.getValue(it)) }
+        fun roleOf(account: AccountEntity): String? =
+            if (account.isSystem) {
+                SystemRole.entries.firstOrNull { it.subtype == account.subtype }?.subtype
+            } else {
+                null
+            }
 
-        val acctIds = lines.mapNotNull { it.accountId }.toSet()
-        val catIds = lines.mapNotNull { it.categoryId }.toSet()
-        val userLines = lines.filter { it.accountId != null && role(it.accountId) == null }
-        val expenseLines = lines.filter {
-            it.categoryId != null && categories.getValue(it.categoryId).kind == KIND_EXPENSE
+        fun isCategoryAccount(account: AccountEntity) =
+            account.accountClass == CLASS_EXPENSE || account.accountClass == CLASS_INCOME
+
+        val userLines = lines.filter {
+            val a = accounts.getValue(it.accountId)
+            !a.isSystem && !isCategoryAccount(a)
         }
-        val incomeLines = lines.filter {
-            it.categoryId != null && categories.getValue(it.categoryId).kind == KIND_INCOME
-        }
-        val sysPresent = lines.mapNotNull { role(it.accountId) }.toSet()
+        val expenseLines = lines.filter { accounts.getValue(it.accountId).accountClass == CLASS_EXPENSE }
+        val incomeLines = lines.filter { accounts.getValue(it.accountId).accountClass == CLASS_INCOME }
+        val sysPresent = lines.mapNotNull { roleOf(accounts.getValue(it.accountId)) }.toSet()
         val recvLines = lines.filter {
-            it.accountId != null && role(it.accountId) == SystemRole.RECEIVABLE.slugPrefix
+            roleOf(accounts.getValue(it.accountId)) == SystemRole.RECEIVABLE.subtype
         }
 
         // An orphan ingest's primary is the system unmatched pot — surfaced so
         // amount/direction aren't zeroed while awaiting a real account.
-        var primary = userLines.firstOrNull()
-            ?: lines.firstOrNull { role(it.accountId) == SystemRole.UNMATCHED.slugPrefix }
+        val primary = userLines.firstOrNull()
+            ?: lines.firstOrNull { roleOf(accounts.getValue(it.accountId)) == SystemRole.UNMATCHED.subtype }
 
         suspend fun viewOf(
             kind: TransactionKind,
@@ -329,10 +315,11 @@ class LedgerService @Inject constructor(
                     else -> Direction.OUT
                 },
                 amountPaise = kotlin.math.abs(amt),
-                accountId = primaryLine?.accountId?.takeIf { role(it) == null },
+                accountId = primaryLine?.accountId?.takeIf { roleOf(accounts.getValue(it)) == null },
                 toAccountId = toAccountId,
                 categoryId = categoryId,
-                bucketId = primaryLine?.bucketId,
+                bucketId = lines.firstOrNull { accounts.getValue(it.accountId).subtype == SUBTYPE_BUCKET }
+                    ?.accountId,
                 balanceAfterPaise = primaryLine?.balanceAfterPaise,
                 occurredOn = entry.occurredOn,
                 status = entry.status,
@@ -346,12 +333,8 @@ class LedgerService @Inject constructor(
         }
 
         return when {
-            "sys-openeq-" in sysPresent -> viewOf(TransactionKind.OPENING, primary)
-            "sys-reconeq-" in sysPresent -> viewOf(TransactionKind.RECONCILIATION, primary)
-
-            lines.size == 2 && catIds.isEmpty() && acctIds.size == 1 &&
-                lines.any { it.bucketId != null } ->
-                viewOf(TransactionKind.ALLOCATION, lines.first { it.bucketId != null })
+            SystemRole.OPEN_EQUITY.subtype in sysPresent -> viewOf(TransactionKind.OPENING, primary)
+            SystemRole.RECON_EQUITY.subtype in sysPresent -> viewOf(TransactionKind.RECONCILIATION, primary)
 
             recvLines.isNotEmpty() ->
                 if (expenseLines.isNotEmpty()) viewOf(TransactionKind.SPLIT, primary)
@@ -360,30 +343,29 @@ class LedgerService @Inject constructor(
                     primary,
                 )
 
-            "sys-invest-" in sysPresent -> viewOf(TransactionKind.INVESTMENT, primary)
+            SystemRole.INVESTMENT.subtype in sysPresent -> viewOf(TransactionKind.INVESTMENT, primary)
 
-            userLines.size >= 2 && catIds.isEmpty() -> {
+            userLines.size >= 2 -> {
                 val src = userLines.firstOrNull { it.amountPaise < 0 } ?: userLines.first()
                 val dst = userLines.firstOrNull { it.amountPaise > 0 }
                 viewOf(TransactionKind.TRANSFER, src, toAccountId = dst?.accountId)
             }
 
             expenseLines.isNotEmpty() -> viewOf(
-                TransactionKind.EXPENSE, primary, categoryId = expenseLines.singleOrNull()?.categoryId
+                TransactionKind.EXPENSE, primary, categoryId = expenseLines.singleOrNull()?.accountId
             )
 
             incomeLines.isNotEmpty() -> viewOf(
-                TransactionKind.INCOME, primary, categoryId = incomeLines.singleOrNull()?.categoryId
+                TransactionKind.INCOME, primary, categoryId = incomeLines.singleOrNull()?.accountId
             )
 
             else -> viewOf(TransactionKind.OTHER, primary)
         }
     }
-    private fun fakeAccount(id: Long) = AccountEntity(
-        id = id, slug = "#$id", name = "#$id", kind = "", openingBalancePaise = 0, isActive = true, createdAt = 0
-    )
 
-    private fun fakeCategory(id: Long) = CategoryEntity(id = id, name = "#$id", createdAt = 0)
+    private fun fakeAccount(id: Long) = AccountEntity(
+        id = id, name = "#$id", accountClass = CLASS_ASSET, createdAt = 0
+    )
 
     // ─────────────────────────────────────────────────────────────────────
     // Lifecycle: confirm / void / delete / split
@@ -396,15 +378,15 @@ class LedgerService @Inject constructor(
      */
     override suspend fun confirmTransaction(id: Long, extraTags: List<String>) {
         db.withTransaction {
-            val entry = transactionDao.getById(id) ?: throw ApiException("entry $id not found")
+            val entry = transactionDao.getById(id) ?: throw ApiException("transaction $id not found")
             val lines = transactionLineDao.getByTransactionList(id)
-            val hasRealAccount = lines.mapNotNull { it.accountId }.any { leg ->
+            val hasRealAccount = lines.map { it.accountId }.any { leg ->
                 val acct = accountDao.getById(leg)
-                acct != null && systemRole(acct) == null
+                acct != null && !acct.isSystem && isBalanceSheetClass(acct.accountClass)
             }
             if (!hasRealAccount) {
                 throw ApiException(
-                    "cannot confirm entry $id: no real account line yet (classify the orphan first)"
+                    "cannot confirm transaction $id: no real account line yet (classify the orphan first)"
                 )
             }
             if (extraTags.isEmpty()) {
@@ -421,24 +403,25 @@ class LedgerService @Inject constructor(
     }
 
     /**
-     * Re-point the account leg of a buffer entry onto [accountId] (PUT
-     * /transactions/{id}/account). Lets the user correct an auto-matched or orphaned
-     * SMS attribution from the inbox. The "account leg" for an SMS entry is the
-     * single line that isn't a category/bucket contra.
+     * Re-point the account leg of a buffer transaction onto [accountId] (PUT
+     * /transactions/{id}/account). Lets the user correct an auto-matched or
+     * orphaned SMS attribution from the inbox. The "account leg" is the line
+     * posting onto a real balance-sheet account (not a category or pot).
      */
     override suspend fun assignAccount(transactionId: Long, accountId: Long): TransactionView {
         val target = accountDao.getById(accountId)
             ?: throw ApiException("account $accountId not found")
-        if (target.slug.startsWith("sys-")) {
+        if (target.isSystem) {
             throw ApiException("cannot assign a system account")
         }
         return db.withTransaction {
-            transactionDao.getById(transactionId) ?: throw ApiException("entry $transactionId not found")
+            transactionDao.getById(transactionId) ?: throw ApiException("transaction $transactionId not found")
             val lines = transactionLineDao.getByTransactionList(transactionId).toMutableList()
-            val idx = lines.indexOfFirst {
-                it.accountId != null && it.categoryId == null && it.bucketId == null
+            val idx = lines.indexOfFirst { ln ->
+                val acct = accountDao.getById(ln.accountId)
+                acct != null && !acct.isSystem && isBalanceSheetClass(acct.accountClass)
             }
-            if (idx < 0) throw ApiException("entry $transactionId has no account leg to assign")
+            if (idx < 0) throw ApiException("transaction $transactionId has no account leg to assign")
             lines[idx] = lines[idx].copy(accountId = accountId)
             transactionLineDao.update(lines[idx])
             requireView(transactionId)
@@ -447,7 +430,7 @@ class LedgerService @Inject constructor(
 
     /** Audit-soft-delete. Voided transactions drop out of every balance and list. */
     override suspend fun voidTransaction(id: Long, reason: String?) {
-        val entry = transactionDao.getById(id) ?: throw ApiException("entry $id not found")
+        val entry = transactionDao.getById(id) ?: throw ApiException("transaction $id not found")
         if (entry.voidedAt != null) return
         transactionDao.update(entry.copy(voidedAt = System.currentTimeMillis(), voidedReason = reason))
     }
@@ -462,27 +445,30 @@ class LedgerService @Inject constructor(
     }
 
     /**
-     * POST /transactions/{id}/split — carve friends' shares out of an entry that
-     * paid in full. The category line shrinks by each share; one receivable
-     * line per share names who owes (line-level counterparty). Stays balanced.
-     * On-behalf splits pass person counterparties; we force party_type=person
-     * so they land in the Friends ledger.
+     * POST /transactions/{id}/split — carve friends' shares out of a
+     * transaction that paid in full. The category-account line shrinks by
+     * each share; one receivable line per share names who owes (line-level
+     * counterparty). Stays balanced. On-behalf splits pass person
+     * counterparties; we force party_type=person so they land in Friends.
      */
     override suspend fun splitTransaction(id: Long, request: SplitRequest): TransactionView {
         if (request.shares.isEmpty()) throw ApiException("split needs at least one share")
         return db.withTransaction {
-            val entry = transactionDao.getById(id) ?: throw ApiException("entry $id not found")
+            val entry = transactionDao.getById(id) ?: throw ApiException("transaction $id not found")
             val lines = transactionLineDao.getByTransactionList(id).toMutableList()
 
-            val catIdx = lines.indexOfFirst { it.categoryId != null && it.bucketId == null }
-            if (catIdx < 0) throw ApiException("split target must have a single category line")
+            val plIdx = lines.indexOfFirst { ln ->
+                val acct = accountDao.getById(ln.accountId)
+                acct != null && (acct.accountClass == CLASS_EXPENSE || acct.accountClass == CLASS_INCOME)
+            }
+            if (plIdx < 0) throw ApiException("split target must have a single category line")
 
             for (share in request.shares) {
-                val current = lines[catIdx]
+                val current = lines[plIdx]
                 if (current.amountPaise - share.amountPaise < 0) {
                     throw ApiException("shares exceed the paid amount")
                 }
-                lines[catIdx] = current.copy(amountPaise = current.amountPaise - share.amountPaise)
+                lines[plIdx] = current.copy(amountPaise = current.amountPaise - share.amountPaise)
                 lines.add(
                     TransactionLineEntity(
                         transactionId = id,
@@ -498,7 +484,7 @@ class LedgerService @Inject constructor(
             }
 
             validateLines(lines.map {
-                LineSpec(it.amountPaise, it.accountId, it.categoryId, it.bucketId, it.balanceAfterPaise, it.counterpartyId)
+                LineSpec(it.amountPaise, accountId = it.accountId, counterpartyId = it.counterpartyId)
             })
 
             transactionLineDao.deleteByTransaction(id)
@@ -510,7 +496,7 @@ class LedgerService @Inject constructor(
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // System ledger nodes (get-or-create; slugs never duplicate)
+    // System ledger nodes (get-or-create; is_system + subtype never collide)
     // ─────────────────────────────────────────────────────────────────────
 
     /**
@@ -534,63 +520,79 @@ class LedgerService @Inject constructor(
             .sortedByDescending { it.netPaise }
     }
 
-    enum class SystemRole(val slugPrefix: String, val displayName: String) {
-        RECEIVABLE("sys-loans-", "Loans & advances"),
-        UNMATCHED("sys-unmatched-", "Unmatched (orphan SMS)"),
-        INVESTMENT("sys-invest-", "Investments (unallocated)"),
-        RECON_EQUITY("sys-reconeq-", "Reconciliation adjustments"),
-        OPEN_EQUITY("sys-openeq-", "Opening balance"),
+    /**
+     * The system pots, addressed by `is_system` + `subtype` (the Rust way —
+     * no slugs). Opening and reconciliation equity stay separate subtypes
+     * until stored `kind` (3b-2) disambiguates them, after which they merge
+     * into a single equity pot.
+     */
+    enum class SystemRole(val subtype: String, val displayName: String, val accountClass: String) {
+        RECEIVABLE("receivable", "Loans & advances", CLASS_ASSET),
+        UNMATCHED("unmatched", "Unmatched (orphan SMS)", CLASS_ASSET),
+        INVESTMENT("investment", "Investments (unallocated)", CLASS_ASSET),
+        OPEN_EQUITY("opening_equity", "Opening balance", CLASS_EQUITY),
+        RECON_EQUITY("reconciliation_equity", "Reconciliation adjustments", CLASS_EQUITY),
     }
 
     private fun systemRole(account: AccountEntity): String? =
-        SystemRole.entries.firstOrNull { account.slug.startsWith(it.slugPrefix) }?.slugPrefix
+        if (account.isSystem) {
+            SystemRole.entries.firstOrNull { account.subtype == it.subtype }?.subtype
+        } else {
+            null
+        }
+
+    private fun isBalanceSheetClass(cls: String) = cls == CLASS_ASSET || cls == CLASS_LIABILITY
 
     suspend fun systemAccount(role: SystemRole): AccountEntity {
-        val slug = "${role.slugPrefix}$USER_ID"
-        accountDao.getBySlug(slug)?.let { return it }
+        accountDao.findSystemBySubtype(role.subtype)?.let { return it }
         val id = accountDao.insert(
             AccountEntity(
-                slug = slug,
                 name = role.displayName,
-                kind = if (role == SystemRole.RECON_EQUITY || role == SystemRole.OPEN_EQUITY) {
-                    "equity"
-                } else {
-                    "asset"
-                },
-                openingBalancePaise = 0,
-                isActive = true,
+                accountClass = role.accountClass,
+                subtype = role.subtype,
+                isSystem = true,
                 createdAt = System.currentTimeMillis(),
             )
         )
         return accountDao.getById(id)!!
     }
 
-    suspend fun systemCategory(kind: String, name: String): CategoryEntity {
-        categoryDao.findByKindAndName(kind, name)?.let { return it }
-        val id = categoryDao.insert(
-            CategoryEntity(
-                name = name, kind = kind, sortOrder = 9999, createdAt = System.currentTimeMillis()
+    /** System contra category accounts ("Unclassified" etc.) — get-or-create. */
+    suspend fun systemCategoryAccount(accountClass: String, name: String): AccountEntity {
+        accountDao.findSystemByName(accountClass, name)?.let { return it }
+        val id = accountDao.insert(
+            AccountEntity(
+                name = name,
+                accountClass = accountClass,
+                isSystem = true,
+                sortOrder = 9999,
+                createdAt = System.currentTimeMillis(),
             )
         )
-        return categoryDao.getById(id)!!
+        return accountDao.getById(id)!!
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Opening balances & buckets
+    // Opening balances
     // ─────────────────────────────────────────────────────────────────────
 
     /**
-     * Create (or replace) an account's opening-balance entry: the balance
-     * lands on the account, the contra on open equity. Idempotent — safe to
-     * call again when the opening balance is edited.
+     * Create (or replace) an account's opening-balance transaction: the
+     * balance lands on the account, the contra on opening equity. Idempotent
+     * — safe to call again when the opening balance is edited. The amount is
+     * explicit now that accounts carry no stored balance.
      */
-    override suspend fun recordOpeningBalance(accountId: Long, onDate: Long?): TransactionView? {
+    override suspend fun recordOpeningBalance(
+        accountId: Long,
+        amountPaise: Long,
+        onDate: Long?,
+    ): TransactionView? {
         return db.withTransaction {
             val account = accountDao.getById(accountId)
                 ?: throw ApiException("account $accountId not found")
             val eq = systemAccount(SystemRole.OPEN_EQUITY)
 
-            // Prior opening transactions = transactions with lines on BOTH pots.
+            // Prior opening transactions = transactions with lines on BOTH nodes.
             val onAccount = transactionLineDao.transactionIdsForAccount(account.id).toSet()
             val onEquity = transactionLineDao.transactionIdsForAccount(eq.id).toSet()
             (onAccount intersect onEquity).forEach { prior ->
@@ -599,13 +601,13 @@ class LedgerService @Inject constructor(
                 transactionDao.getById(prior)?.let { transactionDao.delete(it) }
             }
 
-            if (account.openingBalancePaise == 0L) return@withTransaction null
+            if (amountPaise == 0L) return@withTransaction null
 
-            val occurredOn = onDate ?: account.reconciledThrough
+            val occurredOn = onDate ?: detailsDao.getForAccount(account.id)?.reconciledThrough
                 ?: throw ApiException("cannot record opening balance without a date")
 
-            val sign = if (account.kind == "liability") -1L else 1L
-            val amount = sign * account.openingBalancePaise
+            val sign = if (account.accountClass == CLASS_LIABILITY) -1L else 1L
+            val amount = sign * amountPaise
             createTransaction(
                 CreateTransactionRequest(
                     occurredOn = occurredOn,
@@ -621,62 +623,26 @@ class LedgerService @Inject constructor(
         }
     }
 
-    /**
-     * Create (or replace) a bucket's baseline as a self-transfer entry: the
-     * account's general pool down, the sub-pot up — net zero on the account,
-     * so the bucket's value is then purely the sum of its tagged lines.
-     * Idempotent.
-     */
-    override suspend fun recordBucketAllocation(bucketId: Long): TransactionView? {
-        return db.withTransaction {
-            val bucket = bucketDao.getById(bucketId)
-                ?: throw ApiException("bucket $bucketId not found")
-
-            transactionDao.bucketAllocationTransactionIds(bucketId, BUCKET_ALLOCATION_NOTE).forEach { prior ->
-                transactionLineDao.deleteByTransaction(prior)
-                provenanceDao.getByTransaction(prior)?.let { provenanceDao.delete(it) }
-                transactionDao.getById(prior)?.let { transactionDao.delete(it) }
-            }
-
-            if (bucket.manualAllocationPaise == 0L) return@withTransaction null
-
-            val account = accountDao.getById(bucket.accountId)
-            val occurredOn = account?.reconciledThrough
-                ?: 946684800000L // 2000-01-01 anchor when nothing reconciles yet
-
-            createTransaction(
-                CreateTransactionRequest(
-                    occurredOn = occurredOn,
-                    status = TransactionStatus.CONFIRMED,
-                    source = TransactionSource.MANUAL,
-                    note = BUCKET_ALLOCATION_NOTE,
-                    lines = listOf(
-                        LineSpec(-bucket.manualAllocationPaise, accountId = bucket.accountId),
-                        LineSpec(
-                            bucket.manualAllocationPaise,
-                            accountId = bucket.accountId,
-                            bucketId = bucket.id,
-                        ),
-                    ),
-                )
-            )
-        }
-    }
-
     companion object {
-        const val KIND_EXPENSE = "expense"
-        const val KIND_INCOME = "income"
+        /** The account-class vocabulary (Rust migration 002). */
+        const val CLASS_ASSET = "asset"
+        const val CLASS_LIABILITY = "liability"
+        const val CLASS_EQUITY = "equity"
+        const val CLASS_EXPENSE = "expense"
+        const val CLASS_INCOME = "income"
+
+        /** Buckets are plain child accounts with this subtype + a target. */
+        const val SUBTYPE_BUCKET = "bucket"
 
         /**
-         * Contra categories auto-assigned by ingest when the user hasn't
-         * classified anything. They are bookkeeping placeholders, never real
-         * user intent — UI surfaces must not present them as a category.
+         * Contra category accounts auto-assigned by ingest when the user
+         * hasn't classified anything. They are bookkeeping placeholders,
+         * never real user intent — UI surfaces must not present them as a
+         * category.
          */
         val SYSTEM_CATEGORY_NAMES = setOf("Unclassified", "Uncategorized income")
 
         /** Single-user app today; a server would take this from auth. */
         const val USER_ID = 1L
-
-        const val BUCKET_ALLOCATION_NOTE = "Bucket opening allocation"
     }
 }

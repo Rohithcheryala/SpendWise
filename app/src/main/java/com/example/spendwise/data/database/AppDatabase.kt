@@ -5,9 +5,8 @@ import androidx.room.RoomDatabase
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.AppMetadataDao
-import com.example.spendwise.data.database.dao.BucketDao
+import com.example.spendwise.data.database.dao.BankAccountDetailsDao
 import com.example.spendwise.data.database.dao.BudgetDao
-import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
@@ -17,9 +16,8 @@ import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.data.database.entity.AppMetadataEntity
-import com.example.spendwise.data.database.entity.BucketEntity
+import com.example.spendwise.data.database.entity.BankAccountDetailsEntity
 import com.example.spendwise.data.database.entity.BudgetEntity
-import com.example.spendwise.data.database.entity.CategoryEntity
 import com.example.spendwise.data.database.entity.ContactEntity
 import com.example.spendwise.data.database.entity.CounterpartyAliasEntity
 import com.example.spendwise.data.database.entity.CounterpartyEntity
@@ -33,9 +31,8 @@ import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
         AccountEntity::class,
         AccountIdentifierEntity::class,
         AppMetadataEntity::class,
-        BucketEntity::class,
+        BankAccountDetailsEntity::class,
         BudgetEntity::class,
-        CategoryEntity::class,
         ContactEntity::class,
 
         CounterpartyEntity::class,
@@ -44,7 +41,7 @@ import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
         TransactionLineEntity::class,
         TransactionProvenanceEntity::class
     ],
-    version = 15
+    version = 16
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -55,11 +52,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun ContactDao(): ContactDao
     abstract fun AppMetadataDao(): AppMetadataDao
 
-    abstract fun BucketDao(): BucketDao
+    abstract fun BankAccountDetailsDao(): BankAccountDetailsDao
 
     abstract fun BudgetDao(): BudgetDao
-
-    abstract fun CategoryDao(): CategoryDao
 
     abstract fun CounterpartyDao(): CounterpartyDao
 

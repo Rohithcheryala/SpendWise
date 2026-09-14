@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.service.IngestionService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountEntity
@@ -50,14 +51,21 @@ class AccountsViewModel @Inject constructor(
             // every revisit.
             uiState = uiState.copy(isLoading = uiState.accounts.isEmpty(), error = null)
             runCatching {
-                // System pots (sys-unmatched, sys-loans, sys-openeq, …) are
-                // ledger plumbing, not user accounts — never show them here.
-                // The same filter is used by InboxRepository.refreshBuffer().
+                // System pots (unmatched, receivable, equity, …), category
+                // accounts and archived accounts are not user accounts — the
+                // Accounts screen shows only balance-sheet pots.
+                val last4ByAccount = identifierDao.getAllActive()
+                    .associateBy { it.accountId }
+                    .mapValues { it.value.value }
                 accountDao.listAll()
-                    .filter { !it.slug.startsWith("sys-") && it.isActive }
+                    .filter {
+                        !it.isSystem && !it.isArchived &&
+                            (it.accountClass == LedgerService.CLASS_ASSET ||
+                                it.accountClass == LedgerService.CLASS_LIABILITY)
+                    }
                     .map { entity ->
-                    entity.toUi(computeBalance(entity))
-                }
+                        entity.toUi(computeBalance(entity), last4ByAccount[entity.id])
+                    }
             }.onSuccess { accounts ->
                 uiState = uiState.copy(isLoading = false, accounts = accounts)
             }.onFailure { e ->
@@ -66,24 +74,33 @@ class AccountsViewModel @Inject constructor(
         }
     }
 
-    /** Real current balance, in rupees. Liabilities are stored negative so the
-     *  screen's net-worth math (assets − liabilities) stays correct. */
-    private suspend fun computeBalance(entity: AccountEntity): Double {
-        val paise = runCatching { ledgerApi.accountBalance(entity.id) }.getOrNull()
-            ?: (if (entity.kind == "liability") -entity.openingBalancePaise
-                else entity.openingBalancePaise)
-        return paise / 100.0
-    }
+    /** Real current balance, in rupees. Liabilities read as amount owed. */
+    private suspend fun computeBalance(entity: AccountEntity): Double =
+        runCatching { ledgerApi.accountBalance(entity.id) }.getOrDefault(0L) / 100.0
 
     /** Persist a user-added account + opening balance + last-4 identifier. */
     fun addAccount(ui: AccountUiModel) {
         viewModelScope.launch {
             runCatching {
-                val kind = when (ui.type) {
-                    AccountType.CREDIT_CARD -> "liability"
-                    AccountType.CASH -> "cash"
-                    AccountType.CHECKING -> "asset"
-                    AccountType.SAVINGS -> "asset"
+                val accountClass: String
+                val subtype: String
+                when (ui.type) {
+                    AccountType.CREDIT_CARD -> {
+                        accountClass = LedgerService.CLASS_LIABILITY
+                        subtype = "credit_card"
+                    }
+                    AccountType.CASH -> {
+                        accountClass = LedgerService.CLASS_ASSET
+                        subtype = "cash"
+                    }
+                    AccountType.CHECKING -> {
+                        accountClass = LedgerService.CLASS_ASSET
+                        subtype = "current"
+                    }
+                    AccountType.SAVINGS -> {
+                        accountClass = LedgerService.CLASS_ASSET
+                        subtype = "savings"
+                    }
                 }
                 val last4Digits = ui.accountNumber.removePrefix("•••• ").trim()
                     .takeIf { it.isNotBlank() && !it.contains("•") }
@@ -91,13 +108,10 @@ class AccountsViewModel @Inject constructor(
 
                 val id = accountDao.insert(
                     AccountEntity(
-                        slug = "acct-${System.currentTimeMillis()}",
                         name = ui.name,
+                        accountClass = accountClass,
+                        subtype = subtype,
                         bank = ui.bankName.ifBlank { null },
-                        kind = kind,
-                        last4 = last4Digits,
-                        openingBalancePaise = openingPaise,
-                        isActive = true,
                         createdAt = System.currentTimeMillis(),
                     )
                 )
@@ -114,9 +128,9 @@ class AccountsViewModel @Inject constructor(
                     )
                 }
 
-                // Book the opening balance against open equity (idempotent).
+                // Book the opening balance against opening equity (idempotent).
                 if (openingPaise != 0L) {
-                    ledgerApi.recordOpeningBalance(id, System.currentTimeMillis())
+                    ledgerApi.recordOpeningBalance(id, openingPaise, System.currentTimeMillis())
                 }
 
                 // Any SMS already ingested for this card/account sits orphaned
@@ -137,14 +151,15 @@ class AccountsViewModel @Inject constructor(
         uiState = uiState.copy(error = null)
     }
 
-    private fun AccountEntity.toUi(balance: Double): AccountUiModel = AccountUiModel(
+    private fun AccountEntity.toUi(balance: Double, last4: String?): AccountUiModel = AccountUiModel(
         id = id,
         name = name,
-        accountNumber = if (last4 != null && last4.isNotBlank()) "•••• $last4" else "No account number",
-        balance = if (kind == "liability") -abs(balance) else balance,
+        accountNumber = if (!last4.isNullOrBlank()) "•••• $last4" else "No account number",
+        balance = if (accountClass == LedgerService.CLASS_LIABILITY) -abs(balance) else balance,
         type = when {
-            kind == "liability" -> AccountType.CREDIT_CARD
-            kind == "cash" -> AccountType.CASH
+            accountClass == LedgerService.CLASS_LIABILITY -> AccountType.CREDIT_CARD
+            subtype == "cash" -> AccountType.CASH
+            subtype == "current" -> AccountType.CHECKING
             bank != null -> AccountType.SAVINGS
             else -> AccountType.CASH
         },

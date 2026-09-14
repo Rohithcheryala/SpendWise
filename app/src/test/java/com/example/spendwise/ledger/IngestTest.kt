@@ -20,7 +20,7 @@ class IngestTest : BackendTestBase() {
 
     @Test
     fun `debit sms books against Unclassified expense and stays in buffer`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
 
         val view = ledger.ingest(
             IngestRequest(
@@ -40,9 +40,9 @@ class IngestTest : BackendTestBase() {
 
         // Contra line landed on the expense-side system category.
         val lines = db.TransactionLineDao().getByTransactionList(view.id)
-        val contra = lines.first { it.categoryId != null }
-        val contraCat = db.CategoryDao().getById(contra.categoryId!!)!!
-        assertEquals(LedgerService.KIND_EXPENSE, contraCat.kind)
+        val contra = lines.first { ln -> db.AccountDao().getById(ln.accountId)!!.isSystem }
+        val contraCat = db.AccountDao().getById(contra.accountId)!!
+        assertEquals(LedgerService.CLASS_EXPENSE, contraCat.accountClass)
         assertEquals("Unclassified", contraCat.name)
 
         // Provenance stored for the audit trail.
@@ -51,7 +51,7 @@ class IngestTest : BackendTestBase() {
 
     @Test
     fun `credit sms contra lands on Uncategorized income`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         val view = ledger.ingest(
             IngestRequest(
                 amountPaise = 350_000,
@@ -64,15 +64,15 @@ class IngestTest : BackendTestBase() {
             )
         )
         val lines = db.TransactionLineDao().getByTransactionList(view.id)
-        val contraCat = db.CategoryDao().getById(lines.first { it.categoryId != null }.categoryId!!)!!
+        val contraCat = db.AccountDao().getById(lines.first { ln -> db.AccountDao().getById(ln.accountId)!!.isSystem }.accountId)!!
         assertEquals("Uncategorized income", contraCat.name)
-        assertEquals(LedgerService.KIND_INCOME, contraCat.kind)
+        assertEquals(LedgerService.CLASS_INCOME, contraCat.accountClass)
         assertEquals(350_000L, ledger.accountBalance(bank))
     }
 
     @Test
     fun `same dedupe hash resolves to the same entry (idempotent ingestion)`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         val hash = Text.smsHash("SBIINB", "debited")
 
         val first = ledger.ingest(
@@ -104,8 +104,8 @@ class IngestTest : BackendTestBase() {
 
     @Test
     fun `atm withdrawal ingests as a two-legged transfer bank to cash`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val cash = db.AccountDao().insert(newAccount("cash", kind = "cash"))
+        val bank = newAccount("bank")
+        val cash = newAccount("cash", subtype = "cash")
 
         val view = ledger.ingestTransfer(
             amountPaise = 200_00,
@@ -124,7 +124,7 @@ class IngestTest : BackendTestBase() {
 
     @Test
     fun `transfer with identical legs is rejected`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         expectApiError("transfer legs must differ") {
             ledger.ingestTransfer(100_00, bank, bank, occurredOn = 0L)
         }

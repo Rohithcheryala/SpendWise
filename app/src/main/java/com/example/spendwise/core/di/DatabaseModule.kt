@@ -7,9 +7,8 @@ import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.AppMetadataDao
-import com.example.spendwise.data.database.dao.BucketDao
+import com.example.spendwise.data.database.dao.BankAccountDetailsDao
 import com.example.spendwise.data.database.dao.BudgetDao
-import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
@@ -37,9 +36,6 @@ object DatabaseModule {
             .build()
 
     @Provides
-    fun provideCategoryDao(db: AppDatabase): CategoryDao = db.CategoryDao()
-
-    @Provides
     fun provideAppMetadataDao(db: AppDatabase): AppMetadataDao = db.AppMetadataDao()
 
     // DAOs needed by the backend services now reachable through constructor
@@ -53,7 +49,8 @@ object DatabaseModule {
         db.AccountIdentifierDao()
 
     @Provides
-    fun provideBucketDao(db: AppDatabase): BucketDao = db.BucketDao()
+    fun provideBankAccountDetailsDao(db: AppDatabase): BankAccountDetailsDao =
+        db.BankAccountDetailsDao()
 
     @Provides
     fun provideBudgetDao(db: AppDatabase): BudgetDao = db.BudgetDao()

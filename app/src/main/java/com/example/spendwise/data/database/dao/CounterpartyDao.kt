@@ -40,11 +40,11 @@ interface CounterpartyDao {
     @Query(
         """
         SELECT * FROM counterparties
-        WHERE default_category_id = :categoryId
+        WHERE default_account_id = :accountId
         ORDER BY display_name ASC
     """
     )
-    fun getByCategory(categoryId: Long): Flow<List<CounterpartyEntity>>
+    fun getByDefaultAccount(accountId: Long): Flow<List<CounterpartyEntity>>
 
     @Query(
         """

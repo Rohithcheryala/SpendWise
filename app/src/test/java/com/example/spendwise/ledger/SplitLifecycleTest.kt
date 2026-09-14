@@ -21,9 +21,9 @@ import org.junit.Test
 class SplitLifecycleTest : BackendTestBase() {
 
     private suspend fun paidAtMerchant(amountPaise: Long): Pair<Long, Long> {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         val merchant = counterparties.resolveOrCreate(LedgerService.USER_ID, "bigbasket")!!
-        val food = db.CategoryDao().insert(newCategory("Food"))
+        val food = newCategory("Food")
         val entry = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = 0L,
@@ -31,7 +31,7 @@ class SplitLifecycleTest : BackendTestBase() {
                 counterpartyId = merchant,
                 lines = listOf(
                     LineSpec(-amountPaise, accountId = bank),
-                    LineSpec(amountPaise, categoryId = food),
+                    LineSpec(amountPaise, accountId = food),
                 ),
             )
         )
@@ -59,7 +59,9 @@ class SplitLifecycleTest : BackendTestBase() {
         assertEquals(0L, lines.sumOf { it.amountPaise }) // still balanced
 
         // Category line shrank by the shares; receivable pot carries them.
-        val catLine = lines.first { it.categoryId != null }
+        val catLine = lines.first { ln ->
+            db.AccountDao().getById(ln.accountId)!!.accountClass == LedgerService.CLASS_EXPENSE
+        }
         assertEquals(35_000L, catLine.amountPaise)
         val recvLines = lines.filter { it.counterpartyId != null }
         assertEquals(listOf(40_000L to rahul, 25_000L to priya), recvLines.map { it.amountPaise to it.counterpartyId })
@@ -95,12 +97,12 @@ class SplitLifecycleTest : BackendTestBase() {
             )
         )
         expectApiError(
-            "cannot confirm entry ${orphan.id}: no real account line yet (classify the orphan first)"
+            "cannot confirm transaction ${orphan.id}: no real account line yet (classify the orphan first)"
         ) { ledger.confirmTransaction(orphan.id) }
         assertEquals(TransactionStatus.BUFFER, ledger.getTransaction(orphan.id)!!.status)
 
         // A matched ingest confirms fine.
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         val matched = ledger.ingest(
             IngestRequest(
                 amountPaise = 100_00,
@@ -117,7 +119,7 @@ class SplitLifecycleTest : BackendTestBase() {
 
     @Test
     fun `voiding twice is idempotent and delete removes provenance too`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         val entry = ledger.ingest(
             IngestRequest(
                 amountPaise = 100_00,

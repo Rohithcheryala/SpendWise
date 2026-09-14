@@ -72,19 +72,9 @@ interface TransactionDao {
     )
     suspend fun listSuspend(status: String?, fromMillis: Long?, toMillis: Long?): List<TransactionEntity>
 
-    /** Break a sibling's link to this entry before deleting it (purge). */
+    /** Break a sibling's link to this transaction before deleting it (purge). */
     @Query("UPDATE transactions SET linked_transaction_id = NULL WHERE linked_transaction_id = :transactionId")
     suspend fun clearLinkedTransaction(transactionId: Long)
-
-    /** Entries carrying a bucket's allocation note on one of their lines. */
-    @Query(
-        """
-        SELECT DISTINCT e.id FROM transactions e
-        JOIN transaction_lines l ON l.transaction_id = e.id
-        WHERE l.bucket_id = :bucketId AND e.note = :note
-    """
-    )
-    suspend fun bucketAllocationTransactionIds(bucketId: Long, note: String): List<Long>
 
     /** Recent QR-scan buffer transactions for the QR<->SMS merge (see IngestionService). */
     @Query(

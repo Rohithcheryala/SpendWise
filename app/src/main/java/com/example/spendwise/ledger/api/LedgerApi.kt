@@ -62,17 +62,15 @@ interface LedgerApi {
     /** GET /transactions/by-dedupe/{hash} — inbound-message de-duplication lookup. */
     suspend fun findTransactionByDedupeHash(dedupeHash: String): TransactionView?
 
-    /** GET /accounts/{id}/balance — computed at read time; liabilities inverted (amount owed). */
+    /** GET /accounts/{id}/balance — computed at read time; liabilities inverted (amount owed). Buckets are child accounts, so this is their value too. */
     suspend fun accountBalance(accountId: Long, through: Long? = null): Long
 
-    /** GET /buckets/{id}/value — sum of confirmed lines tagged to the bucket. */
-    suspend fun bucketValue(bucketId: Long, through: Long? = null): Long
-
-    /** PUT /accounts/{id}/opening-balance — idempotent opening-balance entry vs open equity. */
-    suspend fun recordOpeningBalance(accountId: Long, onDate: Long? = null): TransactionView?
-
-    /** PUT /buckets/{id}/allocation — idempotent self-transfer baseline for a bucket. */
-    suspend fun recordBucketAllocation(bucketId: Long): TransactionView?
+    /** PUT /accounts/{id}/opening-balance — idempotent opening-balance transaction vs opening equity. */
+    suspend fun recordOpeningBalance(
+        accountId: Long,
+        amountPaise: Long,
+        onDate: Long? = null,
+    ): TransactionView?
 
     /**
      * GET /friends — net outstanding per person counterparty, from the loans

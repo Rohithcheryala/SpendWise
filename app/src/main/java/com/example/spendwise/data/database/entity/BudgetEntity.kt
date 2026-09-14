@@ -10,22 +10,26 @@ import androidx.room.PrimaryKey
     tableName = "budgets",
     foreignKeys = [
         ForeignKey(
-            entity = CategoryEntity::class,
+            entity = AccountEntity::class,
             parentColumns = ["id"],
-            childColumns = ["category_id"]
+            childColumns = ["account_id"]
         ),
     ],
     indices = [
-        Index("category_id")
+        Index("account_id")
     ]
 )
+/**
+ * A spend ceiling on one category account. [effectiveFrom/To] are
+ * transitional — 3b-2 re-keys budgets to monthly `period` ('YYYY-MM').
+ */
 data class BudgetEntity(
 
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
-    @ColumnInfo(name = "category_id")
-    val categoryId: Long,
+    @ColumnInfo(name = "account_id")
+    val accountId: Long,
 
     @ColumnInfo(name = "amount_paise")
     val amountPaise: Long,

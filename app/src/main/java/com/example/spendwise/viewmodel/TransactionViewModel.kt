@@ -17,7 +17,6 @@ import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
-import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.repository.InboxRepository
@@ -49,7 +48,6 @@ import javax.inject.Inject
 class TransactionViewModel @Inject constructor(
     private val ledgerApi: LedgerApi,
     private val accountDao: AccountDao,
-    private val categoryDao: CategoryDao,
     private val counterpartyDao: CounterpartyDao,
     private val counterpartyService: CounterpartyService,
     private val provenanceDao: TransactionProvenanceDao,
@@ -248,7 +246,7 @@ class TransactionViewModel @Inject constructor(
                 occurredOn = occurredOn(s.date),
                 lines = listOf(
                     LineSpec(accountAmount, accountId = s.account!!.id.toLong()),
-                    LineSpec(-accountAmount, categoryId = category.id.toLong()),
+                    LineSpec(-accountAmount, accountId = category.id.toLong()),
                 ),
                 status = TransactionStatus.CONFIRMED,
                 source = TransactionSource.MANUAL,
@@ -343,7 +341,7 @@ class TransactionViewModel @Inject constructor(
         viewModelScope.launch {
             accountDao.getActive().collect { accounts ->
                 val options = accounts
-                    .filter { !it.slug.startsWith("sys-") }
+                    .filter { !it.isSystem }
                     .map { DropdownOption(it.id.toString(), it.name) }
                 _uiState.update { s ->
                     if (s.otherSide == OtherSide.TRANSFER) {
@@ -374,7 +372,7 @@ class TransactionViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            categoryDao.getAll().collect { list ->
+            accountDao.getCategoryAccounts().collect { list ->
                 _uiState.update { s ->
                     s.copy(categories = list.map {
                         DropdownOption(it.id.toString(), it.name)
@@ -388,7 +386,7 @@ class TransactionViewModel @Inject constructor(
         val view = ledgerApi.getTransaction(id) ?: return
         val account = view.accountId?.let { accountDao.getById(it) }
         val toAccount = view.toAccountId?.let { accountDao.getById(it) }
-        val category = view.categoryId?.let { categoryDao.getById(it) }
+        val category = view.categoryId?.let { accountDao.getById(it) }
         val rawSms = provenanceDao.getByTransaction(id)?.rawText.orEmpty()
             .ifBlank { view.note.orEmpty() }
         val counterparty = when (view.kind) {

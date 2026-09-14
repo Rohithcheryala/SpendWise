@@ -3,6 +3,7 @@ package com.example.spendwise.ledger
 import com.example.spendwise.ledger.api.CreateTransactionRequest
 import com.example.spendwise.ledger.api.Direction
 import com.example.spendwise.ledger.api.TransactionKind
+import com.example.spendwise.ledger.api.TransactionSource
 import com.example.spendwise.ledger.api.TransactionStatus
 import com.example.spendwise.ledger.api.IngestRequest
 import com.example.spendwise.ledger.api.LineSpec
@@ -13,21 +14,20 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * describe_entry classification: the UI never does accounting — the backend
- * derives kind/direction/amount from the raw lines. Precedence ported 1:1 from
- * ledger.py.
+ * describe_transaction classification: the UI never does accounting — the
+ * backend derives kind/direction/amount from the raw lines.
  */
 class DescribeEntryTest : BackendTestBase() {
 
     @Test
     fun `single account plus single expense category reads as expense`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
+        val bank = newAccount("bank")
+        val food = newCategory("Food")
 
         val view = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = 0L,
-                lines = listOf(LineSpec(-450_00, accountId = bank), LineSpec(450_00, categoryId = food)),
+                lines = listOf(LineSpec(-450_00, accountId = bank), LineSpec(450_00, accountId = food)),
             )
         )
 
@@ -40,17 +40,17 @@ class DescribeEntryTest : BackendTestBase() {
 
     @Test
     fun `multi-category expense hides its category and shows OTHER-side lines`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
-        val fun_ = db.CategoryDao().insert(newCategory("Fun"))
+        val bank = newAccount("bank")
+        val food = newCategory("Food")
+        val fun_ = newCategory("Fun")
 
         val view = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = 0L,
                 lines = listOf(
                     LineSpec(-1000, accountId = bank),
-                    LineSpec(600, categoryId = food),
-                    LineSpec(400, categoryId = fun_),
+                    LineSpec(600, accountId = food),
+                    LineSpec(400, accountId = fun_),
                 ),
             )
         )
@@ -61,8 +61,8 @@ class DescribeEntryTest : BackendTestBase() {
 
     @Test
     fun `two account legs read as a transfer with a destination`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val cash = db.AccountDao().insert(newAccount("cash", kind = "cash"))
+        val bank = newAccount("bank")
+        val cash = newAccount("cash", subtype = "cash")
 
         val view = ledger.createTransaction(
             CreateTransactionRequest(
@@ -77,27 +77,25 @@ class DescribeEntryTest : BackendTestBase() {
     }
 
     @Test
-    fun `bucket self-transfer reads as an allocation`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val bucket = db.BucketDao().insert(newBucket(bank))
+    fun `transfer to a bucket child names the bucket`() = runTest {
+        val bank = newAccount("bank")
+        val bucket = newBucket(bank)
 
-        val view = ledger.createTransaction(
-            CreateTransactionRequest(
-                occurredOn = 0L,
-                note = "Bucket opening allocation",
-                lines = listOf(
-                    LineSpec(-50_000, accountId = bank),
-                    LineSpec(50_000, accountId = bank, bucketId = bucket),
-                ),
-            )
+        val view = ledger.ingestTransfer(
+            amountPaise = 50_000,
+            fromAccountId = bank,
+            toAccountId = bucket,
+            occurredOn = 0L,
+            status = TransactionStatus.CONFIRMED,
+            source = TransactionSource.MANUAL,
         )
-        assertEquals(TransactionKind.ALLOCATION, view.kind)
+        assertEquals(TransactionKind.TRANSFER, view.kind)
         assertEquals(bucket, view.bucketId)
     }
 
     @Test
     fun `ingested loan reads as LOAN against the receivable pot`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+        val bank = newAccount("bank")
         val friend = counterparties.resolveOrCreate(LedgerService.USER_ID, "rahul@upi")!!
 
         val view = ledger.ingest(
@@ -113,7 +111,7 @@ class DescribeEntryTest : BackendTestBase() {
         assertEquals(TransactionKind.LOAN, view.kind)
 
         // The receivable pot now carries +500 (money lent out).
-        val loansPot = db.AccountDao().getBySlug("sys-loans-${LedgerService.USER_ID}")!!
+        val loansPot = db.AccountDao().findSystemBySubtype("receivable")!!
         assertEquals(0L, ledger.accountBalance(loansPot.id)) // system pot itself is 'asset'
         val recvLines = db.TransactionLineDao().getByTransactionList(view.id).filter { it.accountId == loansPot.id }
         assertEquals(listOf(500_00L), recvLines.map { it.amountPaise })
@@ -121,8 +119,6 @@ class DescribeEntryTest : BackendTestBase() {
 
     @Test
     fun `orphan ingest parks money on the unmatched pot with no visible account`() = runTest {
-        val food = db.CategoryDao().insert(newCategory("Food"))
-
         val view = ledger.ingest(
             IngestRequest(
                 amountPaise = 199_00,
@@ -140,7 +136,7 @@ class DescribeEntryTest : BackendTestBase() {
 
         // Balances count only confirmed transactions, so the buffered orphan hasn't
         // moved anything yet.
-        val unmatchedPot = db.AccountDao().getBySlug("sys-unmatched-${LedgerService.USER_ID}")!!
+        val unmatchedPot = db.AccountDao().findSystemBySubtype("unmatched")!!
         assertEquals(0L, ledger.accountBalance(unmatchedPot.id))
 
         // A statement-imported (already-proven) orphan books straight through.

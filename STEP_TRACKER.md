@@ -49,7 +49,34 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
   GOTCHA encountered: `\bentries\b` rename also hit Kotlin enum companion
   `.entries` in 7 UI/ledger files (AccountType/PartyFilter/ThemeMode/
   OtherSide/SystemRole/Screen/Destination) — reverted those.
-- [ ] **STEP 3b — NEXT** (the structural reshape; see checklist below)
+- [x] **Step 3b-1 DONE** — account node unification (Rust schema):
+  `AccountEntity` rewritten to class/subtype/parentId/isSystem/targetPaise/
+  isArchived (+`bank` Android extension); `slug/kind/last4/platform/
+  openingBalancePaise` dropped; `creditLimitPaise/reconciledThrough` → new
+  `BankAccountDetailsEntity` side table (Room v16, destructive).
+  `CategoryEntity`/`BucketEntity` + DAOs + CategoryRepository/mapper DELETED —
+  categories are accounts (class income/expense), buckets are child accounts
+  (subtype "bucket", `AccountDao.getChildren`). Lines dropped
+  categoryId/bucketId (pure-ish; counterpartyId/balanceAfterPaise remain for
+  3b-2). `LedgerService` rewritten: SystemRole pots via is_system+subtype
+  (no slugs), system categories = system accounts, PL classification by
+  account class, kind→shape validation kept, `bucketValue`/
+  `recordBucketAllocation` REMOVED from the API (bucket = child balance),
+  `recordOpeningBalance(accountId, amountPaise, onDate)` explicit amount.
+  `IngestionService`: KIND_BRIDGE is class-level + card-SMS gate (card SMS
+  rides an asset account only via a CARD-kind identifier — restores the old
+  "credit-card sms never attaches to savings" rule); orphan-claim leg fix
+  (parked leg = unmatched pot line). Counterparties gained
+  `receivable_account_id` + `default_account_id` (column only; loan posting
+  rewires in 3b-2). All VMs/repos/screens updated ( Accounts/Categories/
+  Budget/Scanner/Transaction/Transactions/Inbox/Onboarding/AccountEdit).
+  Compile + unit tests green.
+  Notes for 3b-2: equity pots stay TWO subtypes until stored kind lands
+  (buildView can't tell opening from reconciliation on one shared pot);
+  bucket allocation is a plain transfer DOWN to the child (funding account
+  balance drops, net worth unchanged — accepted semantics, tested).
+- [ ] **STEP 3b-2 — NEXT** (see checklist below; equity merge + stored kind
+  + pure lines + @DatabaseView + groups + budgets period + receivable posting)
 - [ ] Step 5 — UI pass (MoneyText, typography, motion, charts, empty states)
 
 ## STEP 1 checklist (exact edits)

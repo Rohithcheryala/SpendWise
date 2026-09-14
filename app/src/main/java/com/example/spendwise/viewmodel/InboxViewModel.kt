@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.ledger.service.LedgerService
-import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.repository.ActiveContext
 import com.example.spendwise.data.repository.InboxItem
 import com.example.spendwise.data.repository.InboxRepository
@@ -23,7 +23,7 @@ import javax.inject.Inject
 class InboxViewModel @Inject constructor(
     private val repository: InboxRepository,
     private val settingsRepository: SettingsRepository,
-    private val categoryDao: CategoryDao,
+    private val accountDao: AccountDao,
 ) : ViewModel() {
 
     data class InboxUiState(
@@ -60,8 +60,8 @@ class InboxViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             val ids = setOfNotNull(
-                categoryDao.findByKindAndName(LedgerService.KIND_EXPENSE, "Unclassified")?.id,
-                categoryDao.findByKindAndName(LedgerService.KIND_INCOME, "Uncategorized income")?.id,
+                accountDao.findSystemByName(LedgerService.CLASS_EXPENSE, "Unclassified")?.id,
+                accountDao.findSystemByName(LedgerService.CLASS_INCOME, "Uncategorized income")?.id,
             )
             suspenseCategoryIds = ids
             refresh()

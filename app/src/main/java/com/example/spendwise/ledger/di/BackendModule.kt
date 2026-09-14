@@ -67,8 +67,7 @@ object BackendModule {
         LedgerService(
             db = db,
             accountDao = db.AccountDao(),
-            bucketDao = db.BucketDao(),
-            categoryDao = db.CategoryDao(),
+            detailsDao = db.BankAccountDetailsDao(),
             transactionDao = db.TransactionDao(),
             transactionLineDao = db.TransactionLineDao(),
             provenanceDao = db.TransactionProvenanceDao(),

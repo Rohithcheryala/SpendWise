@@ -15,7 +15,6 @@ import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.parser_pw.md5Hex
 import com.example.spendwise.data.database.dao.AccountDao
-import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.ui.screens.transaction.DropdownOption
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -42,7 +41,6 @@ class ScannerViewModel @Inject constructor(
     private val ledgerApi: LedgerApi,
     private val ledger: LedgerService,
     private val accountDao: AccountDao,
-    private val categoryDao: CategoryDao,
     private val counterpartyService: CounterpartyService,
     private val inboxRepository: InboxRepository,
 ) : ViewModel() {
@@ -69,14 +67,14 @@ class ScannerViewModel @Inject constructor(
                 _uiState.update { s ->
                     s.copy(
                         accounts = accounts
-                            .filter { !it.slug.startsWith("sys-") }
+                            .filter { !it.isSystem }
                             .map { DropdownOption(it.id.toString(), it.name) }
                     )
                 }
             }
         }
         viewModelScope.launch {
-            categoryDao.getAll().collect { list ->
+            accountDao.getCategoryAccounts().collect { list ->
                 _uiState.update { s ->
                     s.copy(categories = list.map { DropdownOption(it.id.toString(), it.name) })
                 }
@@ -145,7 +143,7 @@ class ScannerViewModel @Inject constructor(
                             occurredOn = occurredOn,
                             lines = listOf(
                                 LineSpec(-amountPaise, accountId = debitAccountId),
-                                LineSpec(amountPaise, categoryId = categoryId),
+                                LineSpec(amountPaise, accountId = categoryId),
                             ),
                             status = TransactionStatus.BUFFER,
                             source = TransactionSource.QR_SCAN,

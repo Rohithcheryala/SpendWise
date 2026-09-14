@@ -9,17 +9,16 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
- * The ledger invariants, ported from the old server's ledger service: an entry
- * needs >= 2 lines summing to exactly zero; each line targets exactly one of
- * account / category; a bucket tag only rides on a real-account line.
+ * The ledger invariants: a transaction needs >= 2 lines summing to exactly
+ * zero, and every line posts onto an account node.
  */
 class LedgerValidationTest : BackendTestBase() {
 
     @Test
-    fun `entry with a single line is rejected`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
+    fun `transaction with a single line is rejected`() = runTest {
+        val bank = newAccount("bank")
 
-        expectApiError("an entry needs at least two lines") {
+        expectApiError("a transaction needs at least two lines") {
             ledger.createTransaction(
                 CreateTransactionRequest(
                     occurredOn = 0L,
@@ -30,18 +29,18 @@ class LedgerValidationTest : BackendTestBase() {
     }
 
     @Test
-    fun `unbalanced entry is rejected`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
+    fun `unbalanced transaction is rejected`() = runTest {
+        val bank = newAccount("bank")
+        val food = newCategory("Food")
 
-        expectApiError("entry lines must sum to zero (got -100)") {
+        expectApiError("transaction lines must sum to zero (got -100)") {
             ledger.createTransaction(
                 CreateTransactionRequest(
                     occurredOn = 0L,
                     // 1000 - 900 != 0
                     lines = listOf(
                         LineSpec(-1000, accountId = bank),
-                        LineSpec(900, categoryId = food),
+                        LineSpec(900, accountId = food),
                     ),
                 )
             )
@@ -49,67 +48,10 @@ class LedgerValidationTest : BackendTestBase() {
     }
 
     @Test
-    fun `line targeting both account and category is rejected`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
-
-        expectApiError("each line targets exactly one of accountId / categoryId") {
-            ledger.createTransaction(
-                CreateTransactionRequest(
-                    occurredOn = 0L,
-                    lines = listOf(
-                        LineSpec(-1000, accountId = bank),
-                        LineSpec(500, categoryId = food),
-                        LineSpec(500, accountId = bank, categoryId = food),
-                    ),
-                )
-            )
-        }
-    }
-
-    @Test
-    fun `line targeting neither account nor category is rejected`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
-
-        expectApiError("each line targets exactly one of accountId / categoryId") {
-            ledger.createTransaction(
-                CreateTransactionRequest(
-                    occurredOn = 0L,
-                    lines = listOf(
-                        LineSpec(-1000, accountId = bank),
-                        LineSpec(500, categoryId = food),
-                        LineSpec(500), // no target at all
-                    ),
-                )
-            )
-        }
-    }
-
-    @Test
-    fun `bucket tag on a category line is rejected`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
-        db.BucketDao().insert(newBucket(bank))
-
-        expectApiError("bucketId is only valid on a real-account line") {
-            ledger.createTransaction(
-                CreateTransactionRequest(
-                    occurredOn = 0L,
-                    lines = listOf(
-                        LineSpec(-1000, accountId = bank),
-                        LineSpec(1000, categoryId = food, bucketId = 1L),
-                    ),
-                )
-            )
-        }
-    }
-
-    @Test
-    fun `balanced multi-line entry persists and its lines still sum to zero`() = runTest {
-        val bank = db.AccountDao().insert(newAccount("bank"))
-        val food = db.CategoryDao().insert(newCategory("Food"))
-        val fun_ = db.CategoryDao().insert(newCategory("Fun"))
+    fun `balanced multi-line transaction persists and its lines still sum to zero`() = runTest {
+        val bank = newAccount("bank")
+        val food = newCategory("Food")
+        val fun_ = newCategory("Fun")
 
         val view = ledger.createTransaction(
             CreateTransactionRequest(
@@ -118,8 +60,8 @@ class LedgerValidationTest : BackendTestBase() {
                 tags = listOf("night out"),
                 lines = listOf(
                     LineSpec(-3000, accountId = bank),
-                    LineSpec(2500, categoryId = food),
-                    LineSpec(500, categoryId = fun_),
+                    LineSpec(2500, accountId = food),
+                    LineSpec(500, accountId = fun_),
                 ),
             )
         )

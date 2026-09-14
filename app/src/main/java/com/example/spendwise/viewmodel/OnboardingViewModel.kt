@@ -7,6 +7,7 @@ import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.ledger.service.IngestionService
+import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.OnboardingRepository
 import com.example.spendwise.ui.screens.onboarding.OnboardingState
@@ -60,7 +61,13 @@ class OnboardingViewModel @Inject constructor(
 
     /** Accounts that already exist (used by the account-selection step). */
     val userAccounts: StateFlow<List<AccountEntity>> = flow {
-        emit(accountDao.listAll().filter { !it.slug.startsWith("sys-") && it.isActive })
+        emit(
+            accountDao.listAll().filter {
+                !it.isSystem && !it.isArchived &&
+                    (it.accountClass == LedgerService.CLASS_ASSET ||
+                        it.accountClass == LedgerService.CLASS_LIABILITY)
+            }
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Null until the persisted state has hydrated: the nav graph renders
@@ -135,19 +142,19 @@ class OnboardingViewModel @Inject constructor(
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             runCatching {
+                val createdIds = mutableListOf<Long>()
                 for (account in selected) {
                     val id = accountDao.insert(
                         AccountEntity(
-                            slug = "acct-$now-${account.last4}",
                             name = account.suggestedName,
+                            accountClass = if (account.isCard) LedgerService.CLASS_LIABILITY
+                            else LedgerService.CLASS_ASSET,
+                            subtype = if (account.isCard) "credit_card" else "savings",
                             bank = account.bank,
-                            kind = if (account.isCard) "liability" else "asset",
-                            last4 = account.last4,
-                            openingBalancePaise = 0,
-                            isActive = true,
                             createdAt = now,
                         )
                     )
+                    createdIds += id
                     identifierDao.insert(
                         AccountIdentifierEntity(
                             accountId = id,
@@ -158,21 +165,16 @@ class OnboardingViewModel @Inject constructor(
                         )
                     )
                 }
-            }.onSuccess {
                 // The scan ingested SMS before these accounts existed, so those
                 // transactions sit orphaned on the unmatched pot. Re-run matching
                 // (attach-only) so they attach to the new accounts.
-                var claimed = 0
-                for (account in selected) {
-                    accountDao.getBySlug("acct-$now-${account.last4}")?.let {
-                        claimed += runCatching { ingestionService.claimOrphansForAccount(it.id) }
-                            .getOrDefault(0)
-                    }
+                for (id in createdIds) {
+                    runCatching { ingestionService.claimOrphansForAccount(id) }
                 }
                 runCatching { inboxRepository.refreshBuffer() }
                 completeScan()
             }.onFailure { e ->
-                _scanState.value = s.copy(phase = ScanPhase.ERROR, error = e.message)
+                _scanState.value = _scanState.value.copy(phase = ScanPhase.ERROR, error = e.message)
             }
         }
     }

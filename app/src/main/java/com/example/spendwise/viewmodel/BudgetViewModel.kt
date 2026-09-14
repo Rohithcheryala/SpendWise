@@ -11,10 +11,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.data.database.dao.BudgetDao
-import com.example.spendwise.data.database.dao.CategoryDao
+import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.entity.BudgetEntity
-import com.example.spendwise.data.database.entity.CategoryEntity
+import com.example.spendwise.data.database.entity.AccountEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +27,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BudgetViewModel @Inject constructor(
-    private val categoryDao: CategoryDao,
+    private val accountDao: AccountDao,
     private val budgetDao: BudgetDao,
     private val transactionLineDao: TransactionLineDao,
 ) : ViewModel() {
@@ -136,9 +136,9 @@ class BudgetViewModel @Inject constructor(
 
             runCatching {
                 val budgets = budgetDao.getActiveBudgets(monthStart).first()
-                    .associateBy { it.categoryId }
-                val roots = categoryDao.getRootCategories().first()
-                    .filter { it.kind == KIND_EXPENSE }
+                    .associateBy { it.accountId }
+                val roots = accountDao.getRootCategoryAccounts().first()
+                    .filter { it.accountClass == KIND_EXPENSE }
 
                 val categories = roots.map { root ->
                     root.toCategory(budgets, monthStart, monthEnd)
@@ -158,15 +158,15 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    private suspend fun CategoryEntity.toCategory(
+    private suspend fun AccountEntity.toCategory(
         budgets: Map<Long, BudgetEntity>,
         monthStart: Long,
         monthEnd: Long,
     ): Category {
-        val children = categoryDao.getChildren(id).first()
-            .filter { it.kind == KIND_EXPENSE }
+        val children = accountDao.listChildren(id)
+            .filter { it.accountClass == KIND_EXPENSE }
             .map { it.toSubcategory(budgets, monthStart, monthEnd) }
-        val ownSpent = transactionLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd)
+        val ownSpent = transactionLineDao.sumConfirmedForAccountInMonth(id, monthStart, monthEnd)
         val ownBudget = budgets[id]?.amountPaise ?: 0L
         return Category(
             id = id,
@@ -179,21 +179,21 @@ class BudgetViewModel @Inject constructor(
         )
     }
 
-    private suspend fun CategoryEntity.toSubcategory(
+    private suspend fun AccountEntity.toSubcategory(
         budgets: Map<Long, BudgetEntity>,
         monthStart: Long,
         monthEnd: Long,
     ): Subcategory = Subcategory(
         id = id,
         title = name,
-        spent = transactionLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd) / 100.0,
+        spent = transactionLineDao.sumConfirmedForAccountInMonth(id, monthStart, monthEnd) / 100.0,
         budget = (budgets[id]?.amountPaise ?: 0L) / 100.0,
     )
 
             companion object {
         const val KIND_EXPENSE = "expense"
 
-        /** Map a CategoryEntity icon-name hint to a vector icon; default to a generic. */
+        /** Map an AccountEntity icon-name hint to a vector icon; default to a generic. */
         fun iconFor(name: String?): ImageVector = when (name?.trim()?.lowercase()) {
             "food", "restaurant", "groceries", "shopping" -> Icons.Outlined.Restaurant
             "home", "rent", "utilities" -> Icons.Outlined.Home

@@ -31,11 +31,11 @@ interface BudgetDao {
     @Query(
         """
         SELECT * FROM budgets
-        WHERE category_id = :categoryId
+        WHERE account_id = :accountId
         ORDER BY effective_from DESC
     """
     )
-    fun getByCategory(categoryId: Long): Flow<List<BudgetEntity>>
+    fun getByAccount(accountId: Long): Flow<List<BudgetEntity>>
 
     @Query(
         """

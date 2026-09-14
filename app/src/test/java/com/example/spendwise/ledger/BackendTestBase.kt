@@ -10,8 +10,7 @@ import com.example.spendwise.ledger.service.IngestionService
 import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.entity.AccountEntity
-import com.example.spendwise.data.database.entity.BucketEntity
-import com.example.spendwise.data.database.entity.CategoryEntity
+import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
@@ -48,8 +47,7 @@ abstract class BackendTestBase {
         ledger = LedgerService(
             db = db,
             accountDao = db.AccountDao(),
-            bucketDao = db.BucketDao(),
-            categoryDao = db.CategoryDao(),
+            detailsDao = db.BankAccountDetailsDao(),
             transactionDao = db.TransactionDao(),
             transactionLineDao = db.TransactionLineDao(),
             provenanceDao = db.TransactionProvenanceDao(),
@@ -98,38 +96,61 @@ abstract class BackendTestBase {
         return thrown
     }
 
-    protected fun newAccount(
-        slug: String,
-        kind: String = "available",
-        openingBalancePaise: Long = 0,
-        reconciledThrough: Long? = null,
-    ): AccountEntity = AccountEntity(
-        slug = slug,
-        name = slug,
-        bank = "TESTBANK",
-        kind = kind,
-        last4 = "1234",
-        openingBalancePaise = openingBalancePaise,
-        isActive = true,
-        createdAt = 0L,
-        reconciledThrough = reconciledThrough,
-    )
-
-    protected fun newCategory(
+    /**
+     * Insert a user account (asset by default) with a TESTBANK last-4
+     * identifier, returning its id. Identifiers are what SMS matching needs.
+     */
+    protected suspend fun newAccount(
         name: String,
-        kind: String = LedgerService.KIND_EXPENSE,
-    ): CategoryEntity = CategoryEntity(
-        name = name,
-        kind = kind,
-        createdAt = 0L,
+        accountClass: String = LedgerService.CLASS_ASSET,
+        subtype: String? = null,
+        bank: String? = "TESTBANK",
+        last4: String? = "1234",
+    ): Long {
+        val id = db.AccountDao().insert(
+            AccountEntity(
+                name = name,
+                accountClass = accountClass,
+                subtype = subtype,
+                bank = bank,
+                createdAt = 0L,
+            )
+        )
+        last4?.let {
+            db.AccountIdentifierDao().insert(
+                AccountIdentifierEntity(
+                    accountId = id,
+                    value = it,
+                    kind = if (accountClass == LedgerService.CLASS_LIABILITY) "card" else "account",
+                    isActive = true,
+                    createdAt = 0L,
+                )
+            )
+        }
+        return id
+    }
+
+    /** Categories ARE accounts now (class income/expense). Returns the id. */
+    protected suspend fun newCategory(
+        name: String,
+        accountClass: String = LedgerService.CLASS_EXPENSE,
+    ): Long = db.AccountDao().insert(
+        AccountEntity(name = name, accountClass = accountClass, createdAt = 0L)
     )
 
-    protected fun newBucket(accountId: Long, allocation: Long = 0): BucketEntity = BucketEntity(
-        accountId = accountId,
-        name = "bucket-$accountId",
-        createdAt = 0L,
-        manualAllocationPaise = allocation,
-    )
+    /** Buckets are plain child accounts of their funding account. Returns the id. */
+    protected suspend fun newBucket(parentId: Long, targetPaise: Long? = null): Long =
+        db.AccountDao().insert(
+            AccountEntity(
+                name = "bucket-$parentId",
+                accountClass = LedgerService.CLASS_ASSET,
+                subtype = LedgerService.SUBTYPE_BUCKET,
+                parentId = parentId,
+                targetPaise = targetPaise,
+                isSystem = false,
+                createdAt = 0L,
+            )
+        )
 }
 
 /** Convenience for tests: runTest {} everywhere without repeating the runner. */
