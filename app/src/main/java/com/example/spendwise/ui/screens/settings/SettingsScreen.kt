@@ -221,7 +221,7 @@ fun SettingsScreen(
                         SettingsSwitchItem(
                             icon = Icons.Default.Security,
                             title = "Strict mode",
-                            subtitle = "Buffer entries need a category AND a tag " +
+                            subtitle = "Buffer transactions need a category AND a tag " +
                                 "before they can be saved/confirmed",
                             checked = settings.strictMode,
                             onCheckedChange = { viewModel.setStrictMode(it) }

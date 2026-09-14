@@ -119,7 +119,7 @@ fun InboxScreen(
     val items = state.items
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Reload the buffer whenever this screen resumes: entries can be edited,
+    // Reload the buffer whenever this screen resumes: transactions can be edited,
     // confirmed or voided in the transaction screen opened from here, and the
     // list must not show stale rows on return.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -282,12 +282,12 @@ fun InboxScreen(
                         }
                     }
 
-                    items(items, key = { it.entryId }) { item ->
+                    items(items, key = { it.transactionId }) { item ->
                         InboxPendingCard(
                             item = item,
-                            onOpen = { onEditItem(item.entryId) },
-                            onApprove = { viewModel.import(item.entryId) },
-                            onDismiss = { viewModel.dismiss(item.entryId) }
+                            onOpen = { onEditItem(item.transactionId) },
+                            onApprove = { viewModel.import(item.transactionId) },
+                            onDismiss = { viewModel.dismiss(item.transactionId) }
                         )
                     }
                 }

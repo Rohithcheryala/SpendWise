@@ -7,9 +7,9 @@ import com.example.spendwise.ledger.api.IngestRequest
 import com.example.spendwise.ledger.api.Intent
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
-import com.example.spendwise.data.database.dao.EntryDao
-import com.example.spendwise.data.database.dao.EntryLineDao
-import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.database.dao.TransactionDao
+import com.example.spendwise.data.database.dao.TransactionLineDao
+import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import javax.inject.Inject
 
@@ -24,9 +24,9 @@ import javax.inject.Inject
 class IngestionService @Inject constructor(
     private val accountDao: AccountDao,
     private val identifierDao: AccountIdentifierDao,
-    private val entryDao: EntryDao,
-    private val entryLineDao: EntryLineDao,
-    private val provenanceDao: EntryProvanceDao,
+    private val transactionDao: TransactionDao,
+    private val transactionLineDao: TransactionLineDao,
+    private val provenanceDao: TransactionProvenanceDao,
     private val ledger: LedgerService,
     private val counterparties: CounterpartyService,
     private val contacts: ContactsService,
@@ -55,11 +55,11 @@ class IngestionService @Inject constructor(
 
     sealed interface SmsIngestResult {
         /** Fresh buffer entry created (an orphan when accountId is null). */
-        data class Parsed(val entryId: Long, val accountId: Long?, val mergedQrEntryId: Long?) :
+        data class Parsed(val transactionId: Long, val accountId: Long?, val mergedQrEntryId: Long?) :
             SmsIngestResult
 
         /** The same SMS was ingested before — nothing booked twice. */
-        data class Duplicate(val entryId: Long) : SmsIngestResult
+        data class Duplicate(val transactionId: Long) : SmsIngestResult
     }
 
     /**
@@ -141,7 +141,7 @@ class IngestionService @Inject constructor(
     }
 
     /**
-     * Retroactively attach account-less SMS entries that now match [accountId].
+     * Retroactively attach account-less SMS transactions that now match [accountId].
      *
      * Orphans were frozen on the unmatched pot at ingest time. Instead of
      * re-parsing raw text (parser drift), we re-run matching against the parse
@@ -156,19 +156,19 @@ class IngestionService @Inject constructor(
 
         val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
         var claimed = 0
-        for (entryId in entryLineDao.entryIdsForAccount(unmatchedPot)) {
-            val entry = entryDao.getById(entryId) ?: continue
+        for (transactionId in transactionLineDao.transactionIdsForAccount(unmatchedPot)) {
+            val entry = transactionDao.getById(transactionId) ?: continue
             if (entry.source != TransactionSource.SMS || entry.voidedAt != null) continue
 
-            val prov = provenanceDao.getByEntry(entryId) ?: continue
+            val prov = provenanceDao.getByTransaction(transactionId) ?: continue
             val parts = prov.parsedFacts?.split("|") ?: continue
             if (parts.size < 3) continue
 
             val match = findAccount(parts[0], parts[1], parts[2])
             if (match?.id == accountId) {
-                val line = entryLineDao.getByEntryList(entryId).singleOrNull { it.accountId != null }
+                val line = transactionLineDao.getByTransactionList(transactionId).singleOrNull { it.accountId != null }
                     ?: continue
-                entryLineDao.update(line.copy(accountId = accountId))
+                transactionLineDao.update(line.copy(accountId = accountId))
                 claimed++
             }
         }
@@ -190,10 +190,10 @@ class IngestionService @Inject constructor(
         tolerance: Double = QR_SMS_MERGE_TOLERANCE,
         windowMinutes: Long = QR_SMS_MERGE_WINDOW_MINUTES,
     ): Long? {
-        val smsEntry = entryDao.getById(smsEntryId) ?: return null
+        val smsEntry = transactionDao.getById(smsEntryId) ?: return null
         val smsAd = amountDirection(smsEntryId) ?: return null
 
-        val candidates = entryDao.recentBufferQrScans(
+        val candidates = transactionDao.recentBufferQrScans(
             cutoffMillis = nowMillis - windowMinutes * 60_000,
             excludeId = smsEntryId,
         )
@@ -210,8 +210,8 @@ class IngestionService @Inject constructor(
         if (matches.size != 1) return null
         val qr = matches[0]
 
-        val smsLines = entryLineDao.getByEntryList(smsEntryId).toMutableList()
-        val qrLines = entryLineDao.getByEntryList(qr.id)
+        val smsLines = transactionLineDao.getByTransactionList(smsEntryId).toMutableList()
+        val qrLines = transactionLineDao.getByTransactionList(qr.id)
 
         // Tags: union, order-preserving, deduped.
         val tags = LinkedHashSet(TagCodec.decode(smsEntry.tags))
@@ -235,7 +235,7 @@ class IngestionService @Inject constructor(
         }
 
         // Persist merged SMS entry: user intent + bank proof = confirmed.
-        entryDao.update(
+        transactionDao.update(
             smsEntry.copy(
                 counterpartyId = smsEntry.counterpartyId ?: qr.counterpartyId,
                 note = smsEntry.note ?: qr.note,
@@ -243,17 +243,17 @@ class IngestionService @Inject constructor(
                 status = TransactionStatus.CONFIRMED,
             )
         )
-        smsLines.forEach { entryLineDao.update(it) }
+        smsLines.forEach { transactionLineDao.update(it) }
 
         // The QR entry is now redundant.
-        entryLineDao.deleteByEntry(qr.id)
-        entryDao.getById(qr.id)?.let { entryDao.delete(it) }
+        transactionLineDao.deleteByTransaction(qr.id)
+        transactionDao.getById(qr.id)?.let { transactionDao.delete(it) }
         return qr.id
     }
 
     /** (magnitude, direction) of an ingested entry, from its single account leg. */
-    private suspend fun amountDirection(entryId: Long): Pair<Long, Direction>? {
-        val line = entryLineDao.getByEntryList(entryId)
+    private suspend fun amountDirection(transactionId: Long): Pair<Long, Direction>? {
+        val line = transactionLineDao.getByTransactionList(transactionId)
             .filter { it.accountId != null }
             .singleOrNull() ?: return null
         return kotlin.math.abs(line.amountPaise) to

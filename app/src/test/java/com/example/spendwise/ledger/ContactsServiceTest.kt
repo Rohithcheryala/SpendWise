@@ -94,7 +94,7 @@ class ContactsServiceTest : BackendTestBase() {
         val result = ingestion.ingestSms(sms("Sent Rs500 to 9876543210@okax. UPI/5432101"))
         val parsed = result as IngestionService.SmsIngestResult.Parsed
         // The counterparty rides on the entry, not the contra line.
-        val entry = ledger.getTransaction(parsed.entryId)!!
+        val entry = ledger.getTransaction(parsed.transactionId)!!
         val cp = db.CounterpartyDao().getById(entry.counterpartyId!!)!!
         assertEquals("Rahul Sharma", cp.displayName)
         // The handle itself was learned as an alias.
@@ -111,8 +111,8 @@ class ContactsServiceTest : BackendTestBase() {
     @Test
     fun ingest_withoutSyncedContact_fallsBackToRawSlug() = backendTest {
         val result = ingestion.ingestSms(sms("Sent Rs500 to 9876543210@okax. UPI/5432102"))
-        val entryId = (result as IngestionService.SmsIngestResult.Parsed).entryId
-        val entry = ledger.getTransaction(entryId)!!
+        val transactionId = (result as IngestionService.SmsIngestResult.Parsed).transactionId
+        val entry = ledger.getTransaction(transactionId)!!
         val cp = db.CounterpartyDao().getById(entry.counterpartyId!!)!!
         // Falls back to the raw VPA as the display name.
         assertEquals(

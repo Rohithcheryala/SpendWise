@@ -19,7 +19,7 @@ import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
-import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.components.TransactionDirection
@@ -43,7 +43,7 @@ import javax.inject.Inject
 
 /**
  * Create/edit screen state, wired to the real ledger: save() writes balanced
- * entries through [LedgerApi] instead of just popping the back stack.
+ * transactions through [LedgerApi] instead of just popping the back stack.
  */
 @HiltViewModel
 class TransactionViewModel @Inject constructor(
@@ -52,7 +52,7 @@ class TransactionViewModel @Inject constructor(
     private val categoryDao: CategoryDao,
     private val counterpartyDao: CounterpartyDao,
     private val counterpartyService: CounterpartyService,
-    private val provenanceDao: EntryProvanceDao,
+    private val provenanceDao: TransactionProvenanceDao,
     private val settingsRepository: SettingsRepository,
     private val inboxRepository: InboxRepository,
     savedStateHandle: SavedStateHandle,
@@ -65,7 +65,7 @@ class TransactionViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     /** Route argument: -1 = create mode, otherwise edit the given entry. */
-    private val entryId: Long = savedStateHandle.get<Long>("entryId") ?: -1L
+    private val transactionId: Long = savedStateHandle.get<Long>("transactionId") ?: -1L
 
     private var realCounterparties: List<DropdownOption> = emptyList()
 
@@ -79,15 +79,15 @@ class TransactionViewModel @Inject constructor(
 
     init {
         loadOptions()
-        if (entryId > 0) {
-            viewModelScope.launch { loadEntry(entryId) }
+        if (transactionId > 0) {
+            viewModelScope.launch { loadEntry(transactionId) }
         }
         // Seed the context tag so it is visible (and removable) in the editor;
-        // save() unions it for entries opened from the inbox too.
+        // save() unions it for transactions opened from the inbox too.
         viewModelScope.launch {
             val tag = settingsRepository.activeContext.first()?.tag
             activeContextTag = tag
-            if (entryId <= 0 && tag != null) {
+            if (transactionId <= 0 && tag != null) {
                 _uiState.update { s ->
                     if (s.tags.any { it.id == tag }) s
                     else s.copy(tags = s.tags + TagUiModel(tag, tag))
@@ -389,7 +389,7 @@ class TransactionViewModel @Inject constructor(
         val account = view.accountId?.let { accountDao.getById(it) }
         val toAccount = view.toAccountId?.let { accountDao.getById(it) }
         val category = view.categoryId?.let { categoryDao.getById(it) }
-        val rawSms = provenanceDao.getByEntry(id)?.rawText.orEmpty()
+        val rawSms = provenanceDao.getByTransaction(id)?.rawText.orEmpty()
             .ifBlank { view.note.orEmpty() }
         val counterparty = when (view.kind) {
             TransactionKind.TRANSFER -> toAccount?.let {

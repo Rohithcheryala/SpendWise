@@ -7,7 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "entries",
+    tableName = "transactions",
     foreignKeys = [
 
         ForeignKey(
@@ -21,18 +21,18 @@ import androidx.room.PrimaryKey
 //            childColumns = ["group_id"]
 //        ),
         ForeignKey(
-            entity = EntryEntity::class,
+            entity = TransactionEntity::class,
             parentColumns = ["id"],
-            childColumns = ["linked_entry_id"]
+            childColumns = ["linked_transaction_id"]
         )
     ],
     indices = [
         Index("counterparty_id"),
         Index("group_id"),
-        Index("linked_entry_id")
+        Index("linked_transaction_id")
     ]
 )
-data class EntryEntity(
+data class TransactionEntity(
 
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -58,8 +58,8 @@ data class EntryEntity(
 
     val source: String,
 
-    @ColumnInfo(name = "linked_entry_id")
-    val linkedEntryId: Long? = null,
+    @ColumnInfo(name = "linked_transaction_id")
+    val linkedTransactionId: Long? = null,
 
     @ColumnInfo(name = "voided_at")
     val voidedAt: Long? = null,

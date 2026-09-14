@@ -85,7 +85,7 @@ class InboxViewModel @Inject constructor(
             }.onSuccess {
                 uiState = uiState.copy(isLoading = false)
             }.onFailure {
-                // Still show whatever buffer entries exist even if SMS read failed
+                // Still show whatever buffer transactions exist even if SMS read failed
                 // (e.g. permission denied).
                 runCatching { repository.refreshBuffer() }
                 uiState = uiState.copy(
@@ -104,9 +104,9 @@ class InboxViewModel @Inject constructor(
     }
 
     /** Import = confirm the buffer entry into the real ledger. */
-    fun import(entryId: Long) {
+    fun import(transactionId: Long) {
         viewModelScope.launch {
-            val item = uiState.items.firstOrNull { it.entryId == entryId }
+            val item = uiState.items.firstOrNull { it.transactionId == transactionId }
 
             val strict = settingsRepository.settings.first().strictMode
             if (strict && item != null) {
@@ -120,7 +120,7 @@ class InboxViewModel @Inject constructor(
             }
 
             runCatching {
-                repository.import(entryId)
+                repository.import(transactionId)
             }.onSuccess {
                 uiState = uiState.copy(actionMessage = "Imported to Transactions")
             }.onFailure {
@@ -130,10 +130,10 @@ class InboxViewModel @Inject constructor(
     }
 
     /** Dismiss = void the buffer entry. */
-    fun dismiss(entryId: Long) {
+    fun dismiss(transactionId: Long) {
         viewModelScope.launch {
             runCatching {
-                repository.dismiss(entryId)
+                repository.dismiss(transactionId)
             }.onSuccess {
                 uiState = uiState.copy(actionMessage = "Dismissed")
             }.onFailure {
@@ -143,7 +143,7 @@ class InboxViewModel @Inject constructor(
     }
 
     fun importAll() {
-        val ids = uiState.items.map { it.entryId }
+        val ids = uiState.items.map { it.transactionId }
         viewModelScope.launch {
             val strict = settingsRepository.settings.first().strictMode
             if (strict && uiState.items.isNotEmpty()) {
@@ -163,10 +163,10 @@ class InboxViewModel @Inject constructor(
     }
 
     /** Re-point the matched (or orphaned) account on a buffer entry. */
-    fun assignAccount(entryId: Long, accountId: Long) {
+    fun assignAccount(transactionId: Long, accountId: Long) {
         viewModelScope.launch {
             runCatching {
-                repository.assignAccount(entryId, accountId)
+                repository.assignAccount(transactionId, accountId)
             }.onSuccess {
                 uiState = uiState.copy(actionMessage = "Account updated")
             }.onFailure {

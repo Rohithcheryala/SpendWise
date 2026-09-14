@@ -8,20 +8,20 @@ package com.example.spendwise.ledger.api
  */
 interface LedgerApi {
 
-    /** POST /entries — create a balanced entry. Fails on invariant violations. */
+    /** POST /transactions — create a balanced entry. Fails on invariant violations. */
     suspend fun createTransaction(request: CreateTransactionRequest): TransactionView
 
-    /** GET /entries/{id} */
+    /** GET /transactions/{id} */
     suspend fun getTransaction(id: Long): TransactionView?
 
-    /** GET /entries?status=&from=&to= — voided entries are excluded. */
+    /** GET /transactions?status=&from=&to= — voided transactions are excluded. */
     suspend fun listTransactions(status: String? = null, from: Long? = null, to: Long? = null): List<TransactionView>
 
-    /** DELETE /entries/{id} */
+    /** DELETE /transactions/{id} */
     suspend fun deleteTransaction(id: Long)
 
     /**
-     * POST /entries/{id}/confirm — move buffer -> confirmed. Refused while the
+     * POST /transactions/{id}/confirm — move buffer -> confirmed. Refused while the
      * money still sits only on the system 'unmatched' pot (an orphan ingest).
      * [extraTags] are unioned into the entry's tags at confirm time (used by
      * the active tagging context when importing from the inbox).
@@ -29,16 +29,16 @@ interface LedgerApi {
     suspend fun confirmTransaction(id: Long, extraTags: List<String> = emptyList())
 
     /**
-     * PUT /entries/{id}/account — re-point the account leg of a buffer entry
+     * PUT /transactions/{id}/account — re-point the account leg of a buffer entry
      * onto [accountId]. Lets the user correct an auto-matched (or orphaned)
      * SMS attribution from the inbox.
      */
-    suspend fun assignAccount(entryId: Long, accountId: Long): TransactionView
+    suspend fun assignAccount(transactionId: Long, accountId: Long): TransactionView
 
-    /** POST /entries/{id}/void — audit-soft-delete; leaves balances alone. */
+    /** POST /transactions/{id}/void — audit-soft-delete; leaves balances alone. */
     suspend fun voidTransaction(id: Long, reason: String?)
 
-    /** POST /entries/{id}/split — carve receivable shares for friends out of a paid entry. */
+    /** POST /transactions/{id}/split — carve receivable shares for friends out of a paid entry. */
     suspend fun splitTransaction(id: Long, request: SplitRequest): TransactionView
 
     /** POST /ingest — SMS/notification/scan write path with provenance + dedupe. */
@@ -59,7 +59,7 @@ interface LedgerApi {
         note: String? = null,
     ): TransactionView
 
-    /** GET /entries/by-dedupe/{hash} — inbound-message de-duplication lookup. */
+    /** GET /transactions/by-dedupe/{hash} — inbound-message de-duplication lookup. */
     suspend fun findTransactionByDedupeHash(dedupeHash: String): TransactionView?
 
     /** GET /accounts/{id}/balance — computed at read time; liabilities inverted (amount owed). */

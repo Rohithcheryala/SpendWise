@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.data.database.dao.BudgetDao
 import com.example.spendwise.data.database.dao.CategoryDao
-import com.example.spendwise.data.database.dao.EntryLineDao
+import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.entity.CategoryEntity
 import com.example.spendwise.ui.screens.categories.CategoryUiModel
 import com.example.spendwise.ui.screens.categories.SubcategoryUiModel
@@ -27,7 +27,7 @@ import javax.inject.Inject
 class CategoriesViewModel @Inject constructor(
     private val categoryDao: CategoryDao,
     private val budgetDao: BudgetDao,
-    private val entryLineDao: EntryLineDao,
+    private val transactionLineDao: TransactionLineDao,
 ) : ViewModel() {
 
     data class UiState(
@@ -72,13 +72,13 @@ class CategoriesViewModel @Inject constructor(
                             SubcategoryUiModel(
                                 id = child.id,
                                 title = child.name,
-                                spent = entryLineDao.sumConfirmedForCategoryInMonth(
+                                spent = transactionLineDao.sumConfirmedForCategoryInMonth(
                                     child.id, monthStart, monthEnd
                                 ) / 100.0,
                                 budget = (budgets[child.id]?.amountPaise ?: 0L) / 100.0,
                             )
                         }
-                    val ownSpent = entryLineDao.sumConfirmedForCategoryInMonth(
+                    val ownSpent = transactionLineDao.sumConfirmedForCategoryInMonth(
                         root.id, monthStart, monthEnd
                     )
                     CategoryUiModel(

@@ -18,19 +18,19 @@ import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.BucketDao
 import com.example.spendwise.data.database.dao.CategoryDao
-import com.example.spendwise.data.database.dao.EntryDao
-import com.example.spendwise.data.database.dao.EntryLineDao
-import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.database.dao.TransactionDao
+import com.example.spendwise.data.database.dao.TransactionLineDao
+import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.CategoryEntity
-import com.example.spendwise.data.database.entity.EntryEntity
-import com.example.spendwise.data.database.entity.EntryLineEntity
-import com.example.spendwise.data.database.entity.EntryProvenanceEntity
+import com.example.spendwise.data.database.entity.TransactionEntity
+import com.example.spendwise.data.database.entity.TransactionLineEntity
+import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
 import javax.inject.Inject
 
 /**
  * Double-entry ledger service — port of the old server's services/ledger.py.
- * The one place entries are written and balances are read.
+ * The one place transactions are written and balances are read.
  *
  * Invariants enforced here (SQLite can't express them all):
  *  - an entry has >= 2 lines whose amounts sum to exactly zero
@@ -47,9 +47,9 @@ class LedgerService @Inject constructor(
     private val accountDao: AccountDao,
     private val bucketDao: BucketDao,
     private val categoryDao: CategoryDao,
-    private val entryDao: EntryDao,
-    private val entryLineDao: EntryLineDao,
-    private val provenanceDao: EntryProvanceDao,
+    private val transactionDao: TransactionDao,
+    private val transactionLineDao: TransactionLineDao,
+    private val provenanceDao: TransactionProvenanceDao,
     private val counterpartyService: CounterpartyService,
 ) : LedgerApi {
 
@@ -61,8 +61,8 @@ class LedgerService @Inject constructor(
         validateLines(request.lines)
         val id = db.withTransaction {
             val now = System.currentTimeMillis()
-            val entryId = entryDao.insert(
-                EntryEntity(
+            val transactionId = transactionDao.insert(
+                TransactionEntity(
                     occurredOn = request.occurredOn,
                     happenedAt = request.happenedAt,
                     counterpartyId = request.counterpartyId,
@@ -71,12 +71,12 @@ class LedgerService @Inject constructor(
                     tags = TagCodec.encode(request.tags),
                     status = request.status,
                     source = request.source,
-                    linkedEntryId = request.linkedEntryId,
+                    linkedTransactionId = request.linkedTransactionId,
                     createdAt = now,
                 )
             )
-            entryLineDao.insertAll(request.lines.map { it.toEntity(entryId) })
-            entryId
+            transactionLineDao.insertAll(request.lines.map { it.toEntity(transactionId) })
+            transactionId
         }
         return requireView(id)
     }
@@ -121,8 +121,8 @@ class LedgerService @Inject constructor(
             request.bankRef != null || request.parsedFacts != null
         ) {
             provenanceDao.insert(
-                EntryProvenanceEntity(
-                    entryId = view.id,
+                TransactionProvenanceEntity(
+                    transactionId = view.id,
                     rawText = request.rawText,
                     dedupeHash = request.dedupeHash,
                     bankRef = request.bankRef,
@@ -162,8 +162,8 @@ class LedgerService @Inject constructor(
         )
         if (rawText != null || dedupeHash != null || bankRef != null) {
             provenanceDao.insert(
-                EntryProvenanceEntity(
-                    entryId = view.id,
+                TransactionProvenanceEntity(
+                    transactionId = view.id,
                     rawText = rawText,
                     dedupeHash = dedupeHash,
                     bankRef = bankRef,
@@ -220,8 +220,8 @@ class LedgerService @Inject constructor(
         }
     }
 
-    private fun LineSpec.toEntity(entryId: Long) = EntryLineEntity(
-        entryId = entryId,
+    private fun LineSpec.toEntity(transactionId: Long) = TransactionLineEntity(
+        transactionId = transactionId,
         accountId = accountId,
         categoryId = categoryId,
         bucketId = bucketId,
@@ -235,8 +235,8 @@ class LedgerService @Inject constructor(
     // ─────────────────────────────────────────────────────────────────────
 
     override suspend fun getTransaction(id: Long): TransactionView? {
-        val entry = entryDao.getById(id) ?: return null
-        return buildView(entry, entryLineDao.getByEntryList(id))
+        val entry = transactionDao.getById(id) ?: return null
+        return buildView(entry, transactionLineDao.getByTransactionList(id))
     }
 
     private suspend fun requireView(id: Long): TransactionView =
@@ -247,13 +247,13 @@ class LedgerService @Inject constructor(
         from: Long?,
         to: Long?,
     ): List<TransactionView> =
-        entryDao.listSuspend(status, from, to).map { entry ->
-            buildView(entry, entryLineDao.getByEntryList(entry.id))
+        transactionDao.listSuspend(status, from, to).map { entry ->
+            buildView(entry, transactionLineDao.getByTransactionList(entry.id))
         }
 
     override suspend fun findTransactionByDedupeHash(dedupeHash: String): TransactionView? {
         val prov = provenanceDao.getByDedupeHash(dedupeHash) ?: return null
-        return getTransaction(prov.entryId)
+        return getTransaction(prov.transactionId)
     }
 
     /**
@@ -264,13 +264,13 @@ class LedgerService @Inject constructor(
     override suspend fun accountBalance(accountId: Long, through: Long?): Long {
         val account = accountDao.getById(accountId)
             ?: throw ApiException("account $accountId not found")
-        val total = entryLineDao.sumConfirmedForAccount(accountId, through)
+        val total = transactionLineDao.sumConfirmedForAccount(accountId, through)
         return if (account.kind == "liability") -total else total
     }
 
     /** Sum of confirmed, non-voided lines tagged to this bucket. */
     override suspend fun bucketValue(bucketId: Long, through: Long?): Long =
-        entryLineDao.sumConfirmedForBucket(bucketId, through)
+        transactionLineDao.sumConfirmedForBucket(bucketId, through)
 
 
     /**
@@ -279,7 +279,7 @@ class LedgerService @Inject constructor(
      * opening/reconciliation equity, bucket allocation, loans/splits on the
      * receivable pot, investment, transfer, then expense/income by category kind.
      */
-    private suspend fun buildView(entry: EntryEntity, lines: List<EntryLineEntity>): TransactionView {
+    private suspend fun buildView(entry: TransactionEntity, lines: List<TransactionLineEntity>): TransactionView {
         val accounts = HashMap<Long, AccountEntity>()
         val categories = HashMap<Long, CategoryEntity>()
         for (ln in lines) {
@@ -315,7 +315,7 @@ class LedgerService @Inject constructor(
 
         suspend fun viewOf(
             kind: TransactionKind,
-            primaryLine: EntryLineEntity?,
+            primaryLine: TransactionLineEntity?,
             toAccountId: Long? = null,
             categoryId: Long? = null,
         ): TransactionView {
@@ -341,7 +341,7 @@ class LedgerService @Inject constructor(
                 groupId = entry.groupId,
                 note = entry.note,
                 tags = TagCodec.decode(entry.tags),
-                linkedEntryId = entry.linkedEntryId,
+                linkedTransactionId = entry.linkedTransactionId,
             )
         }
 
@@ -396,8 +396,8 @@ class LedgerService @Inject constructor(
      */
     override suspend fun confirmTransaction(id: Long, extraTags: List<String>) {
         db.withTransaction {
-            val entry = entryDao.getById(id) ?: throw ApiException("entry $id not found")
-            val lines = entryLineDao.getByEntryList(id)
+            val entry = transactionDao.getById(id) ?: throw ApiException("entry $id not found")
+            val lines = transactionLineDao.getByTransactionList(id)
             val hasRealAccount = lines.mapNotNull { it.accountId }.any { leg ->
                 val acct = accountDao.getById(leg)
                 acct != null && systemRole(acct) == null
@@ -408,12 +408,12 @@ class LedgerService @Inject constructor(
                 )
             }
             if (extraTags.isEmpty()) {
-                entryDao.update(entry.copy(status = TransactionStatus.CONFIRMED))
+                transactionDao.update(entry.copy(status = TransactionStatus.CONFIRMED))
             } else {
                 // Union, order-preserving, deduped — same rule as QR bridging.
                 val tags = LinkedHashSet(TagCodec.decode(entry.tags))
                 tags.addAll(extraTags)
-                entryDao.update(
+                transactionDao.update(
                     entry.copy(status = TransactionStatus.CONFIRMED, tags = TagCodec.encode(tags.toList()))
                 )
             }
@@ -422,47 +422,47 @@ class LedgerService @Inject constructor(
 
     /**
      * Re-point the account leg of a buffer entry onto [accountId] (PUT
-     * /entries/{id}/account). Lets the user correct an auto-matched or orphaned
+     * /transactions/{id}/account). Lets the user correct an auto-matched or orphaned
      * SMS attribution from the inbox. The "account leg" for an SMS entry is the
      * single line that isn't a category/bucket contra.
      */
-    override suspend fun assignAccount(entryId: Long, accountId: Long): TransactionView {
+    override suspend fun assignAccount(transactionId: Long, accountId: Long): TransactionView {
         val target = accountDao.getById(accountId)
             ?: throw ApiException("account $accountId not found")
         if (target.slug.startsWith("sys-")) {
             throw ApiException("cannot assign a system account")
         }
         return db.withTransaction {
-            entryDao.getById(entryId) ?: throw ApiException("entry $entryId not found")
-            val lines = entryLineDao.getByEntryList(entryId).toMutableList()
+            transactionDao.getById(transactionId) ?: throw ApiException("entry $transactionId not found")
+            val lines = transactionLineDao.getByTransactionList(transactionId).toMutableList()
             val idx = lines.indexOfFirst {
                 it.accountId != null && it.categoryId == null && it.bucketId == null
             }
-            if (idx < 0) throw ApiException("entry $entryId has no account leg to assign")
+            if (idx < 0) throw ApiException("entry $transactionId has no account leg to assign")
             lines[idx] = lines[idx].copy(accountId = accountId)
-            entryLineDao.update(lines[idx])
-            requireView(entryId)
+            transactionLineDao.update(lines[idx])
+            requireView(transactionId)
         }
     }
 
-    /** Audit-soft-delete. Voided entries drop out of every balance and list. */
+    /** Audit-soft-delete. Voided transactions drop out of every balance and list. */
     override suspend fun voidTransaction(id: Long, reason: String?) {
-        val entry = entryDao.getById(id) ?: throw ApiException("entry $id not found")
+        val entry = transactionDao.getById(id) ?: throw ApiException("entry $id not found")
         if (entry.voidedAt != null) return
-        entryDao.update(entry.copy(voidedAt = System.currentTimeMillis(), voidedReason = reason))
+        transactionDao.update(entry.copy(voidedAt = System.currentTimeMillis(), voidedReason = reason))
     }
 
     override suspend fun deleteTransaction(id: Long) {
         db.withTransaction {
-            entryDao.clearLinkedEntry(id)
-            entryLineDao.deleteByEntry(id)
-            provenanceDao.getByEntry(id)?.let { provenanceDao.delete(it) }
-            entryDao.getById(id)?.let { entryDao.delete(it) }
+            transactionDao.clearLinkedTransaction(id)
+            transactionLineDao.deleteByTransaction(id)
+            provenanceDao.getByTransaction(id)?.let { provenanceDao.delete(it) }
+            transactionDao.getById(id)?.let { transactionDao.delete(it) }
         }
     }
 
     /**
-     * POST /entries/{id}/split — carve friends' shares out of an entry that
+     * POST /transactions/{id}/split — carve friends' shares out of an entry that
      * paid in full. The category line shrinks by each share; one receivable
      * line per share names who owes (line-level counterparty). Stays balanced.
      * On-behalf splits pass person counterparties; we force party_type=person
@@ -471,8 +471,8 @@ class LedgerService @Inject constructor(
     override suspend fun splitTransaction(id: Long, request: SplitRequest): TransactionView {
         if (request.shares.isEmpty()) throw ApiException("split needs at least one share")
         return db.withTransaction {
-            val entry = entryDao.getById(id) ?: throw ApiException("entry $id not found")
-            val lines = entryLineDao.getByEntryList(id).toMutableList()
+            val entry = transactionDao.getById(id) ?: throw ApiException("entry $id not found")
+            val lines = transactionLineDao.getByTransactionList(id).toMutableList()
 
             val catIdx = lines.indexOfFirst { it.categoryId != null && it.bucketId == null }
             if (catIdx < 0) throw ApiException("split target must have a single category line")
@@ -484,8 +484,8 @@ class LedgerService @Inject constructor(
                 }
                 lines[catIdx] = current.copy(amountPaise = current.amountPaise - share.amountPaise)
                 lines.add(
-                    EntryLineEntity(
-                        entryId = id,
+                    TransactionLineEntity(
+                        transactionId = id,
                         accountId = systemAccount(SystemRole.RECEIVABLE).id,
                         counterpartyId = share.counterpartyId,
                         amountPaise = share.amountPaise,
@@ -501,9 +501,9 @@ class LedgerService @Inject constructor(
                 LineSpec(it.amountPaise, it.accountId, it.categoryId, it.bucketId, it.balanceAfterPaise, it.counterpartyId)
             })
 
-            entryLineDao.deleteByEntry(id)
-            entryLineDao.insertAll(lines)
-            entryDao.update(entry.copy(groupId = request.groupId ?: entry.groupId))
+            transactionLineDao.deleteByTransaction(id)
+            transactionLineDao.insertAll(lines)
+            transactionDao.update(entry.copy(groupId = request.groupId ?: entry.groupId))
 
             requireView(id)
         }
@@ -521,7 +521,7 @@ class LedgerService @Inject constructor(
     override suspend fun friendsOutstanding(): List<FriendBalance> {
         val pot = systemAccount(SystemRole.RECEIVABLE)
         val cpDao = db.CounterpartyDao()
-        return entryLineDao.netByCounterpartyOnAccount(pot.id)
+        return transactionLineDao.netByCounterpartyOnAccount(pot.id)
             .filter { it.cpId != null && it.net != 0L }
             .mapNotNull { row ->
                 val cp = cpDao.getById(row.cpId!!) ?: return@mapNotNull null
@@ -590,13 +590,13 @@ class LedgerService @Inject constructor(
                 ?: throw ApiException("account $accountId not found")
             val eq = systemAccount(SystemRole.OPEN_EQUITY)
 
-            // Prior opening entries = entries with lines on BOTH pots.
-            val onAccount = entryLineDao.entryIdsForAccount(account.id).toSet()
-            val onEquity = entryLineDao.entryIdsForAccount(eq.id).toSet()
+            // Prior opening transactions = transactions with lines on BOTH pots.
+            val onAccount = transactionLineDao.transactionIdsForAccount(account.id).toSet()
+            val onEquity = transactionLineDao.transactionIdsForAccount(eq.id).toSet()
             (onAccount intersect onEquity).forEach { prior ->
-                entryLineDao.deleteByEntry(prior)
-                provenanceDao.getByEntry(prior)?.let { provenanceDao.delete(it) }
-                entryDao.getById(prior)?.let { entryDao.delete(it) }
+                transactionLineDao.deleteByTransaction(prior)
+                provenanceDao.getByTransaction(prior)?.let { provenanceDao.delete(it) }
+                transactionDao.getById(prior)?.let { transactionDao.delete(it) }
             }
 
             if (account.openingBalancePaise == 0L) return@withTransaction null
@@ -632,10 +632,10 @@ class LedgerService @Inject constructor(
             val bucket = bucketDao.getById(bucketId)
                 ?: throw ApiException("bucket $bucketId not found")
 
-            entryDao.bucketAllocationEntryIds(bucketId, BUCKET_ALLOCATION_NOTE).forEach { prior ->
-                entryLineDao.deleteByEntry(prior)
-                provenanceDao.getByEntry(prior)?.let { provenanceDao.delete(it) }
-                entryDao.getById(prior)?.let { entryDao.delete(it) }
+            transactionDao.bucketAllocationTransactionIds(bucketId, BUCKET_ALLOCATION_NOTE).forEach { prior ->
+                transactionLineDao.deleteByTransaction(prior)
+                provenanceDao.getByTransaction(prior)?.let { provenanceDao.delete(it) }
+                transactionDao.getById(prior)?.let { transactionDao.delete(it) }
             }
 
             if (bucket.manualAllocationPaise == 0L) return@withTransaction null

@@ -47,7 +47,7 @@ class SettingsViewModel @Inject constructor(
     fun setNotificationsEnabled(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setNotificationsEnabled(enabled) }
 
-    /** Strict mode: buffer entries can't be confirmed without category + tag. */
+    /** Strict mode: buffer transactions can't be confirmed without category + tag. */
     fun setStrictMode(enabled: Boolean) =
         viewModelScope.launch { settingsRepository.setStrictMode(enabled) }
 

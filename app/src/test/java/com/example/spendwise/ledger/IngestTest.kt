@@ -39,14 +39,14 @@ class IngestTest : BackendTestBase() {
         assertEquals(0L, ledger.accountBalance(bank)) // buffer doesn't move balances
 
         // Contra line landed on the expense-side system category.
-        val lines = db.EntryLineDao().getByEntryList(view.id)
+        val lines = db.TransactionLineDao().getByTransactionList(view.id)
         val contra = lines.first { it.categoryId != null }
         val contraCat = db.CategoryDao().getById(contra.categoryId!!)!!
         assertEquals(LedgerService.KIND_EXPENSE, contraCat.kind)
         assertEquals("Unclassified", contraCat.name)
 
         // Provenance stored for the audit trail.
-        assertNotNull(db.EntryProvanceDao().getByEntry(view.id)!!.rawText)
+        assertNotNull(db.TransactionProvenanceDao().getByTransaction(view.id)!!.rawText)
     }
 
     @Test
@@ -63,7 +63,7 @@ class IngestTest : BackendTestBase() {
                 status = TransactionStatus.CONFIRMED,
             )
         )
-        val lines = db.EntryLineDao().getByEntryList(view.id)
+        val lines = db.TransactionLineDao().getByTransactionList(view.id)
         val contraCat = db.CategoryDao().getById(lines.first { it.categoryId != null }.categoryId!!)!!
         assertEquals("Uncategorized income", contraCat.name)
         assertEquals(LedgerService.KIND_INCOME, contraCat.kind)
@@ -86,7 +86,7 @@ class IngestTest : BackendTestBase() {
         assertNull(ledger.findTransactionByDedupeHash("nope"))
 
         // A second message with the same hash cannot double-book: the unique
-        // index on entry_provenance.dedupe_hash rejects it.
+        // index on transaction_provenance.dedupe_hash rejects it.
         val threw = try {
             ledger.ingest(
                 IngestRequest(

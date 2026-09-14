@@ -68,7 +68,7 @@ class IngestionServiceTest : BackendTestBase() {
 
         assertTrue(result is IngestionService.SmsIngestResult.Parsed)
         assertEquals(accountId, (result as IngestionService.SmsIngestResult.Parsed).accountId)
-        // Buffer entries don't move balances yet.
+        // Buffer transactions don't move balances yet.
         assertEquals(0L, ledger.accountBalance(accountId))
     }
 
@@ -80,7 +80,7 @@ class IngestionServiceTest : BackendTestBase() {
 
         val parsed = result as IngestionService.SmsIngestResult.Parsed
         assertNull(parsed.accountId)
-        val view = ledger.getTransaction(parsed.entryId)!!
+        val view = ledger.getTransaction(parsed.transactionId)!!
         assertEquals(TransactionKind.EXPENSE, view.kind)
         assertNull(view.accountId) // surfaced as needing classification
     }
@@ -123,7 +123,7 @@ class IngestionServiceTest : BackendTestBase() {
         val second = ingestion.ingestSms(sms(body, "4921"))
 
         assertTrue(second is IngestionService.SmsIngestResult.Duplicate)
-        assertEquals(first.entryId, (second as IngestionService.SmsIngestResult.Duplicate).entryId)
+        assertEquals(first.transactionId, (second as IngestionService.SmsIngestResult.Duplicate).transactionId)
     }
 
     @Test
@@ -138,17 +138,17 @@ class IngestionServiceTest : BackendTestBase() {
         val newAccountId = bankWithIdentifiers("hdfc-main", "HDFC Bank", "9021")
 
         assertEquals(1, ingestion.claimOrphansForAccount(newAccountId))
-        assertEquals(newAccountId, ledger.getTransaction(orphan.entryId)!!.accountId)
+        assertEquals(newAccountId, ledger.getTransaction(orphan.transactionId)!!.accountId)
 
         // The line really moved: no account leg left on the unmatched pot.
         val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
         org.junit.Assert.assertFalse(
-            db.EntryLineDao().getByEntryList(orphan.entryId).any { it.accountId == unmatchedPot }
+            db.TransactionLineDao().getByTransactionList(orphan.transactionId).any { it.accountId == unmatchedPot }
         )
     }
 
     @Test
-    fun `claim is attach-only - entries already on an account are never stolen`() = runTest {
+    fun `claim is attach-only - transactions already on an account are never stolen`() = runTest {
         val existing = bankWithIdentifiers("hdfc", "HDFC Bank", "4921")
         val attached = ingestion.ingestSms(sms("A/c XX4921 debit", "4921"))
             as IngestionService.SmsIngestResult.Parsed
@@ -156,7 +156,7 @@ class IngestionServiceTest : BackendTestBase() {
         // Another bank reuses the same last-4; claiming for it must not steal.
         val other = bankWithIdentifiers("icici", "ICICI Bank", "4921")
         assertEquals(0, ingestion.claimOrphansForAccount(other))
-        assertEquals(existing, ledger.getTransaction(attached.entryId)!!.accountId)
+        assertEquals(existing, ledger.getTransaction(attached.transactionId)!!.accountId)
     }
 
     @Test
@@ -194,7 +194,7 @@ class IngestionServiceTest : BackendTestBase() {
         assertNotNull(result.mergedQrEntryId)
         assertEquals(qrView.id, result.mergedQrEntryId)
 
-        val merged = ledger.getTransaction(result.entryId)!!
+        val merged = ledger.getTransaction(result.transactionId)!!
         assertEquals(TransactionStatus.CONFIRMED, merged.status)
         assertEquals(merchant, merged.counterpartyId)
         assertEquals(food, merged.categoryId)
@@ -256,7 +256,7 @@ class IngestionServiceTest : BackendTestBase() {
         ) as IngestionService.SmsIngestResult.Parsed
 
         assertEquals(qrView.id, result.mergedQrEntryId)
-        val merged = ledger.getTransaction(result.entryId)!!
+        val merged = ledger.getTransaction(result.transactionId)!!
         assertEquals(TransactionStatus.CONFIRMED, merged.status)
         // The bank's actual debit (fee included) is the recorded truth.
         assertEquals(-101_50L, ledger.accountBalance(bank))

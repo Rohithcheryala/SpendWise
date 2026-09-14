@@ -36,9 +36,9 @@ import javax.inject.Inject
 /**
  * The transactions list, read from the real ledger ([LedgerApi.listTransactions]).
  *
- * Defaults to CONFIRMED (finalized) entries only; buffer/orphan rows belong on
+ * Defaults to CONFIRMED (finalized) transactions only; buffer/orphan rows belong on
  * the Inbox screen. Applying a status filter re-queries the ledger for buffer
- * entries ("Pending") instead. Voided entries are excluded by the ledger.
+ * transactions ("Pending") instead. Voided transactions are excluded by the ledger.
  */
 @HiltViewModel
 class TransactionsViewModel @Inject constructor(
@@ -77,14 +77,14 @@ class TransactionsViewModel @Inject constructor(
                     TransactionFilterStatus.Pending -> TransactionStatus.BUFFER
                     else -> TransactionStatus.CONFIRMED
                 }
-                val entries = ledgerApi.listTransactions(status = statusArg)
-                val categoryIds = entries.mapNotNull { it.categoryId }.distinct()
+                val transactions = ledgerApi.listTransactions(status = statusArg)
+                val categoryIds = transactions.mapNotNull { it.categoryId }.distinct()
                 val categories = if (categoryIds.isEmpty()) {
                     emptyMap()
                 } else {
                     categoryDao.getByIds(categoryIds).associate { it.id to it.name }
                 }
-                entries.map { entry ->
+                transactions.map { entry ->
                     entry.toUi(symbol, accounts, categories, parties)
                 }
             }.onSuccess { items ->

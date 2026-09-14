@@ -50,9 +50,9 @@ object BackendModule {
         IngestionService(
             accountDao = db.AccountDao(),
             identifierDao = db.AccountIdentifierDao(),
-            entryDao = db.EntryDao(),
-            entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvanceDao(),
+            transactionDao = db.TransactionDao(),
+            transactionLineDao = db.TransactionLineDao(),
+            provenanceDao = db.TransactionProvenanceDao(),
             ledger = ledger,
             counterparties = counterpartyService,
             contacts = contactsService,
@@ -69,9 +69,9 @@ object BackendModule {
             accountDao = db.AccountDao(),
             bucketDao = db.BucketDao(),
             categoryDao = db.CategoryDao(),
-            entryDao = db.EntryDao(),
-            entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvanceDao(),
+            transactionDao = db.TransactionDao(),
+            transactionLineDao = db.TransactionLineDao(),
+            provenanceDao = db.TransactionProvenanceDao(),
             counterpartyService = counterpartyService,
         )
 }

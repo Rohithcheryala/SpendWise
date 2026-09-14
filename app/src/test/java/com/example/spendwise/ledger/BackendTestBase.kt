@@ -50,9 +50,9 @@ abstract class BackendTestBase {
             accountDao = db.AccountDao(),
             bucketDao = db.BucketDao(),
             categoryDao = db.CategoryDao(),
-            entryDao = db.EntryDao(),
-            entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvanceDao(),
+            transactionDao = db.TransactionDao(),
+            transactionLineDao = db.TransactionLineDao(),
+            provenanceDao = db.TransactionProvenanceDao(),
             counterpartyService = counterparties,
         )
         contacts = ContactsService(
@@ -64,9 +64,9 @@ abstract class BackendTestBase {
         ingestion = IngestionService(
             accountDao = db.AccountDao(),
             identifierDao = db.AccountIdentifierDao(),
-            entryDao = db.EntryDao(),
-            entryLineDao = db.EntryLineDao(),
-            provenanceDao = db.EntryProvanceDao(),
+            transactionDao = db.TransactionDao(),
+            transactionLineDao = db.TransactionLineDao(),
+            provenanceDao = db.TransactionProvenanceDao(),
             ledger = ledger,
             counterparties = counterparties,
             contacts = contacts,

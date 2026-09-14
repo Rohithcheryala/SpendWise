@@ -115,7 +115,7 @@ class DescribeEntryTest : BackendTestBase() {
         // The receivable pot now carries +500 (money lent out).
         val loansPot = db.AccountDao().getBySlug("sys-loans-${LedgerService.USER_ID}")!!
         assertEquals(0L, ledger.accountBalance(loansPot.id)) // system pot itself is 'asset'
-        val recvLines = db.EntryLineDao().getByEntryList(view.id).filter { it.accountId == loansPot.id }
+        val recvLines = db.TransactionLineDao().getByTransactionList(view.id).filter { it.accountId == loansPot.id }
         assertEquals(listOf(500_00L), recvLines.map { it.amountPaise })
     }
 
@@ -138,7 +138,7 @@ class DescribeEntryTest : BackendTestBase() {
         assertEquals(199_00, view.amountPaise)
         assertNull(view.accountId) // surfaced as "needs an account"
 
-        // Balances count only confirmed entries, so the buffered orphan hasn't
+        // Balances count only confirmed transactions, so the buffered orphan hasn't
         // moved anything yet.
         val unmatchedPot = db.AccountDao().getBySlug("sys-unmatched-${LedgerService.USER_ID}")!!
         assertEquals(0L, ledger.accountBalance(unmatchedPot.id))

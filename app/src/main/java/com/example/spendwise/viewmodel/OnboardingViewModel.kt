@@ -160,7 +160,7 @@ class OnboardingViewModel @Inject constructor(
                 }
             }.onSuccess {
                 // The scan ingested SMS before these accounts existed, so those
-                // entries sit orphaned on the unmatched pot. Re-run matching
+                // transactions sit orphaned on the unmatched pot. Re-run matching
                 // (attach-only) so they attach to the new accounts.
                 var claimed = 0
                 for (account in selected) {

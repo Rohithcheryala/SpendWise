@@ -6,40 +6,40 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.example.spendwise.data.database.entity.EntryEntity
+import com.example.spendwise.data.database.entity.TransactionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface EntryDao {
+interface TransactionDao {
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         ORDER BY occurred_on DESC, happened_at DESC, created_at DESC
     """
     )
-    fun getAll(): Flow<List<EntryEntity>>
+    fun getAll(): Flow<List<TransactionEntity>>
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE id = :id
     """
     )
-    suspend fun getById(id: Long): EntryEntity?
+    suspend fun getById(id: Long): TransactionEntity?
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE counterparty_id = :counterpartyId
         ORDER BY occurred_on DESC, happened_at DESC
     """
     )
-    fun getByCounterparty(counterpartyId: Long): Flow<List<EntryEntity>>
+    fun getByCounterparty(counterpartyId: Long): Flow<List<TransactionEntity>>
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE occurred_on BETWEEN :startDate AND :endDate
         ORDER BY occurred_on DESC, happened_at DESC
     """
@@ -47,22 +47,22 @@ interface EntryDao {
     fun getBetweenDates(
         startDate: Long,
         endDate: Long
-    ): Flow<List<EntryEntity>>
+    ): Flow<List<TransactionEntity>>
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE status = :status
         ORDER BY occurred_on DESC, happened_at DESC
     """
     )
-    fun getByStatus(status: String): Flow<List<EntryEntity>>
+    fun getByStatus(status: String): Flow<List<TransactionEntity>>
 
     // ── Backend service additions (suspend, non-Flow) ───────────────────────
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE (:status IS NULL OR status = :status)
           AND (:fromMillis IS NULL OR occurred_on >= :fromMillis)
           AND (:toMillis IS NULL OR occurred_on <= :toMillis)
@@ -70,26 +70,26 @@ interface EntryDao {
         ORDER BY occurred_on DESC, happened_at DESC, created_at DESC
     """
     )
-    suspend fun listSuspend(status: String?, fromMillis: Long?, toMillis: Long?): List<EntryEntity>
+    suspend fun listSuspend(status: String?, fromMillis: Long?, toMillis: Long?): List<TransactionEntity>
 
     /** Break a sibling's link to this entry before deleting it (purge). */
-    @Query("UPDATE entries SET linked_entry_id = NULL WHERE linked_entry_id = :entryId")
-    suspend fun clearLinkedEntry(entryId: Long)
+    @Query("UPDATE transactions SET linked_transaction_id = NULL WHERE linked_transaction_id = :transactionId")
+    suspend fun clearLinkedTransaction(transactionId: Long)
 
     /** Entries carrying a bucket's allocation note on one of their lines. */
     @Query(
         """
-        SELECT DISTINCT e.id FROM entries e
-        JOIN entry_lines l ON l.entry_id = e.id
+        SELECT DISTINCT e.id FROM transactions e
+        JOIN transaction_lines l ON l.transaction_id = e.id
         WHERE l.bucket_id = :bucketId AND e.note = :note
     """
     )
-    suspend fun bucketAllocationEntryIds(bucketId: Long, note: String): List<Long>
+    suspend fun bucketAllocationTransactionIds(bucketId: Long, note: String): List<Long>
 
-    /** Recent QR-scan buffer entries for the QR<->SMS merge (see IngestionService). */
+    /** Recent QR-scan buffer transactions for the QR<->SMS merge (see IngestionService). */
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE source = 'qr_scan'
           AND status = 'buffer'
           AND created_at >= :cutoffMillis
@@ -98,23 +98,23 @@ interface EntryDao {
         ORDER BY created_at DESC
     """
     )
-    suspend fun recentBufferQrScans(cutoffMillis: Long, excludeId: Long): List<EntryEntity>
+    suspend fun recentBufferQrScans(cutoffMillis: Long, excludeId: Long): List<TransactionEntity>
 
     @Query(
         """
-        SELECT * FROM entries
+        SELECT * FROM transactions
         WHERE source = :source
         ORDER BY occurred_on DESC, happened_at DESC
     """
     )
-    fun getBySource(source: String): Flow<List<EntryEntity>>
+    fun getBySource(source: String): Flow<List<TransactionEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insert(entry: EntryEntity): Long
+    suspend fun insert(entry: TransactionEntity): Long
 
     @Update
-    suspend fun update(entry: EntryEntity)
+    suspend fun update(entry: TransactionEntity)
 
     @Delete
-    suspend fun delete(entry: EntryEntity)
+    suspend fun delete(entry: TransactionEntity)
 }

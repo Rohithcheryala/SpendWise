@@ -40,13 +40,13 @@ class SplitLifecycleTest : BackendTestBase() {
 
     @Test
     fun `on-behalf split carves receivable lines and keeps the entry balanced`() = runTest {
-        val (bank, entryId) = paidAtMerchant(100_000) // ₹1,000 paid in full
+        val (bank, transactionId) = paidAtMerchant(100_000) // ₹1,000 paid in full
 
         val rahul = counterparties.resolveOrCreate(LedgerService.USER_ID, "rahul987@oksbi")!!
         val priya = counterparties.resolveOrCreate(LedgerService.USER_ID, "priya@ybl")!!
 
         val view = ledger.splitTransaction(
-            entryId,
+            transactionId,
             SplitRequest(
                 shares = listOf(SplitShare(rahul, 40_000), SplitShare(priya, 25_000)),
                 groupId = null,
@@ -55,7 +55,7 @@ class SplitLifecycleTest : BackendTestBase() {
 
         assertEquals(TransactionKind.SPLIT, view.kind)
 
-        val lines = db.EntryLineDao().getByEntryList(entryId)
+        val lines = db.TransactionLineDao().getByTransactionList(transactionId)
         assertEquals(0L, lines.sumOf { it.amountPaise }) // still balanced
 
         // Category line shrank by the shares; receivable pot carries them.
@@ -73,11 +73,11 @@ class SplitLifecycleTest : BackendTestBase() {
 
     @Test
     fun `shares exceeding the paid amount are rejected`() = runTest {
-        val (_, entryId) = paidAtMerchant(50_000)
+        val (_, transactionId) = paidAtMerchant(50_000)
         val friend = counterparties.resolveOrCreate(LedgerService.USER_ID, "friend@upi")!!
 
         expectApiError("shares exceed the paid amount") {
-            ledger.splitTransaction(entryId, SplitRequest(shares = listOf(SplitShare(friend, 60_000))))
+            ledger.splitTransaction(transactionId, SplitRequest(shares = listOf(SplitShare(friend, 60_000))))
         }
     }
 
@@ -138,7 +138,7 @@ class SplitLifecycleTest : BackendTestBase() {
 
         ledger.deleteTransaction(entry.id)
         assertEquals(null, ledger.getTransaction(entry.id))
-        assertEquals(null, db.EntryProvanceDao().getByDedupeHash("hash-x"))
+        assertEquals(null, db.TransactionProvenanceDao().getByDedupeHash("hash-x"))
     }
 
     companion object {

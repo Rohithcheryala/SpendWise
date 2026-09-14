@@ -63,7 +63,7 @@ data class CreateTransactionRequest(
     val groupId: Long? = null,
     val note: String? = null,
     val tags: List<String> = emptyList(),
-    val linkedEntryId: Long? = null,
+    val linkedTransactionId: Long? = null,
 )
 
 /** POST /ingest — an SMS/notification/scan-derived movement. */
@@ -90,7 +90,7 @@ data class IngestRequest(
 
 data class SplitShare(val counterpartyId: Long, val amountPaise: Long)
 
-/** POST /entries/{id}/split — carve friends' shares out of a paid entry. */
+/** POST /transactions/{id}/split — carve friends' shares out of a paid entry. */
 data class SplitRequest(
     val shares: List<SplitShare>,
     val groupId: Long? = null,
@@ -98,7 +98,7 @@ data class SplitRequest(
 
 /**
  * Presentation summary derived from the lines so clients need no accounting
- * logic. For multi-sided entries (split/transfer) categoryId is null and the
+ * logic. For multi-sided transactions (split/transfer) categoryId is null and the
  * client should render the lines themselves.
  */
 data class TransactionView(
@@ -118,7 +118,7 @@ data class TransactionView(
     val groupId: Long?,
     val note: String?,
     val tags: List<String>,
-    val linkedEntryId: Long?,
+    val linkedTransactionId: Long?,
 )
 
 /** GET /friends — one row per person with activity on the loans receivable pot. */

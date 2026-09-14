@@ -16,7 +16,7 @@ import com.example.spendwise.core.parser_pw.bank.BankParserFactory
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
-import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +27,7 @@ import javax.inject.Singleton
 
 /** One row of the Buffer Inbox — a ledger entry still awaiting review. */
 data class InboxItem(
-    val entryId: Long,
+    val transactionId: Long,
     val sender: String,
     val amountPaise: Long,
     val isDebit: Boolean,
@@ -51,7 +51,7 @@ data class InboxItem(
  * The inbox IS the ledger's buffer: every known-bank SMS since the sync
  * watermark is parsed and ingested (dedupe is handled inside
  * [IngestionService.ingestSms], so re-syncs are idempotent), and the screen
- * lists the ledger's `buffer` entries. Import = confirm, Dismiss = void.
+ * lists the ledger's `buffer` transactions. Import = confirm, Dismiss = void.
  */
 @Singleton
 class InboxRepository @Inject constructor(
@@ -59,7 +59,7 @@ class InboxRepository @Inject constructor(
     private val appMetadataRepository: AppMetadataRepository,
     private val ingestionService: IngestionService,
     private val ledgerApi: LedgerApi,
-    private val provenanceDao: EntryProvanceDao,
+    private val provenanceDao: TransactionProvenanceDao,
     private val accountDao: AccountDao,
     private val counterpartyDao: CounterpartyDao,
     private val categoryDao: CategoryDao,
@@ -128,7 +128,7 @@ class InboxRepository @Inject constructor(
     /**
      * Parse + ingest one SMS. Unrecognized senders/bodies are ignored.
      *
-     * Returns the capture for freshly parsed entries (null for
+     * Returns the capture for freshly parsed transactions (null for
      * unrecognized/empty/duplicate messages) so bulk syncs can alert.
      *
      * [notifyUser] posts a "captured" notification immediately — only the
@@ -217,7 +217,7 @@ class InboxRepository @Inject constructor(
     /**
      * Re-run orphan claiming for every active user account. Attach-only and
      * near-free when the unmatched pot is empty, so it can run on every buffer
-     * refresh — this heals entries stranded by a late account edit or a
+     * refresh — this heals transactions stranded by a late account edit or a
      * matching-rule fix without waiting for the next account creation.
      */
     private suspend fun claimOrphans() {
@@ -228,22 +228,22 @@ class InboxRepository @Inject constructor(
             }
     }
 
-    /** Reload the ledger's buffer entries — this IS the inbox. */
+    /** Reload the ledger's buffer transactions — this IS the inbox. */
     suspend fun refreshBuffer() {
         claimOrphans()
-        val entries = ledgerApi.listTransactions(status = TransactionStatus.BUFFER)
+        val transactions = ledgerApi.listTransactions(status = TransactionStatus.BUFFER)
         val accountNames = accountDao.listAll().associate { it.id to it.name }
         val userAccounts = accountDao.listAll()
             .filter { !it.slug.startsWith("sys-") }
             .map { it.id to it.name }
         val partyNames = counterpartyDao.listAll().associate { it.id to it.displayName }
-        val categoryIds = entries.mapNotNull { it.categoryId }.distinct()
+        val categoryIds = transactions.mapNotNull { it.categoryId }.distinct()
         val categoryNames = if (categoryIds.isEmpty()) {
             emptyMap()
         } else {
             categoryDao.getByIds(categoryIds).associate { it.id to it.name }
         }
-        _bufferItems.value = entries.map { entry ->
+        _bufferItems.value = transactions.map { entry ->
             enrich(entry, accountNames, userAccounts, partyNames, categoryNames)
         }
     }
@@ -253,25 +253,25 @@ class InboxRepository @Inject constructor(
      * If an [ActiveContext] is running (e.g. a trip tag), it is stamped onto
      * the entry at confirm time — the bulk ✓-through-a-trip workflow.
      */
-    suspend fun import(entryId: Long) {
+    suspend fun import(transactionId: Long) {
         val contextTag = settingsRepository.activeContext.first()?.tag
         if (contextTag == null) {
-            ledgerApi.confirmTransaction(entryId)
+            ledgerApi.confirmTransaction(transactionId)
         } else {
-            ledgerApi.confirmTransaction(entryId, listOf(contextTag))
+            ledgerApi.confirmTransaction(transactionId, listOf(contextTag))
         }
         refreshBuffer()
     }
 
     /** Re-point an entry's account leg onto the user's chosen account. */
-    suspend fun assignAccount(entryId: Long, accountId: Long) {
-        ledgerApi.assignAccount(entryId, accountId)
+    suspend fun assignAccount(transactionId: Long, accountId: Long) {
+        ledgerApi.assignAccount(transactionId, accountId)
         refreshBuffer()
     }
 
     /** Dismiss = soft-delete (void) the buffer entry. */
-    suspend fun dismiss(entryId: Long) {
-        ledgerApi.voidTransaction(entryId, "Dismissed from inbox")
+    suspend fun dismiss(transactionId: Long) {
+        ledgerApi.voidTransaction(transactionId, "Dismissed from inbox")
         refreshBuffer()
     }
 
@@ -313,7 +313,7 @@ class InboxRepository @Inject constructor(
         partyNames: Map<Long, String>,
         categoryNames: Map<Long, String>,
     ): InboxItem {
-        val provenance = provenanceDao.getByEntry(entry.id)
+        val provenance = provenanceDao.getByTransaction(entry.id)
         val bank = provenance?.parsedFacts
             ?.substringBefore('|')
             ?.takeIf { it.isNotBlank() }
@@ -321,12 +321,12 @@ class InboxRepository @Inject constructor(
         val accountName = entry.accountId?.let { accountNames[it] }
         val userAccountIds = userAccounts.mapTo(mutableSetOf()) { it.first }
         return InboxItem(
-            entryId = entry.id,
+            transactionId = entry.id,
             // Title priority: the resolved payee, then the bank. The ACCOUNT
             // must never be the title — it says nothing about who the
             // transaction was with, and it made every row read as "account +
             // time". (The account still shows as the red correction callout
-            // for unmatched entries, and in the detail view.)
+            // for unmatched transactions, and in the detail view.)
             sender = party ?: bank ?: "Bank SMS",
             amountPaise = entry.amountPaise,
             isDebit = entry.direction == Direction.OUT,

@@ -59,7 +59,7 @@ class FriendsViewModel @Inject constructor(
             uiState = uiState.copy(isLoading = true, error = null)
 
             runCatching {
-                // Only party_type = person entries belong on this page.
+                // Only party_type = person transactions belong on this page.
                 val persons = counterpartyDao
                     .getByPartyType(CounterpartyService.PARTY_PERSON)
                     .first()

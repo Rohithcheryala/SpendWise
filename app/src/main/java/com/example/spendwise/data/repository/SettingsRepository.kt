@@ -40,7 +40,7 @@ data class UserSettings(
     val currencySymbol: String = "₹",
     val smsAutoDetect: Boolean = true,
     val notificationsEnabled: Boolean = true,
-    /** When true, buffer entries cannot be confirmed without a real category AND a tag. */
+    /** When true, buffer transactions cannot be confirmed without a real category AND a tag. */
     val strictMode: Boolean = false,
     val profileName: String = ""
 )

@@ -126,7 +126,7 @@ class LedgerValidationTest : BackendTestBase() {
 
         assertEquals(listOf("night out"), view.tags)
         assertEquals("groceries + movie", view.note)
-        val stored = db.EntryLineDao().getByEntryList(view.id)
+        val stored = db.TransactionLineDao().getByTransactionList(view.id)
         assertEquals(3, stored.size)
         assertEquals(0L, stored.sumOf { it.amountPaise })
     }

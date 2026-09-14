@@ -13,9 +13,9 @@ import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
-import com.example.spendwise.data.database.dao.EntryDao
-import com.example.spendwise.data.database.dao.EntryLineDao
-import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.database.dao.TransactionDao
+import com.example.spendwise.data.database.dao.TransactionLineDao
+import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 
 
 import dagger.Module
@@ -69,13 +69,13 @@ object DatabaseModule {
         db.CounterpartyAliasDao()
 
     @Provides
-    fun provideEntryDao(db: AppDatabase): EntryDao = db.EntryDao()
+    fun provideEntryDao(db: AppDatabase): TransactionDao = db.TransactionDao()
 
     @Provides
-    fun provideEntryLineDao(db: AppDatabase): EntryLineDao = db.EntryLineDao()
+    fun provideEntryLineDao(db: AppDatabase): TransactionLineDao = db.TransactionLineDao()
 
     @Provides
-    fun provideEntryProvenanceDao(db: AppDatabase): EntryProvanceDao = db.EntryProvanceDao()
+    fun provideEntryProvenanceDao(db: AppDatabase): TransactionProvenanceDao = db.TransactionProvenanceDao()
 
     // add one @Provides per DAO as you add tables:
     // fun provideBudgetDao(db: AppDatabase): BudgetDao = db.budgetDao()

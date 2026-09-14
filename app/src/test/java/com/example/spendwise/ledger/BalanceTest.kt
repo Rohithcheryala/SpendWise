@@ -45,7 +45,7 @@ class BalanceTest : BackendTestBase() {
     }
 
     @Test
-    fun `buffer entries do not count until confirmed`() = runTest {
+    fun `buffer transactions do not count until confirmed`() = runTest {
         val bank = setupAccount()
         val food = db.CategoryDao().insert(newCategory("Food"))
 
@@ -63,7 +63,7 @@ class BalanceTest : BackendTestBase() {
     }
 
     @Test
-    fun `voided entries drop out of balances`() = runTest {
+    fun `voided transactions drop out of balances`() = runTest {
         val bank = setupAccount()
         val food = db.CategoryDao().insert(newCategory("Food"))
 

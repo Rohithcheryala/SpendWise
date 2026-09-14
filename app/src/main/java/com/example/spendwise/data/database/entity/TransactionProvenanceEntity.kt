@@ -7,27 +7,27 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "entry_provenance",
+    tableName = "transaction_provenance",
     foreignKeys = [
         ForeignKey(
-            entity = EntryEntity::class,
+            entity = TransactionEntity::class,
             parentColumns = ["id"],
-            childColumns = ["entry_id"],
+            childColumns = ["transaction_id"],
             onDelete = ForeignKey.CASCADE
         )
     ],
     indices = [
-        Index(value = ["entry_id"]),
+        Index(value = ["transaction_id"]),
         Index(value = ["dedupe_hash"], unique = true)
     ]
 )
-data class EntryProvenanceEntity(
+data class TransactionProvenanceEntity(
 
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
-    @ColumnInfo(name = "entry_id")
-    val entryId: Long,
+    @ColumnInfo(name = "transaction_id")
+    val transactionId: Long,
 
     @ColumnInfo(name = "raw_text")
     val rawText: String? = null,

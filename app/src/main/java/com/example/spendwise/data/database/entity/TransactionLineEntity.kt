@@ -7,12 +7,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "entry_lines",
+    tableName = "transaction_lines",
     foreignKeys = [
         ForeignKey(
-            entity = EntryEntity::class,
+            entity = TransactionEntity::class,
             parentColumns = ["id"],
-            childColumns = ["entry_id"],
+            childColumns = ["transaction_id"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
@@ -37,20 +37,20 @@ import androidx.room.PrimaryKey
         )
     ],
     indices = [
-        Index("entry_id"),
+        Index("transaction_id"),
         Index("account_id"),
         Index("category_id"),
         Index("bucket_id"),
         Index("counterparty_id")
     ]
 )
-data class EntryLineEntity(
+data class TransactionLineEntity(
 
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
-    @ColumnInfo(name = "entry_id")
-    val entryId: Long,
+    @ColumnInfo(name = "transaction_id")
+    val transactionId: Long,
 
     @ColumnInfo(name = "account_id")
     val accountId: Long? = null,

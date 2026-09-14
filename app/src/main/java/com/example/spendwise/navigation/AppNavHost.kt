@@ -31,7 +31,7 @@ import com.example.spendwise.ui.screens.update.UpdateScreen
 import com.example.spendwise.viewmodel.TransactionViewModel
 import com.example.spendwise.viewmodel.TransactionsViewModel
 
-private const val TRANSACTION_ROUTE = "transaction?entryId={entryId}"
+private const val TRANSACTION_ROUTE = "transaction?transactionId={transactionId}"
 
 @Composable
 fun AppNavHost(
@@ -70,7 +70,7 @@ fun AppNavHost(
         composable(Screen.Transactions.route) {
             val vm: TransactionsViewModel = hiltViewModel()
 
-            // Reload from the ledger whenever this screen resumes, so entries
+            // Reload from the ledger whenever this screen resumes, so transactions
             // created/edited elsewhere show up when you navigate back.
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
@@ -86,7 +86,7 @@ fun AppNavHost(
                 transactions = vm.uiState.items,
                 onNavigateBack = { navController.popBackStack() },
                 onTransactionClick = { id ->
-                    navController.navigate("transaction?entryId=$id")
+                    navController.navigate("transaction?transactionId=$id")
                 },
                 onAddTransactionClick = {
                     navController.navigate("transaction")
@@ -99,7 +99,7 @@ fun AppNavHost(
         composable(
             route = TRANSACTION_ROUTE,
             arguments = listOf(
-                navArgument("entryId") {
+                navArgument("transactionId") {
                     type = NavType.LongType
                     defaultValue = -1L
                 }
@@ -178,8 +178,8 @@ fun AppNavHost(
         composable(Screen.Inbox.route) {
             com.example.spendwise.ui.screens.inbox.InboxScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onEditItem = { entryId ->
-                    navController.navigate("transaction?entryId=$entryId")
+                onEditItem = { transactionId ->
+                    navController.navigate("transaction?transactionId=$transactionId")
                 }
             )
         }

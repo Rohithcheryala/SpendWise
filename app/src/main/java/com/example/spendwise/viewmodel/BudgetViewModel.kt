@@ -12,7 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.data.database.dao.BudgetDao
 import com.example.spendwise.data.database.dao.CategoryDao
-import com.example.spendwise.data.database.dao.EntryLineDao
+import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.entity.BudgetEntity
 import com.example.spendwise.data.database.entity.CategoryEntity
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +29,7 @@ import javax.inject.Inject
 class BudgetViewModel @Inject constructor(
     private val categoryDao: CategoryDao,
     private val budgetDao: BudgetDao,
-    private val entryLineDao: EntryLineDao,
+    private val transactionLineDao: TransactionLineDao,
 ) : ViewModel() {
 
     data class UiState(
@@ -166,7 +166,7 @@ class BudgetViewModel @Inject constructor(
         val children = categoryDao.getChildren(id).first()
             .filter { it.kind == KIND_EXPENSE }
             .map { it.toSubcategory(budgets, monthStart, monthEnd) }
-        val ownSpent = entryLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd)
+        val ownSpent = transactionLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd)
         val ownBudget = budgets[id]?.amountPaise ?: 0L
         return Category(
             id = id,
@@ -186,7 +186,7 @@ class BudgetViewModel @Inject constructor(
     ): Subcategory = Subcategory(
         id = id,
         title = name,
-        spent = entryLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd) / 100.0,
+        spent = transactionLineDao.sumConfirmedForCategoryInMonth(id, monthStart, monthEnd) / 100.0,
         budget = (budgets[id]?.amountPaise ?: 0L) / 100.0,
     )
 

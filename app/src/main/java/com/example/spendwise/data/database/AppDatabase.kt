@@ -11,9 +11,9 @@ import com.example.spendwise.data.database.dao.CategoryDao
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
-import com.example.spendwise.data.database.dao.EntryDao
-import com.example.spendwise.data.database.dao.EntryLineDao
-import com.example.spendwise.data.database.dao.EntryProvanceDao
+import com.example.spendwise.data.database.dao.TransactionDao
+import com.example.spendwise.data.database.dao.TransactionLineDao
+import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.data.database.entity.AppMetadataEntity
@@ -23,9 +23,9 @@ import com.example.spendwise.data.database.entity.CategoryEntity
 import com.example.spendwise.data.database.entity.ContactEntity
 import com.example.spendwise.data.database.entity.CounterpartyAliasEntity
 import com.example.spendwise.data.database.entity.CounterpartyEntity
-import com.example.spendwise.data.database.entity.EntryEntity
-import com.example.spendwise.data.database.entity.EntryLineEntity
-import com.example.spendwise.data.database.entity.EntryProvenanceEntity
+import com.example.spendwise.data.database.entity.TransactionEntity
+import com.example.spendwise.data.database.entity.TransactionLineEntity
+import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
 
 
 @Database(
@@ -40,9 +40,9 @@ import com.example.spendwise.data.database.entity.EntryProvenanceEntity
 
         CounterpartyEntity::class,
         CounterpartyAliasEntity::class,
-        EntryEntity::class,
-        EntryLineEntity::class,
-        EntryProvenanceEntity::class
+        TransactionEntity::class,
+        TransactionLineEntity::class,
+        TransactionProvenanceEntity::class
     ],
     version = 15
 )
@@ -65,11 +65,11 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun CounterpartyAliasDao(): CounterpartyAliasDao
 
-    abstract fun EntryDao(): EntryDao
+    abstract fun TransactionDao(): TransactionDao
 
-    abstract fun EntryLineDao(): EntryLineDao
+    abstract fun TransactionLineDao(): TransactionLineDao
 
-    abstract fun EntryProvanceDao(): EntryProvanceDao
+    abstract fun TransactionProvenanceDao(): TransactionProvenanceDao
 
     // Migration policy: the schema is being rebuilt the Rust way and data is
     // disposable — the builder uses fallbackToDestructiveMigration(); no

@@ -36,7 +36,20 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
   filter enum in TransactionsScreen renamed to `TransactionFilterStatus`
   (VM `setStatusFilter` takes it). DI merge (BackendModule → top-level
   `di/`) DEFERRED to step 3 — `ledger/di` for now. Compile + unit tests green.
-- [ ] **STEP 3 — NEXT** (rebuild schema the Rust way; sub-commits advised)
+- [x] **Step 3a DONE** — Room vocabulary renamed: `EntryEntity→TransactionEntity`
+  (table `entries`→`transactions`), `EntryLineEntity→TransactionLineEntity`
+  (table `transaction_lines`), `EntryProvenanceEntity→TransactionProvenanceEntity`
+  (table `transaction_provenance`), DAOs `TransactionDao/TransactionLineDao/
+  TransactionProvenanceDao` (fixed the old "Provance" typo), mapper
+  `TransactionWithDetails`, columns `entry_id→transaction_id`,
+  `linked_entry_id→linked_transaction_id` (+ property `linkedTransactionId`),
+  DAO methods `getByTransaction/getByTransactionList/deleteByTransaction/
+  transactionIdsForAccount/bucketAllocationTransactionIds`. Room v15 still
+  (destructive policy). Compile + unit tests green.
+  GOTCHA encountered: `\bentries\b` rename also hit Kotlin enum companion
+  `.entries` in 7 UI/ledger files (AccountType/PartyFilter/ThemeMode/
+  OtherSide/SystemRole/Screen/Destination) — reverted those.
+- [ ] **STEP 3b — NEXT** (the structural reshape; see checklist below)
 - [ ] Step 5 — UI pass (MoneyText, typography, motion, charts, empty states)
 
 ## STEP 1 checklist (exact edits)
