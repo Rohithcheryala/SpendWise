@@ -108,34 +108,91 @@ Commit: `refactor: remove legacy transaction stack, destructive migrations`
 Validate: compile + `./gradlew :app:testDebugUnitTest`.
 Commit: `refactor: rename ledger package backend->ledger, entry->transaction API`
 
-## STEP 3 checklist (the big reshape — sub-commits advised)
+## STEP 3b checklist (the structural reshape — NEXT SESSION, do in order)
 
-- Entities: `accounts` absorbs categories (class income/expense, parent_id),
-  buckets (child accounts + `target_paise`), reference pots (equity,
-  receivable, unmatched via `is_system`/`subtype`); `bank_account_details`
-  side table (credit limit, statement/due day, reconciled_through);
-  `account_identifiers` (kind: upi/card_last4/account_last4/phone);
-  counterparties gain `first_seen`/`last_seen`; aliases gain `source`;
-  provenance gains `parsed_facts` + `stated_balance_paise`;
-  transactions header gains stored `kind` (9 values) — drop line-derived
-  kind derivation; lines become pure `(transaction_id, account_id,
-  amount_paise)` — drop category/bucket/counterparty/balance_after columns.
-- Rename Room tables: `entries`→`transactions` (legacy table gone after
-  step 1, name is free), `entry_lines`→`transaction_lines`,
-  `entry_provenance`→`transaction_provenance`.
-- Room `@DatabaseView` mirroring `v_account_balances` (single balance read
-  path; liability sign flip lives only there).
-- Add `groups`/`group_members` + DAO; budgets → monthly `period` rows keyed
-  (account, period) — drop effective_from/to.
-- Services: `LedgerService` enforces kind→shape matrix + sum-zero with the
-  stored kind; ingest matching reads `account_identifiers` (kind-aware);
-  `recordBucketAllocation` → idempotent transfer to child account; bucket
-  value = child balance from the view.
-- Keep the `phone_last10` contacts cache; do NOT port the Rust 008
-  global-contacts shape.
-- Error cases → sealed types: unbalanced lines, duplicate dedupe_hash,
-  equity-guard rejections, buffer→confirm/void conflicts.
-Validate: compile + unit tests (all backend service tests must pass).
+State at handoff: steps 1, 2, 3a committed (HEAD `587a0b3`), compile + tests
+green, Room v15 destructive. Everything below was scoped against the real
+code on 3a's HEAD.
+
+**3b-1: Account node unification** (blocks everything else)
+- Rewrite `AccountEntity` to the Rust shape: `name`, `class`
+  (asset/liability/equity/income/expense), `subtype` (savings/current/cash/
+  wallet/credit_card/investment + receivable/unmatched/equity for
+  `is_system=1`), `parentId`, `isSystem`, `sortOrder`, `icon`,
+  `isArchived`, `targetPaise` (bucket extension), `createdAt`.
+- DROP from AccountEntity: `slug`, `kind`, `platform`, `openingBalancePaise`,
+  `last4`, `closedAt`, `reconciledThrough` (→ side table
+  `BankAccountDetailsEntity` keyed by accountId: bank, creditLimitPaise,
+  statementDay, dueDay, reconciledThrough). No `userId` — single-user app,
+  documented deviation from Rust.
+- Replace `SystemRole` slug-prefix parsing (LedgerService.kt:546 area,
+  slugs `sys-openeq-/sys-reconeq-/sys-loans-/sys-unmatched-/sys-invest-`)
+  with `is_system`+`subtype` lookup. NOTE: Kotlin has TWO equity pots
+  (OPEN_EQUITY, RECON_EQUITY) — Rust merged them into ONE `equity` pot;
+  adopt the merge, `kind` on the transaction already distinguishes
+  opening/reconciliation.
+- `IngestionService.KIND_BRIDGE` maps parser kinds → account.class/subtype:
+  "credit_card"→class liability OR asset (identifier-kind check decides),
+  "savings"→subtype savings/cash (+drop legacy "available").
+- `recordOpeningBalance`: opening balance is a `kind='opening'` transaction
+  vs the equity pot (delete `openingBalancePaise` from entity; keep the
+  value on the account-edit UI as a one-time action).
+- Categories are accounts: DELETE `CategoryEntity`+`CategoryDao` storage.
+  Provide a thin façade DAO (`CategoryDao` name kept, querying accounts
+  WHERE class IN ('income','expense')) ONLY if screen churn gets too big —
+  preferred: update the 5 call sites (CategoriesViewModel, BudgetViewModel,
+  TransactionViewModel/OtherSideSelector, BudgetDao queries, LedgerService
+  system categories). `is_excluded` has NO Rust equivalent — decide: drop
+  (transfers are already kind=transfer) — recommended drop.
+- Buckets = child accounts (DECIDED): DELETE `BucketEntity`+`BucketDao`+
+  `bucketId` on lines; bucket = accounts row (parentId=funding account,
+  targetPaise set); `recordBucketAllocation` → idempotent `kind='transfer'`;
+  bucket value = account balance. Delete
+  `TransactionLineDao.{sumConfirmedForBucket,detachBucket,getByBucket}` and
+  `TransactionDao.bucketAllocationTransactionIds`. UI: hide bucket children
+  from account pickers.
+- Counterparties: add `receivable_account_id` (the one ledger bridge —
+  Android lacks it; per-person child accounts under the receivable pot).
+  `first_seen/last_seen` and alias `source` ALREADY exist on Android.
+
+**3b-2: Pure lines + stored kind** (after 3b-1)
+- `TransactionLineEntity` → pure (id, transactionId, accountId, amountPaise).
+  Drop categoryId/bucketId/counterpartyId/balanceAfterPaise columns. A
+  category leg becomes a line whose accountId is a class=income/expense
+  account. Move SMS-stated balance to
+  `TransactionProvenanceEntity.statedBalancePaise` (drop
+  `balanceAfterPaise` from lines; `LineSpec.balanceAfterPaise` moves to
+  provenance in the API).
+- `TransactionEntity` gains stored `kind` (Rust 9-value vocabulary:
+  expense, income, transfer, loan, loan_repayment, split, investment,
+  opening, reconciliation). Current Kotlin enum has ALLOCATION+OTHER —
+  ALLOCATION dies with buckets (becomes transfer); drop OTHER or map to
+  expense. Kind is computed ONCE at write time in the
+  createTransaction/ingest paths (move the read-time derivation out of
+  `describeTransaction`); `kind` is never re-derived on read. Add
+  kind→shape validation (sum-zero + the matrix from the Rust
+  DESIGN_DECISIONS.md) inside createTransaction.
+- Add `@DatabaseView` mirroring `v_account_balances` (balance + liability
+  sign flip); rewire `accountBalance`/`bucketValue` to it; delete
+  `sumConfirmedForAccount` ad-hoc sums (invariant: one balance read path).
+- Add `GroupsEntity`+`GroupMemberEntity`+DAO (group splits can't persist
+  today; Rust migration 004 is the reference). Budgets → monthly `period`
+  TEXT ('YYYY-MM') keyed (accountId, period); drop effective_from/to
+  (BudgetViewModel + BudgetDao adapt).
+
+**3b-3: errors + tests**
+- Sealed error types on the LedgerApi seam: UnbalancedLines,
+  DuplicateDedupeHash, EquityGuardViolation, InvalidLifecycleTransition
+  (replaces bare `ApiException` strings in ledger/).
+- Tests to rewrite in `app/src/test/java/com/example/spendwise/ledger/`:
+  BackendTestBase (seed data now: accounts w/ class/subtype + pots),
+  BalanceTest (liability sign via view), BucketTest (bucket as child
+  account), IngestTest/IngestionServiceTest (KIND_BRIDGE, orphan pot),
+  DescribeEntryTest (stored kind; ALLOCATION/OTHER expectations gone),
+  LedgerValidationTest (kind→shape matrix), SplitLifecycleTest,
+  CounterpartyServiceTest, ContactsServiceTest.
+- Rust cleanup NOT to port: 008 global contacts table; `user_id` columns
+  (single-user, documented deviation).
 
 ## STEP 5 checklist (UI)
 
