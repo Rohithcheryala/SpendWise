@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.spendwise.data.database.dao.BudgetDao
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
+import com.example.spendwise.data.database.entity.BudgetEntity
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.ui.screens.categories.CategoryUiModel
 import com.example.spendwise.ui.screens.categories.SubcategoryUiModel
@@ -89,6 +90,7 @@ class CategoriesViewModel @Inject constructor(
                         spent = (ownSpent + children.sumOf { (it.spent * 100).toLong() }) / 100.0,
                         budget = ((budgets[root.id]?.amountPaise ?: 0L) +
                             children.sumOf { (it.budget * 100).toLong() }) / 100.0,
+                        ownBudget = (budgets[root.id]?.amountPaise ?: 0L) / 100.0,
                         subcategories = children,
                     )
                 }
@@ -107,28 +109,81 @@ class CategoriesViewModel @Inject constructor(
     fun addCategory(name: String, monthlyBudget: Double) {
         viewModelScope.launch {
             runCatching {
-                val now = System.currentTimeMillis()
                 val id = accountDao.insert(
                     AccountEntity(
                         name = name.trim(),
                         accountClass = KIND_EXPENSE,
-                        createdAt = now,
+                        createdAt = System.currentTimeMillis(),
                     )
                 )
-                val budgetPaise = (monthlyBudget * 100).toLong()
-                if (budgetPaise > 0) {
-                    budgetDao.insert(
-                        com.example.spendwise.data.database.entity.BudgetEntity(
-                            accountId = id,
-                            amountPaise = budgetPaise,
-                            effectiveFrom = YearMonth.now().atDay(1)
-                                .atTime(0, 0)
-                                .atZone(ZoneId.systemDefault())
-                                .toInstant()
-                                .toEpochMilli(),
-                            createdAt = now,
+                upsertMonthlyBudget(id, monthlyBudget)
+            }.onSuccess {
+                refresh()
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message)
+            }
+        }
+    }
+
+    /** Persist a new sub-category under [parentId] with an optional monthly budget. */
+    fun addSubcategory(parentId: Long, name: String, monthlyBudget: Double) {
+        viewModelScope.launch {
+            runCatching {
+                val id = accountDao.insert(
+                    AccountEntity(
+                        name = name.trim(),
+                        accountClass = KIND_EXPENSE,
+                        parentId = parentId,
+                        createdAt = System.currentTimeMillis(),
+                    )
+                )
+                upsertMonthlyBudget(id, monthlyBudget)
+            }.onSuccess {
+                refresh()
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message)
+            }
+        }
+    }
+
+    /** Rename any category row (root or sub). */
+    fun renameCategory(id: Long, name: String) {
+        viewModelScope.launch {
+            runCatching {
+                val account = accountDao.getById(id) ?: return@runCatching
+                accountDao.update(account.copy(name = name.trim()))
+            }.onSuccess {
+                refresh()
+            }.onFailure { e ->
+                _uiState.value = _uiState.value.copy(error = e.message)
+            }
+        }
+    }
+
+    /**
+     * Set (or clear, with a blank/zero budget) the current month's budget on
+     * any category row — updates the active budget in place so history that
+     * references it stays intact.
+     */
+    fun setCategoryBudget(accountId: Long, monthlyBudget: Double) {
+        viewModelScope.launch {
+            runCatching {
+                val existing = budgetDao.getActiveBudgets(monthStartMillis())
+                    .first()
+                    .firstOrNull { it.accountId == accountId }
+                val paise = (monthlyBudget * 100).toLong()
+                when {
+                    paise > 0 && existing != null ->
+                        budgetDao.update(existing.copy(amountPaise = paise))
+                    paise > 0 -> budgetDao.insert(
+                        BudgetEntity(
+                            accountId = accountId,
+                            amountPaise = paise,
+                            effectiveFrom = monthStartMillis(),
+                            createdAt = System.currentTimeMillis(),
                         )
                     )
+                    existing != null -> budgetDao.delete(existing)
                 }
             }.onSuccess {
                 refresh()
@@ -137,6 +192,28 @@ class CategoriesViewModel @Inject constructor(
             }
         }
     }
+
+    /** Insert or update the current month's budget for one category row. */
+    private suspend fun upsertMonthlyBudget(accountId: Long, monthlyBudget: Double) {
+        val paise = (monthlyBudget * 100).toLong()
+        if (paise > 0) {
+            budgetDao.insert(
+                BudgetEntity(
+                    accountId = accountId,
+                    amountPaise = paise,
+                    effectiveFrom = monthStartMillis(),
+                    createdAt = System.currentTimeMillis(),
+                )
+            )
+        }
+    }
+
+    private fun monthStartMillis(): Long =
+        YearMonth.now().atDay(1)
+            .atTime(0, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
 
     fun consumeError() {
         if (_uiState.value.error != null) {

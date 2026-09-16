@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -49,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,6 +68,8 @@ data class CategoryUiModel(
     val color: Color,
     val spent: Double,
     val budget: Double,
+    /** The category's own budget — [budget] includes subcategory sums. */
+    val ownBudget: Double = 0.0,
     val subcategories: List<SubcategoryUiModel> = emptyList(),
     val isExpanded: Boolean = false
 )
@@ -88,25 +93,29 @@ fun CategoriesScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var expandedIds by remember { mutableStateOf(setOf<Long>()) }
 
-    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var editorRequest by remember { mutableStateOf<CategoryEditorRequest?>(null) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
+            // Create lives on the FAB (the convention on Transactions,
+            // Accounts and Friends) — a second "+" up here was pure noise.
             SpendwiseTopBar(
                 title = "Categories",
                 onBack = onNavigateBack,
-                actions = {
-                    IconButton(onClick = { showAddCategoryDialog = true }) {
-                        Icon(Icons.Rounded.Add, contentDescription = "Add Category")
-                    }
-                }
             )
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAddCategoryDialog = true },
+                onClick = {
+                    editorRequest = CategoryEditorRequest(
+                        title = "Create Category",
+                        confirmLabel = "Add",
+                    ) { name, monthlyBudget ->
+                        viewModel.addCategory(name, monthlyBudget)
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
@@ -141,20 +150,55 @@ fun CategoriesScreen(
                             } else {
                                 expandedIds + category.id
                             }
-                        }
+                        },
+                        onEdit = {
+                            editorRequest = CategoryEditorRequest(
+                                title = "Edit Category",
+                                initialName = category.title,
+                                initialBudget = formatBudgetInput(category.ownBudget),
+                            ) { name, monthlyBudget ->
+                                viewModel.renameCategory(category.id, name)
+                                viewModel.setCategoryBudget(category.id, monthlyBudget)
+                            }
+                        },
+                        onAddSub = {
+                            editorRequest = CategoryEditorRequest(
+                                title = "Add Subcategory",
+                                parentTitle = category.title,
+                                confirmLabel = "Add",
+                            ) { name, monthlyBudget ->
+                                viewModel.addSubcategory(category.id, name, monthlyBudget)
+                            }
+                        },
+                        onEditSub = { sub ->
+                            editorRequest = CategoryEditorRequest(
+                                title = "Edit Subcategory",
+                                parentTitle = category.title,
+                                initialName = sub.title,
+                                initialBudget = formatBudgetInput(sub.budget),
+                            ) { name, monthlyBudget ->
+                                viewModel.renameCategory(sub.id, name)
+                                viewModel.setCategoryBudget(sub.id, monthlyBudget)
+                            }
+                        },
                     )
                 }
             }
         }
     }
 
-    if (showAddCategoryDialog) {
-        AddCategoryDialog(
-            onDismiss = { showAddCategoryDialog = false },
-            onAdd = { name, monthlyBudget ->
-                viewModel.addCategory(name, monthlyBudget)
-                showAddCategoryDialog = false
-            }
+    editorRequest?.let { request ->
+        CategoryEditorDialog(
+            title = request.title,
+            parentTitle = request.parentTitle,
+            initialName = request.initialName,
+            initialBudget = request.initialBudget,
+            confirmLabel = request.confirmLabel,
+            onDismiss = { editorRequest = null },
+            onConfirm = { name, monthlyBudget ->
+                request.onConfirm(name, monthlyBudget)
+                editorRequest = null
+            },
         )
     }
 }
@@ -162,7 +206,10 @@ fun CategoriesScreen(
 @Composable
 fun CategoryItemCard(
     category: CategoryUiModel,
-    onToggleExpand: () -> Unit
+    onToggleExpand: () -> Unit,
+    onEdit: () -> Unit,
+    onAddSub: () -> Unit,
+    onEditSub: (SubcategoryUiModel) -> Unit,
 ) {
     // Guard the division: real categories can have budget == 0.0 (no budget
     // set), giving 0/0 = NaN or X/0 = Infinity — coerceIn passes NaN through
@@ -218,6 +265,14 @@ fun CategoryItemCard(
                     )
                 }
 
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Edit ${category.title}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 Icon(
                     imageVector = if (category.isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                     contentDescription = null,
@@ -237,19 +292,20 @@ fun CategoryItemCard(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
 
-            AnimatedVisibility(visible = category.isExpanded && category.subcategories.isNotEmpty()) {
+            AnimatedVisibility(visible = category.isExpanded) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     category.subcategories.forEach { sub ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                                .clip(MaterialTheme.shapes.extraSmall)
+                                .clickable { onEditSub(sub) }
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -257,12 +313,45 @@ fun CategoryItemCard(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+                            Spacer(Modifier.weight(1f))
                             Text(
                                 text = "${formatRupees(sub.spent)} of ${formatRupees(sub.budget)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "Edit ${sub.title}",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp),
+                            )
                         }
+                    }
+
+                    // Subcategories are plain child ledger rows — anyone can
+                    // grow the tree right where it will be used.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.extraSmall)
+                            .clickable(onClick = onAddSub)
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Add subcategory",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             }
@@ -270,44 +359,88 @@ fun CategoryItemCard(
     }
 }
 
+/** What the category editor dialog is currently open for. */
+data class CategoryEditorRequest(
+    val title: String,
+    val parentTitle: String? = null,
+    val initialName: String = "",
+    val initialBudget: String = "",
+    val confirmLabel: String = "Save",
+    val onConfirm: (name: String, monthlyBudget: Double) -> Unit,
+)
+
+/** "500.0" → "500"; blank for unset budgets. */
+private fun formatBudgetInput(value: Double): String =
+    if (value > 0.0 && value % 1.0 == 0.0) value.toLong().toString() else if (value > 0.0) value.toString() else ""
+
+/**
+ * The create/edit form for categories and subcategories — one themed dialog
+ * for all four flows. A blank budget clears it.
+ */
 @Composable
-fun AddCategoryDialog(
+fun CategoryEditorDialog(
+    title: String,
+    parentTitle: String?,
+    initialName: String,
+    initialBudget: String,
+    confirmLabel: String,
     onDismiss: () -> Unit,
-    onAdd: (name: String, monthlyBudget: Double) -> Unit
+    onConfirm: (name: String, monthlyBudget: Double) -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var budget by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialName) }
+    var budget by remember { mutableStateOf(initialBudget) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create Category") },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.large,
+        title = {
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                parentTitle?.let { parent ->
+                    Text(
+                        text = "under $parent",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
+                    value = name,
+                    onValueChange = { name = it },
                     label = { Text("Category Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 OutlinedTextField(
                     value = budget,
-                    onValueChange = { budget = it },
+                    onValueChange = { budget = it.filter { ch -> ch.isDigit() || ch == '.' } },
                     label = { Text("Monthly Budget (₹)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    supportingText = { Text("Optional — clear to remove the budget") },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    onAdd(title.trim(), budget.toDoubleOrNull() ?: 0.0)
-                },
-                enabled = title.isNotBlank()
+                onClick = { onConfirm(name.trim(), budget.toDoubleOrNull() ?: 0.0) },
+                enabled = name.isNotBlank()
             ) {
-                Text("Add")
+                Text(confirmLabel)
             }
         },
         dismissButton = {
