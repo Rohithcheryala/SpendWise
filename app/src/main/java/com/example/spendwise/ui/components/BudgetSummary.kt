@@ -60,14 +60,6 @@ fun BudgetSummaryCard(
                 .fillMaxWidth()
                 .padding(Dimens.cardPadding)
         ) {
-            Text(
-                text = "Monthly Budget",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-
-            Spacer(Modifier.height(4.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

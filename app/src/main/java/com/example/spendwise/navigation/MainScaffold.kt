@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -175,6 +176,9 @@ fun MainScaffold(
     ) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            // Tab screens each render their own TopAppBar, which already applies
+            // the status-bar inset. Consuming it here too would double it.
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 MainNavigationBar(
                     current = currentDestination,
