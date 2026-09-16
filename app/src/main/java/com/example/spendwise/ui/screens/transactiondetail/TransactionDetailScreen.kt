@@ -14,10 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AssistChip
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,8 +46,8 @@ import com.example.spendwise.ui.components.NotesSection
 import com.example.spendwise.ui.components.TagSection
 import com.example.spendwise.ui.components.TransactionBottomBar
 import com.example.spendwise.ui.components.TransactionDirection
-import com.example.spendwise.ui.components.TransactionSummaryCard
 import com.example.spendwise.ui.components.OtherSideSelector
+import com.example.spendwise.ui.components.SpendwiseTopBar
 import com.example.spendwise.core.extensions.toAmountString
 import java.time.LocalDate
 
@@ -69,33 +70,17 @@ fun TransactionDetailScreen(
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            CenterAlignedTopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                ),
-                title = {
-                    Text(
-                        text = if (uiState.mode == TransactionMode.CREATE) {
-                            "New Transaction"
-                        } else {
-                            "Transaction Details"
-                        },
-                        fontWeight = FontWeight.Bold
-                    )
+            SpendwiseTopBar(
+                title = if (uiState.mode == TransactionMode.CREATE) {
+                    "New Transaction"
+                } else {
+                    "Transaction Details"
                 },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            onEvent(TransactionUiEvent.NavigateBack)
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                }
+                // Provenance ("sms" / "manual") lives here instead of a full
+                // summary card — the editable fields below already carry
+                // direction, date and amount.
+                subtitle = uiState.source?.let { "via $it" },
+                onBack = { onEvent(TransactionUiEvent.NavigateBack) }
             )
         },
         bottomBar = {
@@ -127,15 +112,6 @@ fun TransactionDetailScreen(
                 bottom = 16.dp
             )
         ) {
-
-            item {
-                TransactionSummaryCard(
-                    direction = uiState.direction,
-                    date = uiState.date,
-                    source = uiState.source,
-                    amount = uiState.amount
-                )
-            }
 
             if (uiState.error != null) {
                 item {
@@ -171,25 +147,18 @@ fun TransactionDetailScreen(
                     },
                     onAmountChange = { newAmount ->
                         onUpdateState { current -> current.copy(amount = newAmount) }
-                    }
-                )
-            }
-
-            item {
-                DropdownField(
-                    label = "Date",
-                    value = uiState.date.toString(),
-                    onClick = {
-                        showDatePicker = true
-                    }
-                )
-            }
-
-            item {
-                OtherSideSelector(
-                    selected = uiState.otherSide,
-                    onSelected = { newType: OtherSide ->
-                        onUpdateState { current -> current.copy(otherSide = newType) }
+                    },
+                    // Date rides beside the amount — both are short values —
+                    // so Account gets the full row: accounts are identified by
+                    // long names ("HDFC Bank a/c ••5924") that must stay
+                    // readable before you can verify which one you picked.
+                    trailingField = {
+                        DropdownField(
+                            modifier = Modifier.weight(1f),
+                            label = null,
+                            value = uiState.date.toString(),
+                            onClick = { showDatePicker = true }
+                        )
                     }
                 )
             }
@@ -202,17 +171,37 @@ fun TransactionDetailScreen(
                         "Account"
                     },
                     value = uiState.account?.label.orEmpty().ifBlank { "Select Account" },
-                    onClick = {
-                        activePickerType = PickerType.ACCOUNT
+                    onClick = { activePickerType = PickerType.ACCOUNT }
+                )
+            }
+
+            item {
+                OtherSideSelector(
+                    selected = uiState.otherSide,
+                    onSelected = { newType: OtherSide ->
+                        onUpdateState { current -> current.copy(otherSide = newType) }
                     }
                 )
+            }
+
+            if (uiState.otherSide == OtherSide.CATEGORY) {
+                item {
+                    DropdownField(
+                        label = "Category",
+                        value = uiState.category?.label.orEmpty().ifBlank { "Select Category" },
+                        onClick = {
+                            activePickerType = PickerType.CATEGORY
+                        }
+                    )
+                }
             }
 
             // The other side of the money — present in every mode (naa does
             // the same): TRANSFER -> another of my accounts, LOAN -> the person
             // (required), CATEGORY -> an optional counterparty naming who the
             // payment was to/from; the category itself is just the internal
-            // division the money is filed under.
+            // division the money is filed under. Sits BELOW category: it's the
+            // least-edited, least-essential field of the form.
             item {
                 DropdownField(
                     label = if (uiState.otherSide == OtherSide.TRANSFER) {
@@ -245,23 +234,12 @@ fun TransactionDetailScreen(
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        modifier = Modifier.padding(horizontal = Dimens.xs)
                     )
                 }
             }
 
             if (uiState.otherSide == OtherSide.CATEGORY) {
-
-                item {
-                    DropdownField(
-                        label = "Category",
-                        value = uiState.category?.label.orEmpty().ifBlank { "Select Category" },
-                        onClick = {
-                            activePickerType = PickerType.CATEGORY
-                        }
-                    )
-                }
-
                 item {
                     TagSection(
                         tags = uiState.tags,
@@ -374,17 +352,22 @@ fun TransactionDetailScreen(
     }
 
     if (showAddTagDialog) {
-        AddTagDialog(
+        TagPickerDialog(
+            knownTags = uiState.knownTags,
+            activeLabels = uiState.tags.mapTo(mutableSetOf()) { it.label },
             onDismiss = { showAddTagDialog = false },
             onAdd = { tagLabel ->
                 onUpdateState { current ->
-                    current.copy(
-                        tags = current.tags + TagUiModel(
-                            System.currentTimeMillis().toString(), tagLabel
+                    if (current.tags.any { it.label.equals(tagLabel, ignoreCase = true) }) {
+                        current
+                    } else {
+                        current.copy(
+                            tags = current.tags + TagUiModel(
+                                System.currentTimeMillis().toString(), tagLabel
+                            )
                         )
-                    )
+                    }
                 }
-                showAddTagDialog = false
             }
         )
     }
@@ -467,28 +450,66 @@ private fun OptionPickerBottomSheet(
     }
 }
 
+/**
+ * Pick tags from the ones already in use across the ledger (most used first,
+ * narrowed as you type a new name) or create a fresh one. Stays open so
+ * several tags can be attached in one go; "Done" closes.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AddTagDialog(
+private fun TagPickerDialog(
+    knownTags: List<String>,
+    activeLabels: Set<String>,
     onDismiss: () -> Unit,
-    onAdd: (String) -> Unit
+    onAdd: (String) -> Unit,
 ) {
     var tagText by remember { mutableStateOf("") }
+    val suggestions = knownTags.filter { candidate ->
+        activeLabels.none { it.equals(candidate, ignoreCase = true) } &&
+            candidate.contains(tagText.trim(), ignoreCase = true)
+    }
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Tag") },
+        title = { Text("Add Tags") },
         text = {
-            androidx.compose.material3.OutlinedTextField(
-                value = tagText,
-                onValueChange = { tagText = it },
-                label = { Text("Tag Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(Dimens.sm)) {
+                if (suggestions.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
+                        verticalArrangement = Arrangement.spacedBy(Dimens.sm)
+                    ) {
+                        suggestions.forEach { label ->
+                            AssistChip(
+                                onClick = { onAdd(label) },
+                                label = { Text(label) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+                androidx.compose.material3.OutlinedTextField(
+                    value = tagText,
+                    onValueChange = { tagText = it },
+                    label = { Text("New tag") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             androidx.compose.material3.Button(
-                onClick = { onAdd(tagText.trim()) },
+                onClick = {
+                    if (tagText.isNotBlank()) onAdd(tagText.trim())
+                    tagText = ""
+                },
                 enabled = tagText.isNotBlank()
             ) {
                 Text("Add")
@@ -496,7 +517,7 @@ private fun AddTagDialog(
         },
         dismissButton = {
             androidx.compose.material3.TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Done")
             }
         }
     )
@@ -608,6 +629,8 @@ data class TransactionUiState(
     val isSaving: Boolean = false,
     val canDelete: Boolean = false,
     val error: String? = null,
+    /** Labels already in use across the ledger — the tag picker's suggestions. */
+    val knownTags: List<String> = emptyList(),
     val accounts: List<DropdownOption> = emptyList(),
     val counterparties: List<DropdownOption> = emptyList(),
     val categories: List<DropdownOption> = emptyList(),

@@ -83,7 +83,7 @@ fun OtherSideSelector(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(40.dp)
+                            .height(36.dp)
                             .clip(MaterialTheme.shapes.extraSmall)
                             .background(bgColor)
                             .clickable { onSelected(side) },

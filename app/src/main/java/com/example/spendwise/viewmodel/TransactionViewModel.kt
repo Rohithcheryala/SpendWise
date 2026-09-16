@@ -14,10 +14,12 @@ import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.api.LineSpec
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.ledger.service.TagCodec
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
+import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.SettingsRepository
@@ -51,6 +53,7 @@ class TransactionViewModel @Inject constructor(
     private val counterpartyDao: CounterpartyDao,
     private val counterpartyService: CounterpartyService,
     private val provenanceDao: TransactionProvenanceDao,
+    private val transactionDao: TransactionDao,
     private val settingsRepository: SettingsRepository,
     private val inboxRepository: InboxRepository,
     savedStateHandle: SavedStateHandle,
@@ -61,6 +64,26 @@ class TransactionViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(TransactionUiState())
     val uiState = _uiState.asStateFlow()
+
+    init {
+        // Suggestion pool for the tag picker: labels already in use across
+        // the ledger, most used first (ties alphabetical).
+        viewModelScope.launch {
+            val labels = transactionDao.getAllTagStrings()
+                .flatMap { TagCodec.decode(it) }
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            val known = labels.groupingBy { it }.eachCount()
+                .entries
+                .sortedWith(
+                    compareByDescending<Map.Entry<String, Int>> { it.value }
+                        .thenBy { it.key }
+                )
+                .take(24)
+                .map { it.key }
+            _uiState.update { it.copy(knownTags = known) }
+        }
+    }
 
     /** Route argument: -1 = create mode, otherwise edit the given entry. */
     private val transactionId: Long = savedStateHandle.get<Long>("transactionId") ?: -1L
@@ -339,7 +362,7 @@ class TransactionViewModel @Inject constructor(
 
     private fun loadOptions() {
         viewModelScope.launch {
-            accountDao.getActive().collect { accounts ->
+            accountDao.getUserAccounts().collect { accounts ->
                 val options = accounts
                     .filter { !it.isSystem }
                     .map { DropdownOption(it.id.toString(), it.name) }

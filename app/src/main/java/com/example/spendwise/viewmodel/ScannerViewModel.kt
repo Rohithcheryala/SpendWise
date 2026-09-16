@@ -63,7 +63,7 @@ class ScannerViewModel @Inject constructor(
 
     private fun loadOptions() {
         viewModelScope.launch {
-            accountDao.getActive().collect { accounts ->
+            accountDao.getUserAccounts().collect { accounts ->
                 _uiState.update { s ->
                     s.copy(
                         accounts = accounts

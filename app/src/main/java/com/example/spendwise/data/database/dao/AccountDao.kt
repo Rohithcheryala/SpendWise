@@ -24,6 +24,18 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE is_archived = 0 ORDER BY sort_order ASC, name ASC")
     fun getActive(): Flow<List<AccountEntity>>
 
+    /** User-pickable money accounts — asset/liability classes only, so the
+     *  income/expense rows that double as categories never leak into
+     *  account pickers. */
+    @Query(
+        """
+        SELECT * FROM accounts
+        WHERE account_class IN ('asset', 'liability') AND is_system = 0 AND is_archived = 0
+        ORDER BY sort_order ASC, name ASC
+    """
+    )
+    fun getUserAccounts(): Flow<List<AccountEntity>>
+
     /** User-visible accounts of one class (categories live here too). */
     @Query(
         """

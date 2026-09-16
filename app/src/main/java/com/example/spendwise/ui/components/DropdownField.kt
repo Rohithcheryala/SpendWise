@@ -18,11 +18,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.Dimens
 
 @Composable
 fun DropdownField(
-    label: String,
+    label: String?,
     value: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -33,12 +35,14 @@ fun DropdownField(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium
-        )
+        if (label != null) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+        }
 
         Surface(
             modifier = Modifier
@@ -50,7 +54,7 @@ fun DropdownField(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .padding(horizontal = Dimens.lg, vertical = Dimens.md),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val displayText = value.ifBlank { placeholder.orEmpty() }
@@ -62,6 +66,8 @@ fun DropdownField(
 
                 Text(
                     text = displayText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodyLarge,
                     color = textColor,
                     fontWeight = if (value.isNotBlank()) FontWeight.Medium else FontWeight.Normal,

@@ -1,26 +1,36 @@
 package com.example.spendwise.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.theme.Dimens
 
+/**
+ * The detail screen's action row: destructive actions (Void / Delete) as
+ * low-emphasis text buttons on the left, Save dominant on the right — one
+ * 48dp row, not a stack of full-width buttons eating a fifth of the screen.
+ * The visibility flags come from the ledger: buffer entries can be voided,
+ * manual entries can be deleted, never both.
+ */
 @Composable
 fun TransactionBottomBar(
     onSave: () -> Unit,
@@ -34,75 +44,66 @@ fun TransactionBottomBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
+        tonalElevation = 3.dp,
+        shadowElevation = 4.dp,
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(Dimens.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Dimens.lg, vertical = Dimens.sm),
+            horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (canVoid) {
-                    OutlinedButton(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = MaterialTheme.shapes.small,
-                        onClick = onVoid,
-                    ) {
-                        Text(
-                            "Void",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                if (canDelete) {
-                    OutlinedButton(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = MaterialTheme.shapes.small,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        onClick = onDelete,
-                    ) {
-                        Text(
-                            text = "Delete",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+            if (canVoid) {
+                TextButton(
+                    onClick = onVoid,
+                    contentPadding = PaddingValues(horizontal = Dimens.sm)
+                ) {
+                    Text(
+                        "Void",
+                        style = MaterialTheme.typography.labelLarge
+                    )
                 }
             }
 
+            if (canDelete) {
+                TextButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(horizontal = Dimens.sm),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text(
+                        text = "Delete",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+
+            // Save wraps its content and sits right-aligned — a full-weight
+            // button read as a banner, not an action.
+            Spacer(modifier = Modifier.weight(1f))
+
             Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
+                modifier = Modifier.height(44.dp),
+                contentPadding = PaddingValues(horizontal = Dimens.lg),
                 shape = MaterialTheme.shapes.small,
                 enabled = saveEnabled && !isSaving,
                 onClick = onSave,
             ) {
                 if (isSaving) {
                     CircularProgressIndicator(
-                        modifier = Modifier.padding(4.dp),
+                        modifier = Modifier.size(20.dp),
                         color = MaterialTheme.colorScheme.onPrimary,
                         strokeWidth = 2.dp
                     )
                 } else {
                     Text(
                         "Save Transaction",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
                 }

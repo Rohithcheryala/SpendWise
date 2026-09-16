@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,7 +23,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,6 +30,18 @@ import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.theme.SpendwiseTheme
 
+/**
+ * The amount entry group: a slim direction toggle + the amount field, with no
+ * card or "Direction" header around them — the pills and the ₹ prefix already
+ * say everything a label would, and the detail screen needs every essential
+ * field above the fold.
+ *
+ * Direction is binary (money out / money in). Transfer is NOT a direction:
+ * it's chosen once, in the Type selector below, and when it is, the toggle is
+ * hidden entirely (money leaves one account and lands in another). Loan mode
+ * overloads direction with meaning ("which side of the loan am I on?") —
+ * [directionLabels] says so instead of a generic header.
+ */
 @Composable
 fun AmountSection(
     direction: TransactionDirection,
@@ -40,6 +51,9 @@ fun AmountSection(
     modifier: Modifier = Modifier,
     showDirectionToggle: Boolean = true,
     directionLabels: Pair<String, String>? = null,
+    /** Optional composable placed beside the amount field (e.g. the date
+     *  picker) — short values pair up so long-named fields keep full rows. */
+    trailingField: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val accentColor by animateColorAsState(
         targetValue = when (direction) {
@@ -51,46 +65,25 @@ fun AmountSection(
         label = "accent_color"
     )
 
-    Surface(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+        verticalArrangement = Arrangement.spacedBy(Dimens.sm)
     ) {
-        Column(
-            modifier = Modifier.padding(Dimens.cardPadding),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Direction is binary (money out / money in) — exactly naa's
-            // out|in toggle beside the amount. Transfer is NOT a direction:
-            // it's chosen once, in the Type selector below, and when it is,
-            // direction is meaningless (money leaves one account and lands in
-            // another), so the toggle is hidden entirely.
-            if (showDirectionToggle) {
-                Text(
-                    // Loan mode overloads direction with meaning ("which side
-                    // of the loan am I on?") — say so instead of "Direction".
-                    text = if (directionLabels != null) "Loan" else "Direction",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
-
-                // Custom Segmented Pill Tab Bar
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.surfaceContainer
+        if (showDirectionToggle) {
+            // Custom segmented pill tab bar.
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.small,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Row(
+                    modifier = Modifier.padding(Dimens.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.xs)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        listOf(
-                            TransactionDirection.EXPENSE,
-                            TransactionDirection.INCOME,
-                        ).forEach { dir ->
+                    listOf(
+                        TransactionDirection.EXPENSE,
+                        TransactionDirection.INCOME,
+                    ).forEach { dir ->
                         val isSelected = direction == dir
                         val tabBg by animateColorAsState(
                             targetValue = if (isSelected) {
@@ -99,7 +92,7 @@ fun AmountSection(
                                     TransactionDirection.INCOME -> SpendwiseTheme.colors.incomeContainer
                                     TransactionDirection.TRANSFER -> MaterialTheme.colorScheme.primaryContainer
                                 }
-                            } else MaterialTheme.colorScheme.surfaceContainer,
+                            } else MaterialTheme.colorScheme.surfaceContainerHigh,
                             label = "tab_bg"
                         )
                         val tabTextColor by animateColorAsState(
@@ -116,7 +109,7 @@ fun AmountSection(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 40.dp)
+                                .heightIn(min = 36.dp)
                                 .clip(MaterialTheme.shapes.extraSmall)
                                 .background(tabBg)
                                 .clickable { onDirectionChange(dir) },
@@ -135,11 +128,15 @@ fun AmountSection(
                     }
                 }
             }
-            }
+        }
 
-            // Amount Input Card
+        // With a [trailingField], amount + companion share one row; without,
+        // the field is full width.
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 value = amount,
                 onValueChange = { value ->
                     onAmountChange(
@@ -152,7 +149,7 @@ fun AmountSection(
                 prefix = {
                     Text(
                         "₹ ",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = accentColor
                     )
@@ -160,11 +157,11 @@ fun AmountSection(
                 placeholder = {
                     Text(
                         "0",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         color = SpendwiseTheme.text.tertiary
                     )
                 },
-                textStyle = MaterialTheme.typography.headlineMedium.copy(
+                textStyle = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = accentColor
                 ),
@@ -179,6 +176,7 @@ fun AmountSection(
                     unfocusedContainerColor = MaterialTheme.colorScheme.surface
                 )
             )
+            trailingField?.invoke(this)
         }
     }
 }
