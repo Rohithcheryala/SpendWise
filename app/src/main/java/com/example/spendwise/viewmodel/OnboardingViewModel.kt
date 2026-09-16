@@ -8,6 +8,7 @@ import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.ledger.service.IngestionService
 import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.data.repository.AppMetadataRepository
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.OnboardingRepository
 import com.example.spendwise.ui.screens.onboarding.OnboardingState
@@ -42,6 +43,7 @@ class OnboardingViewModel @Inject constructor(
     private val ingestionService: IngestionService,
     private val accountDao: AccountDao,
     private val identifierDao: AccountIdentifierDao,
+    private val appMetadataRepository: AppMetadataRepository,
 ) : ViewModel() {
 
     /** Phases of the SMS-scan onboarding step. */
@@ -54,6 +56,8 @@ class OnboardingViewModel @Inject constructor(
         val accounts: List<InboxRepository.DetectedAccount> = emptyList(),
         val selectedKeys: Set<String> = emptySet(),
         val error: String? = null,
+        /** The scan start the user picked — persisted as the tracking start date. */
+        val scanStartMillis: Long? = null,
     )
 
     private val _scanState = MutableStateFlow(ScanUiState())
@@ -84,7 +88,22 @@ class OnboardingViewModel @Inject constructor(
     fun completeWelcome() = repository.update { it.copy(welcomeSeen = true) }
     fun completeProfile() = repository.update { it.copy(profileCompleted = true) }
     fun completePermissions() = repository.update { it.copy(permissionGranted = true) }
-    fun completeScan() = repository.update { it.copy(smsScanCompleted = true) }
+
+    /**
+     * Finish the SMS-scan step, persisting the date the user scanned from as
+     * the app's tracking start date ("day one" of the ledger). The chosen
+     * date previously lived only in the scan UI state and was lost — nothing
+     * downstream (Settings, later SMS scans) could see it.
+     */
+    fun completeScan() {
+        val startMillis = _scanState.value.scanStartMillis
+        viewModelScope.launch {
+            if (startMillis != null) {
+                runCatching { appMetadataRepository.setTrackingStartDate(startMillis) }
+            }
+            repository.update { it.copy(smsScanCompleted = true) }
+        }
+    }
     fun completeAccounts() = repository.update { it.copy(accountsSelected = true) }
 
     fun completeOnboarding() = repository.update {
@@ -99,7 +118,7 @@ class OnboardingViewModel @Inject constructor(
 
     fun startScan(fromMillis: Long) {
         if (_scanState.value.phase == ScanPhase.SCANNING) return
-        _scanState.value = ScanUiState(phase = ScanPhase.SCANNING)
+        _scanState.value = ScanUiState(phase = ScanPhase.SCANNING, scanStartMillis = fromMillis)
         viewModelScope.launch {
             runCatching { inboxRepository.scanFrom(fromMillis) }
                 .onSuccess { report ->

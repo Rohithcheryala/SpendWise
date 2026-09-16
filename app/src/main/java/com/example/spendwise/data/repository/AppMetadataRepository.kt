@@ -35,4 +35,14 @@ class AppMetadataRepository @Inject constructor(
     suspend fun updateLastSmsSync(time: Long) {
         dao.get()?.let { dao.update(it.copy(lastSmsSync = time)) }
     }
+
+    /**
+     * Record "day zero" of the ledger — the date the user picked when the
+     * onboarding SMS scan ran. Initial balances are meaningful as of this
+     * date, and later scans treat it as the earliest SMS worth reading.
+     * Null-safe: a missing metadata row (seeder hasn't run yet) is ignored.
+     */
+    suspend fun setTrackingStartDate(time: Long) {
+        dao.get()?.let { dao.update(it.copy(trackingStartDate = time)) }
+    }
 }

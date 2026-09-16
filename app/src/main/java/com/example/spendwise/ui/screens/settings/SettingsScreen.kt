@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.CurrencyRupee
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
@@ -65,6 +66,10 @@ import com.example.spendwise.data.repository.ThemeMode
 import com.example.spendwise.viewmodel.SettingsViewModel
 import com.example.spendwise.ui.components.SpendwiseCard
 import com.example.spendwise.ui.theme.Dimens
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 // ── screen body ──
 
@@ -244,6 +249,21 @@ fun SettingsScreen(
             item {
                 SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
+                        // "Day one" of the ledger — picked during onboarding's
+                        // SMS scan; initial balances are meaningful as of it.
+                        SettingsInfoItem(
+                            icon = Icons.Rounded.Event,
+                            title = "Tracking start date",
+                            subtitle = "Day one of your ledger — SMS before this " +
+                                "date are ignored and balances were recorded here",
+                            value = viewModel.trackingStartDate?.let { millis ->
+                                DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
+                                    .format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
+                            } ?: "Not set",
+                        )
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
+
                         SettingsClickItem(
                             icon = Icons.Rounded.Storage,
                             title = "Re-seed Sample Data",
@@ -510,6 +530,42 @@ fun SettingsSwitchItem(
             )
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/** Non-clickable settings row (no chevron) — for facts, not actions. */
+@Composable
+fun SettingsInfoItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    value: String? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(Dimens.cardPadding),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (value != null) {
+            Text(
+                value,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

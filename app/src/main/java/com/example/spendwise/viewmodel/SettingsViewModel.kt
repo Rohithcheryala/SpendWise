@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.DatabaseSeeder
+import com.example.spendwise.data.repository.AppMetadataRepository
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.data.repository.ThemeMode
 import com.example.spendwise.data.repository.UserSettings
@@ -19,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val appMetadataRepository: AppMetadataRepository,
     private val database: AppDatabase,
     private val databaseSeeder: DatabaseSeeder,
 ) : ViewModel() {
@@ -29,9 +31,18 @@ class SettingsViewModel @Inject constructor(
     var isResetting by mutableStateOf(false)
         private set
 
+    /** "Day one" of the ledger — the date onboarding's SMS scan started from. */
+    var trackingStartDate by mutableStateOf<Long?>(null)
+        private set
+
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { settings = it }
+        }
+        viewModelScope.launch {
+            trackingStartDate = runCatching {
+                appMetadataRepository.get()?.trackingStartDate
+            }.getOrNull()
         }
     }
 

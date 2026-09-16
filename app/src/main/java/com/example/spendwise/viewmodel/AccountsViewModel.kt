@@ -14,6 +14,7 @@ import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.ui.screens.accounts.AccountType
 import com.example.spendwise.ui.screens.accounts.AccountUiModel
+import com.example.spendwise.data.repository.AppMetadataRepository
 import com.example.spendwise.data.repository.InboxRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -31,6 +32,7 @@ class AccountsViewModel @Inject constructor(
     private val ledgerApi: LedgerApi,
     private val ingestionService: IngestionService,
     private val inboxRepository: InboxRepository,
+    private val appMetadataRepository: AppMetadataRepository,
 ) : ViewModel() {
 
     data class UiState(
@@ -169,18 +171,23 @@ class AccountsViewModel @Inject constructor(
         private set
 
     /**
-     * Read bank SMS from the last [DETECT_LOOKBACK_DAYS] days and surface the
-     * accounts the ledger doesn't know yet. The scan also ingests every bank
-     * message it reads, so the transactions are already waiting to attach the
-     * moment the user imports (attach-only + dedupe make re-runs idempotent).
+     * Read bank SMS since the app's tracking start date (the day the user
+     * picked during onboarding — "day one" of the ledger) and surface the
+     * accounts the ledger doesn't know yet. Falls back to the last
+     * [DETECT_LOOKBACK_DAYS] days when no start date was recorded. The scan
+     * also ingests every bank message it reads, so the transactions are
+     * already waiting to attach the moment the user imports (attach-only +
+     * dedupe make re-runs idempotent).
      */
     fun detectFromSms() {
         if (detectionState.isDetecting || detectionState.isImporting) return
         detectionState = DetectionState(isDetecting = true)
         viewModelScope.launch {
             runCatching {
-                val fromMillis = System.currentTimeMillis() -
-                    DETECT_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L
+                val now = System.currentTimeMillis()
+                val fromMillis = appMetadataRepository.get()?.trackingStartDate
+                    ?.takeIf { it in 1 until now }
+                    ?: (now - DETECT_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L)
                 inboxRepository.scanFrom(fromMillis)
             }.onSuccess { report ->
                 detectionState = if (report.accounts.isEmpty()) {
