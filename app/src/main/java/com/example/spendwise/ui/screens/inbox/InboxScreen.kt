@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -82,6 +83,7 @@ import com.example.spendwise.ui.components.MoneyText
 import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.TransactionDirectionIcon
 import kotlinx.coroutines.delay
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.InboxViewModel
 import java.time.Instant
@@ -166,11 +168,14 @@ fun InboxScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
+        // Insets are owned by MainScaffold (which reserves the bottom bar);
+        // adding the navigation-bar inset here again just burns a 24dp dead
+        // band above the bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             SpendwiseTopBar(
                 title = "Inbox",
-                subtitle = "${items.size} pending review",
                 onBack = onNavigateBack,
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
@@ -216,7 +221,7 @@ fun InboxScreen(
                         .fillMaxSize()
                         .padding(padding),
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     item(key = "context-banner") {
                         ContextBanner(
@@ -226,21 +231,34 @@ fun InboxScreen(
                         )
                     }
 
-                    item {
+                    // Section header: heading left, count + Approve All right.
+                    // The count lives in the header's second line — it was a topbar
+                    // subtitle before, which is too small to read and shifted the
+                    // title upward.
+                    item(key = "section-header") {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Auto-Detected Transactions",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    text = "Auto-Detected Transactions",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${items.size} pending review",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            Spacer(Modifier.width(Dimens.lg))
 
                             Button(
                                 onClick = { viewModel.importAll() },
-                                modifier = Modifier.height(36.dp)
+                                modifier = Modifier.height(36.dp),
+                                contentPadding = PaddingValues(horizontal = Dimens.md, vertical = Dimens.xs)
                             ) {
                                 Text(
                                     "Approve All (${items.size})",

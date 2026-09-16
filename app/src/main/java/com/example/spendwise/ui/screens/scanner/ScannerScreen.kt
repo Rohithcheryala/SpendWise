@@ -5,7 +5,6 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.view.MotionEvent
 import android.view.Surface
 import android.util.Rational
 import androidx.activity.compose.BackHandler
@@ -23,8 +22,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -61,7 +60,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -69,8 +67,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -90,6 +86,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -106,6 +103,7 @@ import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.ui.components.DropdownField
 import com.example.spendwise.ui.components.FriendAvatar
+import com.example.spendwise.ui.components.SpendwiseTopBar
 import com.example.spendwise.ui.screens.transactiondetail.DropdownOption
 import com.example.spendwise.ui.screens.transactiondetail.TagUiModel
 import com.example.spendwise.viewmodel.ScannerViewModel
@@ -266,46 +264,23 @@ fun ScannerScreen(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                ),
-                title = { Text("Scan & Pay (UPI)", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            torchOn = !torchOn
-                            camera?.cameraControl?.enableTorch(torchOn)
-                        },
-                        enabled = camera != null
-                    ) {
-                        Icon(
-                            imageVector = if (torchOn) Icons.Filled.FlashOff else Icons.Rounded.FlashOn,
-                            contentDescription = "Flash"
-                        )
-                    }
-                }
-            )
+            SpendwiseTopBar(title = "Scan & Pay (UPI)")
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = Dimens.screenGutter),
+                .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(16.dp))
-
             // ── live camera viewport with the QR decode pipeline ──
+            // Full-bleed: the reticle and status pill carry the scanner look;
+            // a bordered card around the camera would just double the framing.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .onSizeChanged { viewSizePx = it }
-                    .clip(MaterialTheme.shapes.large)
-                    .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large),
+                    .onSizeChanged { viewSizePx = it },
                 contentAlignment = Alignment.Center
             ) {
                 if (hasCameraPermission) {
@@ -369,8 +344,8 @@ fun ScannerScreen(
                     },
                     highlight = qrCorners != null,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 12.dp),
+                        .align(Alignment.BottomCenter)
+                        .padding(12.dp),
                 )
 
                 statusMessage?.let { message ->
@@ -380,18 +355,37 @@ fun ScannerScreen(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(12.dp)
+                            .padding(bottom = 64.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
+
+                // Torch is a camera control — it floats on the camera, not
+                // the app bar (like every system camera app).
+                ScannerIconButton(
+                    icon = if (torchOn) Icons.Filled.FlashOff else Icons.Rounded.FlashOn,
+                    contentDescription = "Toggle flash",
+                    enabled = camera != null,
+                    onClick = {
+                        torchOn = !torchOn
+                        camera?.cameraControl?.enableTorch(torchOn)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp),
+                )
             }
 
             Spacer(Modifier.height(20.dp))
 
             // ── manual UPI ID entry (no QR needed) ──
-            SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
+            SpendwiseCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.screenGutter)
+            ) {
                 Column(modifier = Modifier.padding(Dimens.cardPadding)) {
                     Text(
                         text = "Pay via UPI ID or mobile number",
@@ -528,32 +522,10 @@ private fun CameraPreviewWithQrAnalysis(
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
-    // Tap anywhere to focus + meter there — the camera's default AF hunt is
-    // unreliable for QR-sized targets at close range. The listener reads the
-    // camera handle via MutableState, so it stays correct across rebinds.
-    DisposableEffect(previewView) {
-        previewView.setOnTouchListener { view, event ->
-            if (event.action == MotionEvent.ACTION_UP) {
-                boundCamera.value?.let { cam ->
-                    val factory = previewView.meteringPointFactory
-                    val point = factory.createPoint(event.x, event.y)
-                    cam.cameraControl.startFocusAndMetering(
-                        FocusMeteringAction.Builder(
-                            point,
-                            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE,
-                        ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
-                    )
-                    // Show where the camera just focused — the user asked.
-                    onFocusAt(event.x, event.y)
-                }
-                view.performClick()
-            }
-            true
-        }
-        onDispose {
-            previewView.setOnTouchListener(null)
-        }
-    }
+    // Tap anywhere to focus + meter there, pinch to zoom — the gestures
+    // Google's bundled code scanner gives you, implemented directly on the
+    // bound camera. The gestures read the camera handle via MutableState, so
+    // they stay correct across rebinds.
     val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
     val barcodeScanner = remember {
         BarcodeScanning.getClient(
@@ -688,7 +660,39 @@ private fun CameraPreviewWithQrAnalysis(
         }
     }
 
-    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+    AndroidView(
+        factory = { previewView },
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures { pos ->
+                    boundCamera.value?.let { cam ->
+                        val point = previewView.meteringPointFactory.createPoint(pos.x, pos.y)
+                        cam.cameraControl.startFocusAndMetering(
+                            FocusMeteringAction.Builder(
+                                point,
+                                FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE,
+                            ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+                        )
+                        // Show where the camera just focused — the user asked.
+                        onFocusAt(pos.x, pos.y)
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    boundCamera.value?.let { cam ->
+                        // ZoomState carries the live ratio + sensor bounds;
+                        // scaling from it makes pinches accumulate naturally.
+                        val state = cam.cameraInfo.zoomState.value
+                            ?: return@detectTransformGestures
+                        val next = (state.zoomRatio * zoom)
+                            .coerceIn(state.minZoomRatio, state.maxZoomRatio)
+                        cam.cameraControl.setZoomRatio(next)
+                    }
+                }
+            },
+    )
 }
 
 /**

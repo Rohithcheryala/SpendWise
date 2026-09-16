@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -118,6 +119,10 @@ fun BudgetContent(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
+        // Insets are owned by MainScaffold (which reserves the bottom bar);
+        // adding the navigation-bar inset here again just burns a 24dp dead
+        // band above the bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             SpendwiseTopBar(
                 title = "Budget",

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -24,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
@@ -289,15 +289,14 @@ fun MainNavigationBar(
 
                 } else {
 
-                    // Pill-indicator item: the pill animates behind the icon and
-                    // the label is ALWAYS visible — selection no longer shifts layout.
+                    // Pill-indicator item: a true capsule behind the icon, and the
+                    // label is ALWAYS visible — selection no longer shifts layout.
                     Box(
                         modifier = Modifier.weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
                             modifier = Modifier.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -305,33 +304,45 @@ fun MainNavigationBar(
                                 onDestinationClick(destination)
                             }
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (selected)
-                                    MaterialTheme.colorScheme.primaryContainer
-                                else
-                                    Color.Transparent
-                            ) {
-                                BadgedBox(
-                                    badge = {
-                                        if (destination == Destination.INBOX && inboxCount > 0) {
-                                            Badge {
-                                                Text(inboxCount.toString())
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.padding(horizontal = Dimens.screenGutter)
+                            // Capsule, not flat pill: fixed 32dp height (vs 24dp icon)
+                            // + 16dp horizontal, so every icon sits on the same
+                            // optical centerline regardless of badge state. The
+                            // badge is drawn OUT-OF-FLOW over the capsule's
+                            // top-right corner — it must never stretch the pill or
+                            // shift the icon, whatever the count.
+                            Box {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (selected)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        Color.Transparent,
+                                    modifier = Modifier.heightIn(min = 32.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = destination.icon,
-                                        contentDescription = destination.contentDescription,
-                                        modifier = Modifier.size(24.dp),
-                                        tint =
-                                            if (selected)
-                                                MaterialTheme.colorScheme.onPrimaryContainer
-                                            else
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = Dimens.lg, vertical = Dimens.xs)
+                                    ) {
+                                        Icon(
+                                            imageVector = destination.icon,
+                                            contentDescription = destination.contentDescription,
+                                            modifier = Modifier.size(24.dp),
+                                            tint =
+                                                if (selected)
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                if (destination == Destination.INBOX && inboxCount > 0) {
+                                    Badge(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .offset(x = (-2).dp, y = (-6).dp)
+                                    ) {
+                                        Text(inboxCount.toString())
+                                    }
                                 }
                             }
 

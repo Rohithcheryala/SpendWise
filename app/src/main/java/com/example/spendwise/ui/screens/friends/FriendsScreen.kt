@@ -3,6 +3,7 @@ package com.example.spendwise.ui.screens.friends
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -103,6 +104,10 @@ fun FriendsContent(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
+        // Insets are owned by MainScaffold (which reserves the bottom bar);
+        // adding the navigation-bar inset here again just burns a 24dp dead
+        // band above the bar.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             SpendwiseTopBar(
                 title = "Friends & Split",
