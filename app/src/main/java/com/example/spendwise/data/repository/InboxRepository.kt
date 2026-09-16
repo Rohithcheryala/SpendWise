@@ -382,12 +382,22 @@ class InboxRepository @Inject constructor(
     )
 
     /**
-     * Onboarding scan: read bank SMS from [startMillis], ingest everything
-     * (dedupe makes re-runs idempotent), advance the watermark, and report the
-     * distinct bank accounts seen in the messages that the app doesn't know
-     * about yet — so the user can create them in one tap.
+     * Read bank SMS from [startMillis] and report the distinct bank accounts
+     * seen in the messages that the app doesn't know about yet — so the user
+     * can create them in one tap.
+     *
+     * With [ingest] = true (the onboarding scan) every parsed SMS is also
+     * ingested into the buffer and the sync watermark advances — the user
+     * picked a start date precisely so this history gets captured.
+     *
+     * With [ingest] = false (the Accounts screen's "Detect from SMS") the
+     * scan is read-only: nothing is written to the ledger, and the watermark
+     * is left alone so the regular sync still covers this window later.
      */
-    suspend fun scanFrom(startMillis: Long): ScanReport {
+    suspend fun scanFrom(
+        startMillis: Long,
+        ingest: Boolean = true,
+    ): ScanReport {
         val messages = messageReader.readSince(startMillis)
 
         val existingLast4 = identifierDao.getAllActive().map { it.value }.toSet()
@@ -399,7 +409,9 @@ class InboxRepository @Inject constructor(
             val sender = message.address.orEmpty()
             val parsed = BankParserFactory.parse(body, sender, message.date) ?: continue
             parsedCount++
-            ingestRawSms(sender = sender, body = body, timestamp = message.date)
+            if (ingest) {
+                ingestRawSms(sender = sender, body = body, timestamp = message.date)
+            }
 
             val last4 = parsed.accountLast4
             if (last4.isNullOrBlank() || last4 in existingLast4) continue
@@ -417,8 +429,10 @@ class InboxRepository @Inject constructor(
             }
         }
 
-        appMetadataRepository.updateLastSmsSync(System.currentTimeMillis())
-        refreshBuffer()
+        if (ingest) {
+            appMetadataRepository.updateLastSmsSync(System.currentTimeMillis())
+            refreshBuffer()
+        }
 
         return ScanReport(
             messagesRead = messages.size,

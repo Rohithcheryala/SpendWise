@@ -174,10 +174,12 @@ class AccountsViewModel @Inject constructor(
      * Read bank SMS since the app's tracking start date (the day the user
      * picked during onboarding — "day one" of the ledger) and surface the
      * accounts the ledger doesn't know yet. Falls back to the last
-     * [DETECT_LOOKBACK_DAYS] days when no start date was recorded. The scan
-     * also ingests every bank message it reads, so the transactions are
-     * already waiting to attach the moment the user imports (attach-only +
-     * dedupe make re-runs idempotent).
+     * [DETECT_LOOKBACK_DAYS] days when no start date was recorded.
+     *
+     * Detection is READ-ONLY: it parses messages in memory and reports
+     * accounts, but writes nothing to the ledger and does not advance the
+     * sync watermark (that would silently swallow this history — the regular
+     * sync must still be able to read the same window later).
      */
     fun detectFromSms() {
         if (detectionState.isDetecting || detectionState.isImporting) return
@@ -188,7 +190,7 @@ class AccountsViewModel @Inject constructor(
                 val fromMillis = appMetadataRepository.get()?.trackingStartDate
                     ?.takeIf { it in 1 until now }
                     ?: (now - DETECT_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L)
-                inboxRepository.scanFrom(fromMillis)
+                inboxRepository.scanFrom(fromMillis, ingest = false)
             }.onSuccess { report ->
                 detectionState = if (report.accounts.isEmpty()) {
                     DetectionState(
@@ -198,7 +200,8 @@ class AccountsViewModel @Inject constructor(
                 } else {
                     DetectionState(
                         scanSummary = "${report.messagesRead} messages read — " +
-                            "${report.transactionsDetected} transactions captured",
+                            "${report.transactionsDetected} bank transactions recognized " +
+                            "(nothing saved yet)",
                         detected = report.accounts,
                         // Auto-select everything — the user unticks what they
                         // don't want (same flow as onboarding).

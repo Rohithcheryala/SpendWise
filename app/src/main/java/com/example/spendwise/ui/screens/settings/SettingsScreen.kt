@@ -2,7 +2,11 @@ package com.example.spendwise.ui.screens.settings
 
 import androidx.compose.material.icons.Icons
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -55,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +92,7 @@ fun SettingsScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
+    var showTrackingInfo by remember { mutableStateOf(false) }
 
     // SMS auto-detection needs READ_SMS + RECEIVE_SMS; asking for them is
     // part of flipping the toggle on.
@@ -95,6 +101,18 @@ fun SettingsScreen(
     ) { grants ->
         if (grants.values.all { it }) {
             viewModel.setSmsAutoDetect(true)
+        }
+    }
+
+    // "Privacy & Permissions" row: ask at runtime first, but fall back to the
+    // system App Info page — once a permission is permanently denied ("don't
+    // ask again"), the runtime prompt silently no-ops, which is exactly the
+    // dead click this row used to be.
+    val privacyLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (!grants.values.all { it }) {
+            openAppPermissionSettings(context)
         }
     }
 
@@ -250,16 +268,15 @@ fun SettingsScreen(
                 SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         // "Day one" of the ledger — picked during onboarding's
-                        // SMS scan; initial balances are meaningful as of it.
+                        // SMS scan; the long explanation lives behind the "i".
                         SettingsInfoItem(
                             icon = Icons.Rounded.Event,
                             title = "Tracking start date",
-                            subtitle = "Day one of your ledger — SMS before this " +
-                                "date are ignored and balances were recorded here",
                             value = viewModel.trackingStartDate?.let { millis ->
                                 DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())
                                     .format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
                             } ?: "Not set",
+                            onInfoClick = { showTrackingInfo = true }
                         )
 
                         HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
@@ -278,13 +295,22 @@ fun SettingsScreen(
                             title = "Privacy & Permissions",
                             subtitle = "Manage SMS & Notification permissions",
                             onClick = {
-                                permissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.READ_SMS,
-                                        Manifest.permission.RECEIVE_SMS,
-                                        Manifest.permission.POST_NOTIFICATIONS,
-                                    )
+                                val permissions = arrayOf(
+                                    Manifest.permission.READ_SMS,
+                                    Manifest.permission.RECEIVE_SMS,
+                                    Manifest.permission.POST_NOTIFICATIONS,
                                 )
+                                val allGranted = permissions.all {
+                                    ContextCompat.checkSelfPermission(context, it) ==
+                                        PackageManager.PERMISSION_GRANTED
+                                }
+                                if (allGranted) {
+                                    // Nothing to ask for — hand the user the
+                                    // system page where they can manage them.
+                                    openAppPermissionSettings(context)
+                                } else {
+                                    privacyLauncher.launch(permissions)
+                                }
                             }
                         )
 
@@ -413,6 +439,38 @@ fun SettingsScreen(
             }
         )
     }
+
+    if (showTrackingInfo) {
+        AlertDialog(
+            onDismissRequest = { showTrackingInfo = false },
+            title = { Text("Tracking start date") },
+            text = {
+                Text(
+                    "This is \u201cday one\u201d of your ledger — the date you chose " +
+                        "when SpendWise first scanned your bank messages. Balances " +
+                        "were recorded as of this date, and SMS sent before it are " +
+                        "ignored by scans and detection."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showTrackingInfo = false }) {
+                    Text("Got it")
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Runtime permission prompts silently no-op once a permission has been
+ * permanently denied, so the system App Info page is the only reliable
+ * place left for the user to manage SMS / notification permissions.
+ */
+private fun openAppPermissionSettings(context: Context) {
+    context.startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(Uri.fromParts("package", context.packageName, null))
+    )
 }
 
 // ── dialogs & row widgets ──
@@ -539,7 +597,8 @@ fun SettingsInfoItem(
     icon: ImageVector,
     title: String,
     subtitle: String? = null,
-    value: String? = null
+    value: String? = null,
+    onInfoClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -564,6 +623,21 @@ fun SettingsInfoItem(
                 value,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (onInfoClick != null) {
+                Spacer(Modifier.width(4.dp))
+            }
+        }
+        if (onInfoClick != null) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = "More info",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable(onClick = onInfoClick)
+                    .padding(4.dp)
+                    .size(18.dp)
             )
         }
     }
