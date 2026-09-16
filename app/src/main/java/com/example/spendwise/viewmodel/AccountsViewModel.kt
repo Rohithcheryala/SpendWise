@@ -14,6 +14,7 @@ import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.ui.screens.accounts.AccountType
 import com.example.spendwise.ui.screens.accounts.AccountUiModel
+import com.example.spendwise.data.repository.InboxRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -29,6 +30,7 @@ class AccountsViewModel @Inject constructor(
     private val identifierDao: AccountIdentifierDao,
     private val ledgerApi: LedgerApi,
     private val ingestionService: IngestionService,
+    private val inboxRepository: InboxRepository,
 ) : ViewModel() {
 
     data class UiState(
@@ -149,6 +151,117 @@ class AccountsViewModel @Inject constructor(
 
     fun consumeError() {
         uiState = uiState.copy(error = null)
+    }
+
+    // ── Detect-from-SMS ──
+
+    /** Live status of a "detect from SMS" run. */
+    data class DetectionState(
+        val isDetecting: Boolean = false,
+        val scanSummary: String? = null,
+        val detected: List<InboxRepository.DetectedAccount> = emptyList(),
+        val selectedKeys: Set<String> = emptySet(),
+        val isImporting: Boolean = false,
+        val error: String? = null,
+    )
+
+    var detectionState by mutableStateOf(DetectionState())
+        private set
+
+    /**
+     * Read bank SMS from the last [DETECT_LOOKBACK_DAYS] days and surface the
+     * accounts the ledger doesn't know yet. The scan also ingests every bank
+     * message it reads, so the transactions are already waiting to attach the
+     * moment the user imports (attach-only + dedupe make re-runs idempotent).
+     */
+    fun detectFromSms() {
+        if (detectionState.isDetecting || detectionState.isImporting) return
+        detectionState = DetectionState(isDetecting = true)
+        viewModelScope.launch {
+            runCatching {
+                val fromMillis = System.currentTimeMillis() -
+                    DETECT_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L
+                inboxRepository.scanFrom(fromMillis)
+            }.onSuccess { report ->
+                detectionState = if (report.accounts.isEmpty()) {
+                    DetectionState(
+                        scanSummary = "Read ${report.messagesRead} messages — " +
+                            "no new accounts found. Add one manually below.",
+                    )
+                } else {
+                    DetectionState(
+                        scanSummary = "${report.messagesRead} messages read — " +
+                            "${report.transactionsDetected} transactions captured",
+                        detected = report.accounts,
+                        // Auto-select everything — the user unticks what they
+                        // don't want (same flow as onboarding).
+                        selectedKeys = report.accounts.mapTo(mutableSetOf()) { it.key },
+                    )
+                }
+            }.onFailure { e ->
+                detectionState = DetectionState(error = e.message ?: "Could not read your messages")
+            }
+        }
+    }
+
+    fun toggleDetected(key: String) {
+        val s = detectionState
+        detectionState = s.copy(
+            selectedKeys = s.selectedKeys.toMutableSet().apply {
+                if (!add(key)) remove(key)
+            }
+        )
+    }
+
+    fun dismissDetection() {
+        if (!detectionState.isDetecting && !detectionState.isImporting) {
+            detectionState = DetectionState()
+        }
+    }
+
+    /** Create the ticked accounts; orphaned SMS transactions attach automatically. */
+    fun importDetectedAccounts() {
+        val selected = detectionState.detected.filter { it.key in detectionState.selectedKeys }
+        if (selected.isEmpty() || detectionState.isImporting) return
+        detectionState = detectionState.copy(isImporting = true, error = null)
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            runCatching {
+                for (account in selected) {
+                    val id = accountDao.insert(
+                        AccountEntity(
+                            name = account.suggestedName,
+                            accountClass = if (account.isCard) LedgerService.CLASS_LIABILITY
+                            else LedgerService.CLASS_ASSET,
+                            subtype = if (account.isCard) "credit_card" else "savings",
+                            bank = account.bank,
+                            createdAt = now,
+                        )
+                    )
+                    identifierDao.insert(
+                        AccountIdentifierEntity(
+                            accountId = id,
+                            value = account.last4,
+                            kind = if (account.isCard) "card" else "account",
+                            isActive = true,
+                            createdAt = now,
+                        )
+                    )
+                    runCatching { ingestionService.claimOrphansForAccount(id) }
+                }
+                runCatching { inboxRepository.refreshBuffer() }
+            }.onSuccess {
+                detectionState = DetectionState()
+                refresh()
+            }.onFailure { e ->
+                detectionState = detectionState.copy(isImporting = false, error = e.message)
+            }
+        }
+    }
+
+    companion object {
+        /** How far back the Accounts-screen SMS scan looks (onboarding asks). */
+        private const val DETECT_LOOKBACK_DAYS = 365L
     }
 
     private fun AccountEntity.toUi(balance: Double, last4: String?): AccountUiModel = AccountUiModel(
