@@ -1,12 +1,16 @@
 package com.example.spendwise.ui.components
 
 
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.Icons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,10 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.BudgetViewModel
+import com.example.spendwise.ui.components.SpendwiseCard
 
 @Composable
 fun BudgetCategoryCard(
@@ -61,16 +62,12 @@ fun BudgetCategoryCard(
         else -> MaterialTheme.colorScheme.primary
     }
 
-    Card(
+    SpendwiseCard(
         modifier = modifier
             .fillMaxWidth()
             // The expand/collapse below changes height; animating the card
             // keeps the list from snapping when subcategories appear.
-            .animateContentSize(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+            .animateContentSize()
     ) {
 
         Column {
@@ -86,7 +83,7 @@ fun BudgetCategoryCard(
 
                     Surface(
                         modifier = Modifier.size(40.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Icon(
@@ -109,7 +106,7 @@ fun BudgetCategoryCard(
                             fontWeight = FontWeight.SemiBold
                         )
 
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(4.dp))
 
                         Text(
                             text = "${formatRupees(category.spent)} of ${formatRupees(category.budget)}",
@@ -125,7 +122,7 @@ fun BudgetCategoryCard(
                             fontWeight = FontWeight.Bold,
                             color = progressColor
                         )
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(4.dp))
                         IconButton(
                             onClick = onExpandClick,
                             modifier = Modifier.size(32.dp)
@@ -142,14 +139,14 @@ fun BudgetCategoryCard(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
 
                 LinearProgressIndicator(
                     progress = { animatedProgress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
+                        .clip(CircleShape),
                     color = progressColor,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )

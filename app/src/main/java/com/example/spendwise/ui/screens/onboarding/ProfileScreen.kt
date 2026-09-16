@@ -1,5 +1,8 @@
 package com.example.spendwise.ui.screens.onboarding
 
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.Icons
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -21,10 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -45,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -55,16 +55,10 @@ fun ProfileScreen(
 
     var name by remember { mutableStateOf("") }
 
-    var selectedColor by remember { mutableStateOf(Color(0xFF4CAF50)) }
+    val categorical = SpendwiseTheme.categorical.swatches
+    var selectedColor by remember { mutableStateOf(categorical.first()) }
 
-    val colorOptions = listOf(
-        Color(0xFF16A34A),  // Green
-        Color(0xFF0D9488),  // Teal
-        Color(0xFF2563EB),  // Blue
-        Color(0xFF7C3AED),  // Violet
-        Color(0xFFDB2777),  // Pink
-        Color(0xFFEA580C),  // Orange
-    )
+    val colorOptions = categorical.take(6)
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -140,7 +134,7 @@ fun ProfileScreen(
                 label = { Text("Your name") },
                 placeholder = { Text("e.g. Rohith") },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                shape = MaterialTheme.shapes.small
             )
 
             Spacer(Modifier.height(28.dp))
@@ -208,7 +202,7 @@ fun ProfileScreen(
                     .height(56.dp)
                     .navigationBarsPadding()
                     .padding(bottom = 0.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = selectedColor
                 )

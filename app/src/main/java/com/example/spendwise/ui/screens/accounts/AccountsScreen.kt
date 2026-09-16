@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.accounts
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,15 +17,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -45,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,6 +64,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.ui.components.MoneySemantic
 import com.example.spendwise.ui.components.MoneySize
 import com.example.spendwise.ui.components.MoneyText
+import com.example.spendwise.ui.components.SpendwiseCard
+import com.example.spendwise.ui.theme.Dimens
+import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.AccountsViewModel
 import kotlin.math.roundToLong
 import android.widget.Toast
@@ -80,12 +83,23 @@ data class AccountUiModel(
     val bankName: String
 )
 
-enum class AccountType(val label: String, val icon: ImageVector, val color: Color) {
-    SAVINGS("Savings", Icons.Default.Savings, Color(0xFF2563EB)),
-    CHECKING("Checking", Icons.Default.AccountBalance, Color(0xFF0D9488)),
-    CREDIT_CARD("Credit Card", Icons.Default.CreditCard, Color(0xFFDC2626)),
-    CASH("Cash", Icons.Default.MonetizationOn, Color(0xFF16A34A))
+enum class AccountType(val label: String, val icon: ImageVector, val swatchIndex: Int) {
+    SAVINGS("Savings", Icons.Default.Savings, 4),
+    CHECKING("Checking", Icons.Default.AccountBalance, 1),
+    CREDIT_CARD("Credit Card", Icons.Default.CreditCard, 5),
+    CASH("Cash", Icons.Default.MonetizationOn, 6)
 }
+
+/**
+ * Theme-aware categorical colour for an account type. The old per-constant
+ * hardcoded colours were identical in light and dark and included a third
+ * green (`#16A34A`) that meant nothing (see UI_UX_AUDIT.md §5.10).
+ */
+@Composable
+fun AccountType.accentColor(): Color =
+    SpendwiseTheme.categorical.swatches[
+        swatchIndex % SpendwiseTheme.categorical.swatches.size
+    ]
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,8 +131,13 @@ fun AccountsScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = { Text("Accounts & Cards", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     if (onNavigateBack != null) {
@@ -129,7 +148,7 @@ fun AccountsScreen(
                 },
                 actions = {
                     IconButton(onClick = { showAddBottomSheet.value = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Account")
+                        Icon(Icons.Rounded.Add, contentDescription = "Add Account")
                     }
                 }
             )
@@ -140,7 +159,7 @@ fun AccountsScreen(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Account")
+                Icon(Icons.Rounded.Add, contentDescription = "Add Account")
             }
         }
     ) { padding ->
@@ -225,18 +244,18 @@ fun NetWorthSummaryCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(Dimens.cardPadding)
         ) {
             Text(
                 text = "Total Net Worth",
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             Spacer(Modifier.height(4.dp))
             MoneyText(
@@ -255,7 +274,7 @@ fun NetWorthSummaryCard(
                     Text(
                         text = "Assets",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     MoneyText(
                         amountPaise = (totalAssets * 100).roundToLong(),
@@ -268,7 +287,7 @@ fun NetWorthSummaryCard(
                     Text(
                         text = "Liabilities",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     MoneyText(
                         amountPaise = (totalLiabilities * 100).roundToLong(),
@@ -286,31 +305,27 @@ fun AccountCardItem(
     account: AccountUiModel,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+    SpendwiseCard(
+        modifier = Modifier,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Dimens.lg),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val accent = account.type.accentColor()
             Surface(
                 modifier = Modifier.size(48.dp),
                 shape = CircleShape,
-                color = account.type.color.copy(alpha = 0.15f)
+                color = accent.copy(alpha = 0.15f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = account.type.icon,
                         contentDescription = null,
-                        tint = account.type.color,
+                        tint = accent,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -324,7 +339,7 @@ fun AccountCardItem(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = account.accountNumber,

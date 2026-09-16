@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.transactiondetail
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,11 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.components.AmountSection
 import com.example.spendwise.ui.components.DropdownField
 import com.example.spendwise.ui.components.NotesSection
@@ -64,10 +65,15 @@ fun TransactionDetailScreen(
     var showAddCounterpartyDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             CenterAlignedTopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = {
                     Text(
                         text = if (uiState.mode == TransactionMode.CREATE) {
@@ -113,7 +119,7 @@ fun TransactionDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
@@ -135,7 +141,7 @@ fun TransactionDetailScreen(
                 item {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.errorContainer
                     ) {
                         Text(
@@ -420,11 +426,11 @@ private fun OptionPickerBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(option) },
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Text(
                         text = option.label,
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(Dimens.cardPadding),
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Medium
                     )
@@ -436,14 +442,14 @@ private fun OptionPickerBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onAddNew() },
-                    shape = RoundedCornerShape(12.dp)
+                    shape = MaterialTheme.shapes.small
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(Dimens.cardPadding)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Add,
+                            imageVector = Icons.Rounded.Add,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -549,7 +555,7 @@ private fun BackingSmsSection(sms: String) {
     var expanded by remember { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceContainer
     ) {
         Column(modifier = Modifier.padding(12.dp)) {

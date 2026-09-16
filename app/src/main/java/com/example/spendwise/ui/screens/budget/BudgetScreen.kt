@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.budget
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,13 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.PieChart
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -36,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,8 +53,11 @@ import com.example.spendwise.ui.components.BudgetSummaryCard
 import com.example.spendwise.ui.components.CategoryDonut
 import com.example.spendwise.ui.components.DonutSlice
 import com.example.spendwise.ui.components.EmptyState
+import com.example.spendwise.ui.components.RUPEE_SIGN
 import com.example.spendwise.ui.components.donutPalette
 import com.example.spendwise.ui.components.formatPaise
+import com.example.spendwise.ui.components.SpendwiseCard
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.viewmodel.BudgetViewModel
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToLong
@@ -114,9 +117,14 @@ fun BudgetContent(
     modifier: Modifier = Modifier
 ) {
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = {
                     Column {
                         Text("Budget", fontWeight = FontWeight.Bold)
@@ -130,14 +138,14 @@ fun BudgetContent(
                 actions = {
                     IconButton(onClick = onManageClick) {
                         Icon(
-                            Icons.Outlined.Settings,
+                            Icons.Rounded.Settings,
                             contentDescription = "Manage"
                         )
                     }
 
                     IconButton(onClick = onRefreshClick) {
                         Icon(
-                            Icons.Outlined.Refresh,
+                            Icons.Rounded.Refresh,
                             contentDescription = "Refresh"
                         )
                     }
@@ -250,14 +258,8 @@ fun CategoryBreakdownCard(
             }
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+    SpendwiseCard(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(Dimens.cardPadding)) {
             Text(
                 text = "Spend by category",
                 style = MaterialTheme.typography.titleMedium,
@@ -285,7 +287,7 @@ fun CategoryBreakdownCard(
 
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         slices.take(LEGEND_MAX_ROWS).forEach { slice ->
                             DonutLegendRow(slice = slice, total = slices.sumOf { it.valuePaise })
@@ -354,7 +356,7 @@ fun ManageBudgetDialog(
             OutlinedTextField(
                 value = budgetText,
                 onValueChange = { budgetText = it },
-                label = { Text("Budget Amount (₹)") },
+                label = { Text("Budget Amount ($RUPEE_SIGN)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )

@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.friends
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,12 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.PersonSearch
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.PersonAdd
-import androidx.compose.material.icons.outlined.PersonSearch
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.components.EmptyState
 import com.example.spendwise.ui.components.FriendAvatar
 import com.example.spendwise.ui.components.FriendCard
@@ -53,6 +54,7 @@ import com.example.spendwise.ui.components.MoneyText
 import com.example.spendwise.ui.components.formatRupees
 import com.example.spendwise.viewmodel.FriendsViewModel
 import kotlin.math.roundToLong
+import com.example.spendwise.ui.components.SpendwiseCard
 
 data class FriendUi(
     val id: Long,
@@ -101,9 +103,14 @@ fun FriendsContent(
     val totalReceived = friendList.sumOf { it.amountReceived }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = { Text("Friends & Split", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     if (onNavigateBack != null) {
@@ -114,7 +121,7 @@ fun FriendsContent(
                 },
                 actions = {
                     IconButton(onClick = { showAddSheet = true }) {
-                        Icon(Icons.Outlined.PersonAdd, contentDescription = "Add Friend")
+                        Icon(Icons.Rounded.PersonAdd, contentDescription = "Add Friend")
                     }
                 }
             )
@@ -125,7 +132,7 @@ fun FriendsContent(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
-                Icon(Icons.Outlined.PersonAdd, contentDescription = "Add Friend")
+                Icon(Icons.Rounded.PersonAdd, contentDescription = "Add Friend")
             }
         }
     ) { padding ->
@@ -142,7 +149,7 @@ fun FriendsContent(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = { Text("Search friends...") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
@@ -151,7 +158,7 @@ fun FriendsContent(
             }
 
             item {
-                ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+    SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -164,7 +171,7 @@ fun FriendsContent(
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(4.dp))
                             MoneyText(
                                 amountPaise = (totalGiven * 100).roundToLong(),
                                 semantic = MoneySemantic.INCOME,
@@ -180,7 +187,7 @@ fun FriendsContent(
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(4.dp))
                             MoneyText(
                                 amountPaise = (totalReceived * 100).roundToLong(),
                                 semantic = MoneySemantic.EXPENSE,
@@ -195,12 +202,12 @@ fun FriendsContent(
                 item {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.errorContainer
                     ) {
                         Text(
                             text = state.error ?: "",
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(Dimens.cardPadding),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -212,9 +219,9 @@ fun FriendsContent(
                 item {
                     EmptyState(
                         icon = if (searchQuery.isBlank()) {
-                            Icons.Outlined.PersonAdd
+                            Icons.Rounded.PersonAdd
                         } else {
-                            Icons.Outlined.PersonSearch
+                            Icons.Rounded.PersonSearch
                         },
                         title = if (searchQuery.isBlank()) {
                             "No friends yet"

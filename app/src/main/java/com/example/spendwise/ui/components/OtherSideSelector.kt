@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.components
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,10 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Handshake
-import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.filled.Handshake
+import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -27,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.outlined.SwapHoriz
 import com.example.spendwise.ui.screens.transactiondetail.OtherSide
 
 /**
@@ -48,7 +47,7 @@ fun OtherSideSelector(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = "Type",
@@ -59,7 +58,7 @@ fun OtherSideSelector(
 
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
+            shape = MaterialTheme.shapes.small,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Row(
@@ -85,7 +84,7 @@ fun OtherSideSelector(
                         modifier = Modifier
                             .weight(1f)
                             .height(40.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(MaterialTheme.shapes.extraSmall)
                             .background(bgColor)
                             .clickable { onSelected(side) },
                         contentAlignment = Alignment.Center
@@ -123,9 +122,9 @@ private val OtherSide.label: String
 
 private val OtherSide.icon: androidx.compose.ui.graphics.vector.ImageVector
     get() = when (this) {
-        OtherSide.CATEGORY -> Icons.Outlined.Sell          // a spending category
-        OtherSide.TRANSFER -> Icons.Outlined.SwapHoriz  // my account ↔ my account
-        OtherSide.LOAN -> Icons.Outlined.Handshake         // a person who owes me
+        OtherSide.CATEGORY -> Icons.Filled.Sell          // a spending category
+        OtherSide.TRANSFER -> Icons.Rounded.SwapHoriz  // my account ↔ my account
+        OtherSide.LOAN -> Icons.Filled.Handshake         // a person who owes me
     }
 
 @Preview(showBackground = true)

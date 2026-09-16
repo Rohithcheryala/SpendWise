@@ -1,5 +1,8 @@
 package com.example.spendwise.ui.components
 
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,10 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -28,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.theme.SpendwiseTheme
+import com.example.spendwise.ui.components.SpendwiseCard
 
 @Composable
 fun FriendCard(
@@ -46,25 +46,15 @@ fun FriendCard(
         else -> MaterialTheme.colorScheme.onSurfaceVariant to "SETTLED"
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .let {
-                if (onClick != null)
-                    it.clickable(onClick = onClick)
-                else
-                    it
-            },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+    SpendwiseCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick
     ) {
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
 
@@ -87,7 +77,7 @@ fun FriendCard(
                 Spacer(Modifier.height(8.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(18.dp)
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
 
                     Row(
@@ -131,10 +121,10 @@ fun FriendCard(
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = MaterialTheme.shapes.extraSmall,
                     color = MaterialTheme.colorScheme.surfaceContainerHighest
                 ) {
 
@@ -164,7 +154,7 @@ fun FriendCard(
                     color = balanceColor
                 )
 
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(4.dp))
 
                 Text(
                     text = balanceLabel,

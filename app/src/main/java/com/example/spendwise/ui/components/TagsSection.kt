@@ -1,13 +1,13 @@
 package com.example.spendwise.ui.components
 
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.InputChip
@@ -43,9 +43,9 @@ fun TagSection(
                 },
                 trailingIcon = {
                     Icon(
-                        imageVector = Icons.Outlined.Close,
+                        imageVector = Icons.Rounded.Close,
                         contentDescription = "Remove ${tag.label}",
-                        modifier = Modifier.padding(start = 2.dp)
+                        modifier = Modifier.padding(start = 4.dp)
                     )
                 }
             )
@@ -58,7 +58,7 @@ fun TagSection(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Outlined.Add,
+                    imageVector = Icons.Rounded.Add,
                     contentDescription = null
                 )
             }

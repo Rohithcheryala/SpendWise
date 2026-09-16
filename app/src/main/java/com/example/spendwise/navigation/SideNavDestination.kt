@@ -1,15 +1,15 @@
 package com.example.spendwise.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Group
+import androidx.compose.material.icons.rounded.Inbox
+import androidx.compose.material.icons.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class Screen(
@@ -27,20 +27,20 @@ enum class Screen(
     Transaction(
         "transaction",
         "Transaction Detail",
-        Icons.Filled.ReceiptLong,
+        Icons.Rounded.ReceiptLong,
         "Transaction Detail"
     ),
-    Accounts("accounts", "Accounts", Icons.Filled.AccountBalance, "Accounts & Cards"),
-    Categories("categories", "Categories", Icons.Filled.Category, "Categories"),
+    Accounts("accounts", "Accounts", Icons.Rounded.AccountBalance, "Accounts & Cards"),
+    Categories("categories", "Categories", Icons.Rounded.Category, "Categories"),
     Counterparties(
         "counterparties",
         "Counterparties",
-        Icons.Filled.Storefront,
+        Icons.Rounded.Storefront,
         "All Counterparties"
     ),
-    Friends("friends", "Friends & Split", Icons.Filled.Group, "Friends"),
-    Inbox("inbox", "Buffer Inbox", Icons.Filled.Inbox, "Inbox"),
-    Settings("settings", "Settings", Icons.Filled.Settings, "Settings"),
-    Update("update", "App update", Icons.Filled.SystemUpdate, "App update"),
+    Friends("friends", "Friends & Split", Icons.Rounded.Group, "Friends"),
+    Inbox("inbox", "Buffer Inbox", Icons.Rounded.Inbox, "Inbox"),
+    Settings("settings", "Settings", Icons.Rounded.Settings, "Settings"),
+    Update("update", "App update", Icons.Rounded.SystemUpdate, "App update"),
 }
 

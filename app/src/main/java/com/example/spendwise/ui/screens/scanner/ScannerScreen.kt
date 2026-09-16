@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.scanner
 
+import androidx.compose.material.icons.Icons
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -49,16 +50,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FlashOff
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.rounded.FlashOn
+import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -74,6 +70,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -105,6 +102,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.ui.components.DropdownField
 import com.example.spendwise.ui.components.FriendAvatar
@@ -122,6 +120,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.math.hypot
+import com.example.spendwise.ui.components.SpendwiseCard
 
 /** The NPCI-standard UPI deep-link action — no SDK constant exists for it. */
 private const val ACTION_UPI_PAY = "android.intent.action.UPI_PAY"
@@ -264,9 +263,14 @@ fun ScannerScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = { Text("Scan & Pay (UPI)", fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(
@@ -277,7 +281,7 @@ fun ScannerScreen(
                         enabled = camera != null
                     ) {
                         Icon(
-                            imageVector = if (torchOn) Icons.Filled.FlashOff else Icons.Filled.FlashOn,
+                            imageVector = if (torchOn) Icons.Filled.FlashOff else Icons.Rounded.FlashOn,
                             contentDescription = "Flash"
                         )
                     }
@@ -289,7 +293,7 @@ fun ScannerScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = Dimens.screenGutter),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(16.dp))
@@ -300,8 +304,8 @@ fun ScannerScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .onSizeChanged { viewSizePx = it }
-                    .clip(RoundedCornerShape(24.dp))
-                    .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp)),
+                    .clip(MaterialTheme.shapes.large)
+                    .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large),
                 contentAlignment = Alignment.Center
             ) {
                 if (hasCameraPermission) {
@@ -377,9 +381,9 @@ fun ScannerScreen(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .padding(12.dp)
-                            .clip(RoundedCornerShape(50))
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }
@@ -387,14 +391,8 @@ fun ScannerScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── manual UPI ID entry (no QR needed) ──
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(Dimens.cardPadding)) {
                     Text(
                         text = "Pay via UPI ID or mobile number",
                         style = MaterialTheme.typography.titleSmall,
@@ -423,7 +421,7 @@ fun ScannerScreen(
                             },
                             enabled = upiInput.isNotBlank()
                         ) {
-                            Icon(Icons.Default.Send, contentDescription = "Pay")
+                            Icon(Icons.Rounded.Send, contentDescription = "Pay")
                         }
                     }
                 }

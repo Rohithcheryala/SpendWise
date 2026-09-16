@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.scanner
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,13 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -87,8 +87,13 @@ internal fun PaymentOverlay(
     onPay: () -> Unit,
 ) {
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = {
                     Text(
                         text = "Pay ${target.name.ifBlank { target.vpa }}",
@@ -99,7 +104,7 @@ internal fun PaymentOverlay(
                 },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Cancel payment")
+                        Icon(Icons.Rounded.Close, contentDescription = "Cancel payment")
                     }
                 }
             )
@@ -112,7 +117,7 @@ internal fun PaymentOverlay(
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Payee identity.
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -167,7 +172,7 @@ internal fun PaymentOverlay(
                             onClick = { onRemoveTag(tag.id) },
                             label = { Text(tag.label) },
                             trailingIcon = {
-                                Icon(Icons.Outlined.Close, contentDescription = "Remove ${tag.label}")
+                                Icon(Icons.Rounded.Close, contentDescription = "Remove ${tag.label}")
                             }
                         )
                     }
@@ -180,7 +185,7 @@ internal fun PaymentOverlay(
                 singleLine = true,
                 trailingIcon = {
                     IconButton(onClick = onAddTag, enabled = newTag.isNotBlank()) {
-                        Icon(Icons.Outlined.Add, contentDescription = "Add tag")
+                        Icon(Icons.Rounded.Add, contentDescription = "Add tag")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -260,7 +265,7 @@ internal fun OptionPickerSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(option) }
-                        .padding(horizontal = 24.dp, vertical = 14.dp)
+                        .padding(horizontal = 24.dp, vertical = 16.dp)
                 ) {
                     Text(
                         text = option.label,
@@ -270,7 +275,7 @@ internal fun OptionPickerSheet(
                     )
                     if (option == selected) {
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = Icons.Rounded.CheckCircle,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -301,7 +306,7 @@ internal fun SavedConfirmationSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.CheckCircle,
+                imageVector = Icons.Rounded.CheckCircle,
                 contentDescription = null,
                 tint = SpendwiseTheme.colors.income,
                 modifier = Modifier.size(64.dp)

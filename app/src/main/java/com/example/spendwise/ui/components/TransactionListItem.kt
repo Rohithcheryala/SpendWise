@@ -1,5 +1,9 @@
 package com.example.spendwise.ui.components
 
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,11 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowDownward
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +57,7 @@ fun TransactionListItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(clickable)
-                .padding(horizontal = 4.dp, vertical = 10.dp),
+                .padding(horizontal = 4.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             TransactionDirectionIcon(direction)
@@ -98,7 +97,8 @@ fun TransactionListItem(
 
         if (showDivider) {
             HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 1.dp,
             )
         }
     }
@@ -152,7 +152,7 @@ fun TransactionDirectionIcon(
 
     Surface(
         modifier = modifier.size(36.dp),
-        shape = RoundedCornerShape(10.dp),
+        shape = MaterialTheme.shapes.extraSmall,
         color = bgColor
     ) {
         Box(

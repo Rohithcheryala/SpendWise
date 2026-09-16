@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.SpendwiseTheme
 import kotlin.math.absoluteValue
 
 @Composable
@@ -28,19 +29,9 @@ fun FriendAvatar(
         ?.toString()
         ?: "?"
 
-    val colors = listOf(
-        Color(0xFF2563EB),
-        Color(0xFF059669),
-        Color(0xFF7C3AED),
-        Color(0xFFEA580C),
-        Color(0xFFDC2626),
-        Color(0xFF0891B2),
-        Color(0xFF4F46E5),
-        Color(0xFF65A30D)
-    )
-
+    val swatches = SpendwiseTheme.categorical.swatches
     val background = remember(name) {
-        colors[name.hashCode().absoluteValue % colors.size]
+        swatches[name.hashCode().absoluteValue % swatches.size]
     }
 
     Surface(

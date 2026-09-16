@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.settings
 
+import androidx.compose.material.icons.Icons
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,20 +20,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.CurrencyRupee
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Sms
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.CurrencyRupee
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Sms
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,6 +48,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,6 +65,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.data.repository.ThemeMode
 import com.example.spendwise.viewmodel.SettingsViewModel
+import com.example.spendwise.ui.components.SpendwiseCard
+import com.example.spendwise.ui.theme.Dimens
 
 // ── screen body ──
 
@@ -94,9 +96,14 @@ fun SettingsScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = { Text("Settings", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     if (onNavigateBack != null) {
@@ -117,15 +124,9 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
+                SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier.padding(Dimens.cardPadding),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
@@ -135,7 +136,7 @@ fun SettingsScreen(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.Person,
+                                    imageVector = Icons.Rounded.Person,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(28.dp)
@@ -151,7 +152,7 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(Modifier.height(2.dp))
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "Currency: ${settings.currency}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -169,16 +170,10 @@ fun SettingsScreen(
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
+                SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         SettingsSwitchItem(
-                            icon = Icons.Default.Sms,
+                            icon = Icons.Rounded.Sms,
                             title = "SMS Auto-Detection",
                             subtitle = "Automatically parse bank transaction SMS",
                             checked = settings.smsAutoDetect,
@@ -206,20 +201,20 @@ fun SettingsScreen(
                             }
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                         SettingsSwitchItem(
-                            icon = Icons.Default.Notifications,
+                            icon = Icons.Rounded.Notifications,
                             title = "Notifications",
                             subtitle = "Alert for uncategorized or large transactions",
                             checked = settings.notificationsEnabled,
                             onCheckedChange = { viewModel.setNotificationsEnabled(it) }
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                         SettingsSwitchItem(
-                            icon = Icons.Default.Security,
+                            icon = Icons.Rounded.Security,
                             title = "Strict mode",
                             subtitle = "Buffer transactions need a category AND a tag " +
                                 "before they can be saved/confirmed",
@@ -227,19 +222,19 @@ fun SettingsScreen(
                             onCheckedChange = { viewModel.setStrictMode(it) }
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                         SettingsClickItem(
-                            icon = Icons.Default.CurrencyRupee,
+                            icon = Icons.Rounded.CurrencyRupee,
                             title = "Default Currency",
                             value = settings.currency,
                             onClick = { showCurrencyDialog = true }
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                         SettingsClickItem(
-                            icon = Icons.Default.ColorLens,
+                            icon = Icons.Rounded.ColorLens,
                             title = "Theme",
                             value = when (settings.themeMode) {
                                 ThemeMode.SYSTEM -> "System Default"
@@ -259,25 +254,19 @@ fun SettingsScreen(
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
+                SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         SettingsClickItem(
-                            icon = Icons.Default.Storage,
+                            icon = Icons.Rounded.Storage,
                             title = "Re-seed Sample Data",
                             value = "Reset database",
                             onClick = { showResetDialog = true }
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                         SettingsClickItem(
-                            icon = Icons.Default.Security,
+                            icon = Icons.Rounded.Security,
                             title = "Privacy & Permissions",
                             subtitle = "Manage SMS & Notification permissions",
                             onClick = {
@@ -291,10 +280,10 @@ fun SettingsScreen(
                             }
                         )
 
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                         SettingsClickItem(
-                            icon = Icons.Default.DeleteForever,
+                            icon = Icons.Rounded.DeleteForever,
                             title = "Clear Local Data",
                             subtitle = "Delete all stored transactions and categories",
                             onClick = { showResetDialog = true },
@@ -332,19 +321,13 @@ fun SettingsScreen(
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ) {
+                SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(Dimens.lg),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Info,
+                            imageVector = Icons.Rounded.Info,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -360,10 +343,10 @@ fun SettingsScreen(
                         }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
                     SettingsClickItem(
-                        icon = Icons.Filled.SystemUpdate,
+                        icon = Icons.Rounded.SystemUpdate,
                         title = "App update",
                         subtitle = "Check for and install the latest release",
                         onClick = onNavigateToUpdate
@@ -442,7 +425,7 @@ private fun ThemeDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onSelect(mode) }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -483,7 +466,7 @@ private fun CurrencyDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onSelect(currency) }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -525,7 +508,7 @@ fun SettingsSwitchItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
-            .padding(16.dp),
+            .padding(Dimens.cardPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -555,7 +538,7 @@ fun SettingsClickItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(16.dp),
+            .padding(Dimens.cardPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -587,7 +570,7 @@ fun SettingsClickItem(
             Spacer(Modifier.width(4.dp))
         }
         Icon(
-            Icons.Default.ChevronRight,
+            Icons.Rounded.ChevronRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.outline
         )

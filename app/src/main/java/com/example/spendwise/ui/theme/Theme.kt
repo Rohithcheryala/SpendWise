@@ -40,6 +40,7 @@ private val LightColorScheme = lightColorScheme(
     inverseOnSurface = md_theme_light_inverseOnSurface,
     inversePrimary = md_theme_light_inversePrimary,
     surfaceContainerLowest = md_theme_light_surfaceContainerLowest,
+    surfaceContainerLow = md_theme_light_surfaceContainerLow,
     surfaceContainer = md_theme_light_surfaceContainer,
     surfaceContainerHigh = md_theme_light_surfaceContainerHigh,
     surfaceContainerHighest = md_theme_light_surfaceContainerHighest,
@@ -75,6 +76,7 @@ private val DarkColorScheme = darkColorScheme(
     inverseOnSurface = md_theme_dark_inverseOnSurface,
     inversePrimary = md_theme_dark_inversePrimary,
     surfaceContainerLowest = md_theme_dark_surfaceContainerLowest,
+    surfaceContainerLow = md_theme_dark_surfaceContainerLow,
     surfaceContainer = md_theme_dark_surfaceContainer,
     surfaceContainerHigh = md_theme_dark_surfaceContainerHigh,
     surfaceContainerHighest = md_theme_dark_surfaceContainerHighest,
@@ -98,33 +100,93 @@ data class SemanticColors(
 )
 
 private fun lightSemanticColors() = SemanticColors(
-    income = Color(0xFF15803D),
-    incomeContainer = Color(0xFFDCFCE7),
-    expense = Color(0xFFDC2626),
-    expenseContainer = Color(0xFFFEE2E2),
-    transfer = Color(0xFF2563EB),
+    income = Color(0xFF0F6B34),
+    incomeContainer = Color(0xFFDCFAE6),
+    expense = Color(0xFFC81E1E),
+    expenseContainer = Color(0xFFFEE4E2),
+    transfer = Color(0xFF1D4ED8),
     transferContainer = Color(0xFFDBEAFE),
-    warning = Color(0xFFD97706),
-    warningContainer = Color(0xFFFEF3C7)
+    warning = Color(0xFFB54708),
+    warningContainer = Color(0xFFFEF0C7)
 )
 
 private fun darkSemanticColors() = SemanticColors(
     income = Color(0xFF4ADE80),
-    incomeContainer = Color(0xFF14532D),
-    expense = Color(0xFFF87171),
-    expenseContainer = Color(0xFF450A0A),
-    transfer = Color(0xFF60A5FA),
-    transferContainer = Color(0xFF1E3A5F),
-    warning = Color(0xFFFBBF24),
-    warningContainer = Color(0xFF451A03)
+    incomeContainer = Color(0xFF05432A),
+    expense = Color(0xFFFF8A8F),
+    expenseContainer = Color(0xFF4E1315),
+    transfer = Color(0xFF93B4FF),
+    transferContainer = Color(0xFF1B2A52),
+    warning = Color(0xFFFDB022),
+    warningContainer = Color(0xFF4A2A05)
 )
 
 val LocalSemanticColors = staticCompositionLocalOf { lightSemanticColors() }
+
+/**
+ * Text colours are *measured*, never derived by multiplying one colour's alpha.
+ * All three clear 4.5:1 on `background`, `surface` and `surfaceContainerHigh`
+ * in both themes — worst case 4.96:1 (light tertiary on surfaceContainerHigh).
+ * Contrast per token is listed in UI_UX_AUDIT.md §5.9.
+ */
+@Immutable
+data class TextColors(
+    val primary: Color,     // titles, money, values
+    val secondary: Color,   // supporting copy, list subtitles
+    val tertiary: Color     // placeholders, captions, de-emphasised meta
+)
+
+private val LightTextColors = TextColors(
+    primary = Color(0xFF101828),
+    secondary = Color(0xFF46505F),
+    tertiary = Color(0xFF5C6675)   // still ≥ 4.5:1 — a real placeholder colour
+)
+
+private val DarkTextColors = TextColors(
+    primary = Color(0xFFE7EAF0),
+    secondary = Color(0xFFAEB6C4),
+    tertiary = Color(0xFF949CAB)
+)
+
+val LocalTextColors = staticCompositionLocalOf { LightTextColors }
+
+/**
+ * Categorical colours for things that are merely *different*, not meaningful:
+ * account types, avatars, donut slices. Deliberately excludes income / expense
+ * / transfer — those three encode direction, and reusing them as decoration
+ * (which `donutPalette()` did) makes the legend teach the user nothing.
+ */
+@Immutable
+data class CategoricalColors(val swatches: List<Color>)
+
+private val LightCategorical = CategoricalColors(listOf(
+    Color(0xFF4338CA), // indigo (brand)
+    Color(0xFF0F766E), // teal
+    Color(0xFFB54708), // amber
+    Color(0xFF7E22CE), // purple
+    Color(0xFF0369A1), // sky
+    Color(0xFFBE185D), // magenta
+    Color(0xFF854D0E), // bronze
+    Color(0xFF334155), // slate
+))
+
+private val DarkCategorical = CategoricalColors(listOf(
+    Color(0xFFB4B9FF), Color(0xFF5EEAD4), Color(0xFFFDB022), Color(0xFFD8B4FE),
+    Color(0xFF7DD3FC), Color(0xFFF9A8D4), Color(0xFFFCD34D), Color(0xFF94A3B8),
+))
+
+val LocalCategoricalColors = staticCompositionLocalOf { LightCategorical }
 
 /** Accessor for SpendWise-specific semantic colors: `SpendwiseTheme.colors.income` */
 object SpendwiseTheme {
     val colors: SemanticColors
         @Composable get() = LocalSemanticColors.current
+
+    val text: TextColors
+        @Composable get() = LocalTextColors.current
+
+    val categorical: CategoricalColors
+        @Composable get() = LocalCategoricalColors.current
 }
 
 @Composable
@@ -141,11 +203,18 @@ fun SpendwiseTheme(
         else -> LightColorScheme
     }
     val semanticColors = if (darkTheme) darkSemanticColors() else lightSemanticColors()
+    val textColors = if (darkTheme) DarkTextColors else LightTextColors
+    val categoricalColors = if (darkTheme) DarkCategorical else LightCategorical
 
-    CompositionLocalProvider(LocalSemanticColors provides semanticColors) {
+    CompositionLocalProvider(
+        LocalSemanticColors provides semanticColors,
+        LocalTextColors provides textColors,
+        LocalCategoricalColors provides categoricalColors,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,
+            shapes = SpendwiseShapes,
             content = content
         )
     }

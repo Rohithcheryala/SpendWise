@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.categories
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -40,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,7 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.spendwise.ui.components.formatRupees
+import com.example.spendwise.ui.theme.Dimens
+import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.viewmodel.CategoriesViewModel
+import com.example.spendwise.ui.components.SpendwiseCard
 
 data class CategoryUiModel(
     val id: Long,
@@ -90,9 +93,14 @@ fun CategoriesScreen(
     var showAddCategoryDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = { Text("Categories", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     if (onNavigateBack != null) {
@@ -103,7 +111,7 @@ fun CategoriesScreen(
                 },
                 actions = {
                     IconButton(onClick = { showAddCategoryDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Category")
+                        Icon(Icons.Rounded.Add, contentDescription = "Add Category")
                     }
                 }
             )
@@ -114,7 +122,7 @@ fun CategoriesScreen(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Category")
+                Icon(Icons.Rounded.Add, contentDescription = "Add Category")
             }
         }
     ) { padding ->
@@ -177,19 +185,13 @@ fun CategoryItemCard(
     else 0f
     val progressColor = when {
         progress >= 0.9f -> MaterialTheme.colorScheme.error
-        progress >= 0.75f -> Color(0xFFF59E0B)
+        progress >= 0.75f -> SpendwiseTheme.colors.warning
         else -> MaterialTheme.colorScheme.primary
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
-    ) {
+    SpendwiseCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(Dimens.cardPadding)
         ) {
             Row(
                 modifier = Modifier
@@ -220,7 +222,7 @@ fun CategoryItemCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = "${formatRupees(category.spent)} of ${formatRupees(category.budget)}",
                         style = MaterialTheme.typography.bodySmall,
@@ -229,7 +231,7 @@ fun CategoryItemCard(
                 }
 
                 Icon(
-                    imageVector = if (category.isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    imageVector = if (category.isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -242,7 +244,7 @@ fun CategoryItemCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
+                    .clip(CircleShape),
                 color = progressColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )

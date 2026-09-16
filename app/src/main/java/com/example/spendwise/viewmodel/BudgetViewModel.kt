@@ -1,12 +1,11 @@
 package com.example.spendwise.viewmodel
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountBalance
-import androidx.compose.material.icons.outlined.Category
-import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -195,11 +194,11 @@ class BudgetViewModel @Inject constructor(
 
         /** Map an AccountEntity icon-name hint to a vector icon; default to a generic. */
         fun iconFor(name: String?): ImageVector = when (name?.trim()?.lowercase()) {
-            "food", "restaurant", "groceries", "shopping" -> Icons.Outlined.Restaurant
-            "home", "rent", "utilities" -> Icons.Outlined.Home
-            "transport", "car", "fuel", "parking" -> Icons.Outlined.DirectionsCar
-            "savings", "account", "bank" -> Icons.Outlined.AccountBalance
-            else -> Icons.Outlined.Category
+            "food", "restaurant", "groceries", "shopping" -> Icons.Filled.Restaurant
+            "home", "rent", "utilities" -> Icons.Filled.Home
+            "transport", "car", "fuel", "parking" -> Icons.Filled.DirectionsCar
+            "savings", "account", "bank" -> Icons.Filled.AccountBalance
+            else -> Icons.Filled.Category
         }
     }
 }

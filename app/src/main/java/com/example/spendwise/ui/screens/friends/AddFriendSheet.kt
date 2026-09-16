@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.friends
 
+import androidx.compose.material.icons.Icons
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -17,10 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.PersonAdd
-import androidx.compose.material.icons.outlined.PersonSearch
-import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.rounded.PersonAdd
+import androidx.compose.material.icons.rounded.PersonSearch
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -188,7 +188,7 @@ private fun ContactsMode(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                Icons.Outlined.PersonSearch,
+                Icons.Rounded.PersonSearch,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(40.dp)
@@ -212,7 +212,7 @@ private fun ContactsMode(
         value = query,
         onValueChange = onQueryChange,
         placeholder = { Text("Search contacts...") },
-        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true
     )
@@ -258,7 +258,7 @@ private fun ContactsMode(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onAdd(contact.name, contact.phoneNumber) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                            .padding(vertical = 12.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         FriendAvatar(
@@ -286,7 +286,7 @@ private fun ContactsMode(
                         }
                         IconButton(onClick = { onAdd(contact.name, contact.phoneNumber) }) {
                             Icon(
-                                Icons.Outlined.PersonAdd,
+                                Icons.Rounded.PersonAdd,
                                 contentDescription = "Add ${contact.name}"
                             )
                         }

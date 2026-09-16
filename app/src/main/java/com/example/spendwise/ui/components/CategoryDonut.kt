@@ -120,7 +120,7 @@ fun CategoryDonut(
         if (centerLabel != null || centerValue != null) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
                 centerValue?.let {
@@ -144,19 +144,10 @@ fun CategoryDonut(
 }
 
 /**
- * Category colours for the donut. Derived from the theme so light/dark both
- * work; cycled for callers with more categories than palette entries.
+ * Category colours for the donut. Categorical swatches, NOT the semantic
+ * colours: a food category drawn in `expense` red taught the user nothing
+ * (see UI_UX_AUDIT.md §5.10). Derived from the theme so light/dark both work;
+ * cycled for callers with more categories than palette entries.
  */
 @Composable
-fun donutPalette(): List<Color> {
-    val colors = SpendwiseTheme.colors
-    return listOf(
-        MaterialTheme.colorScheme.primary,
-        MaterialTheme.colorScheme.tertiary,
-        colors.warning,
-        colors.transfer,
-        colors.income,
-        MaterialTheme.colorScheme.secondary,
-        colors.expense,
-    )
-}
+fun donutPalette(): List<Color> = SpendwiseTheme.categorical.swatches

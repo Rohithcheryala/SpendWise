@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.onboarding
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,10 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -71,7 +70,7 @@ fun ScanMessagesScreen(
 
                 OnboardingViewModel.ScanPhase.IDLE -> {
                     Icon(
-                        imageVector = Icons.Default.Sms,
+                        imageVector = Icons.Rounded.Sms,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(64.dp)
@@ -176,7 +175,7 @@ fun ScanMessagesScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp),
-                                shape = RoundedCornerShape(14.dp),
+                                shape = MaterialTheme.shapes.small,
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (selected) {
                                         MaterialTheme.colorScheme.primaryContainer

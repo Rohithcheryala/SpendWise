@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.counterparties
 
+import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,11 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Storefront
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,12 +47,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.spendwise.ledger.service.CounterpartyService
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.components.FriendAvatar
 import com.example.spendwise.ui.components.MoneySize
 import com.example.spendwise.ui.components.MoneyText
 import com.example.spendwise.ui.components.formatRupees
 import com.example.spendwise.viewmodel.CounterpartyUi
 import com.example.spendwise.viewmodel.CounterpartiesViewModel
+import com.example.spendwise.ui.components.SpendwiseCard
 
 private enum class PartyFilter(val label: String) {
     ALL("All"),
@@ -95,9 +97,14 @@ fun CounterpartiesScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
                 title = { Text("Counterparties", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     if (onNavigateBack != null) {
@@ -121,7 +128,7 @@ fun CounterpartiesScreen(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = { Text("Search name or alias...") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp),
@@ -154,12 +161,12 @@ fun CounterpartiesScreen(
                 item {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = MaterialTheme.shapes.small,
                         color = MaterialTheme.colorScheme.errorContainer
                     ) {
                         Text(
                             text = state.error ?: "",
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(Dimens.cardPadding),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -219,19 +226,14 @@ private fun CounterpartyCard(
 ) {
     val isPerson = party.partyType == CounterpartyService.PARTY_PERSON
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        )
+    SpendwiseCard(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Dimens.cardPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             FriendAvatar(party.name, modifier = Modifier.size(44.dp))
@@ -247,11 +249,11 @@ private fun CounterpartyCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(4.dp))
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         color = if (isPerson)
                             MaterialTheme.colorScheme.primaryContainer
                         else
@@ -259,7 +261,7 @@ private fun CounterpartyCard(
                     ) {
                         Text(
                             text = if (isPerson) "PERSON" else "MERCHANT",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = if (isPerson)
@@ -334,7 +336,7 @@ private fun CounterpartyDetailSheet(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             FriendAvatar(party.name, modifier = Modifier.size(64.dp))
 
@@ -346,7 +348,7 @@ private fun CounterpartyDetailSheet(
             )
 
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = MaterialTheme.shapes.small,
                 color = if (isPerson)
                     MaterialTheme.colorScheme.primaryContainer
                 else
@@ -354,7 +356,7 @@ private fun CounterpartyDetailSheet(
             ) {
                 Text(
                     text = if (isPerson) "Person" else "Merchant",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isPerson)
@@ -383,7 +385,7 @@ private fun CounterpartyDetailSheet(
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = "Known aliases (${party.aliases.size})",

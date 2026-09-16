@@ -1,5 +1,8 @@
 package com.example.spendwise.navigation
 
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.Icons
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -13,19 +16,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -49,6 +50,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.viewmodel.InboxViewModel
 import kotlinx.coroutines.launch
 
@@ -165,13 +167,14 @@ fun MainScaffold(
                                     rootNavController.navigate(screen.route)
                                 }
                             },
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                         )
                     }
             }
         }
     ) {
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 MainNavigationBar(
                     current = currentDestination,
@@ -233,14 +236,19 @@ fun MainNavigationBar(
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 8.dp
+        shadowElevation = 0.dp
     ) {
+        Column {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 1.dp,
+            )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .height(68.dp)
+                .heightIn(min = 64.dp)
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -294,7 +302,7 @@ fun MainNavigationBar(
                             }
                         ) {
                             Surface(
-                                shape = RoundedCornerShape(percent = 50),
+                                shape = CircleShape,
                                 color = if (selected)
                                     MaterialTheme.colorScheme.primaryContainer
                                 else
@@ -308,7 +316,7 @@ fun MainNavigationBar(
                                             }
                                         }
                                     },
-                                    modifier = Modifier.padding(horizontal = 14.dp)
+                                    modifier = Modifier.padding(horizontal = Dimens.screenGutter)
                                 ) {
                                     Icon(
                                         imageVector = destination.icon,
@@ -331,12 +339,13 @@ fun MainNavigationBar(
                                         MaterialTheme.colorScheme.onPrimaryContainer
                                     else
                                         MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 2.dp)
+                                modifier = Modifier.padding(top = 4.dp)
                             )
                         }
                     }
                 }
             }
+        }
         }
     }
 }
