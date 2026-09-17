@@ -12,41 +12,23 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BudgetDao {
 
-    @Query(
-        """
-        SELECT * FROM budgets
-        ORDER BY effective_from DESC
-    """
-    )
+    @Query("SELECT * FROM budgets ORDER BY period DESC, account_id ASC")
     fun getAll(): Flow<List<BudgetEntity>>
 
-    @Query(
-        """
-        SELECT * FROM budgets
-        WHERE id = :id
-    """
-    )
+    @Query("SELECT * FROM budgets WHERE id = :id")
     suspend fun getById(id: Long): BudgetEntity?
 
-    @Query(
-        """
-        SELECT * FROM budgets
-        WHERE account_id = :accountId
-        ORDER BY effective_from DESC
-    """
-    )
+    /** All envelopes for one month key ('YYYY-MM'). */
+    @Query("SELECT * FROM budgets WHERE period = :period ORDER BY account_id ASC")
+    fun getByPeriod(period: String): Flow<List<BudgetEntity>>
+
+    @Query("SELECT * FROM budgets WHERE account_id = :accountId ORDER BY period DESC")
     fun getByAccount(accountId: Long): Flow<List<BudgetEntity>>
 
-    @Query(
-        """
-        SELECT * FROM budgets
-        WHERE effective_from <= :date
-          AND (effective_to IS NULL OR effective_to >= :date)
-    """
-    )
-    fun getActiveBudgets(date: Long): Flow<List<BudgetEntity>>
+    @Query("SELECT * FROM budgets WHERE account_id = :accountId AND period = :period LIMIT 1")
+    suspend fun getFor(accountId: Long, period: String): BudgetEntity?
 
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(budget: BudgetEntity): Long
 
     @Update

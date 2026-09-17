@@ -1,5 +1,6 @@
 package com.example.spendwise.ledger
 
+import com.example.spendwise.data.database.entity.TransactionLineEntity
 import com.example.spendwise.ledger.api.CreateTransactionRequest
 import com.example.spendwise.ledger.api.Direction
 import com.example.spendwise.ledger.api.TransactionKind
@@ -8,6 +9,7 @@ import com.example.spendwise.ledger.api.TransactionStatus
 import com.example.spendwise.ledger.api.IngestRequest
 import com.example.spendwise.ledger.api.LineSpec
 import com.example.spendwise.ledger.service.LedgerService
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -110,11 +112,14 @@ class DescribeEntryTest : BackendTestBase() {
         )
         assertEquals(TransactionKind.LOAN, view.kind)
 
-        // The receivable pot now carries +500 (money lent out).
+        // The person's own receivable child pot carries +500 (money lent
+        // out); the top-level pot itself carries nothing. Lines, not
+        // balances — an ingested loan is BUFFER, and buffers don't count.
         val loansPot = db.AccountDao().findSystemBySubtype("receivable")!!
-        assertEquals(0L, ledger.accountBalance(loansPot.id)) // system pot itself is 'asset'
-        val recvLines = db.TransactionLineDao().getByTransactionList(view.id).filter { it.accountId == loansPot.id }
-        assertEquals(listOf(500_00L), recvLines.map { it.amountPaise })
+        val entryLines = db.TransactionLineDao().getByTransactionList(view.id)
+        val child = db.AccountDao().getChildren(loansPot.id).first().first()
+        assertEquals(listOf(500_00L), entryLines.filter { it.accountId == child.id }.map { it.amountPaise })
+        assertEquals(emptyList<TransactionLineEntity>(), entryLines.filter { it.accountId == loansPot.id })
     }
 
     @Test

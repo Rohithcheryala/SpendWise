@@ -12,6 +12,8 @@ import com.example.spendwise.data.database.dao.BudgetDao
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
+import com.example.spendwise.data.database.dao.GroupDao
+import com.example.spendwise.data.database.dao.TagDao
 import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
@@ -64,6 +66,12 @@ object DatabaseModule {
     @Provides
     fun provideCounterpartyAliasDao(db: AppDatabase): CounterpartyAliasDao =
         db.CounterpartyAliasDao()
+
+    @Provides
+    fun provideGroupDao(db: AppDatabase): GroupDao = db.GroupDao()
+
+    @Provides
+    fun provideTagDao(db: AppDatabase): TagDao = db.TagDao()
 
     @Provides
     fun provideEntryDao(db: AppDatabase): TransactionDao = db.TransactionDao()

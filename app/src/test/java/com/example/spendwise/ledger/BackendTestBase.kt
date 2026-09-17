@@ -51,6 +51,7 @@ abstract class BackendTestBase {
             transactionDao = db.TransactionDao(),
             transactionLineDao = db.TransactionLineDao(),
             provenanceDao = db.TransactionProvenanceDao(),
+            tagDao = db.TagDao(),
             counterpartyService = counterparties,
         )
         contacts = ContactsService(
@@ -65,6 +66,7 @@ abstract class BackendTestBase {
             transactionDao = db.TransactionDao(),
             transactionLineDao = db.TransactionLineDao(),
             provenanceDao = db.TransactionProvenanceDao(),
+            tagDao = db.TagDao(),
             ledger = ledger,
             counterparties = counterparties,
             contacts = contacts,

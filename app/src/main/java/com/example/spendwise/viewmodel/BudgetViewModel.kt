@@ -134,7 +134,7 @@ class BudgetViewModel @Inject constructor(
             _uiState.update { it.copy(isRefreshing = true) }
 
             runCatching {
-                val budgets = budgetDao.getActiveBudgets(monthStart).first()
+                val budgets = budgetDao.getByPeriod(currentMonth.toString()).first()
                     .associateBy { it.accountId }
                 val roots = accountDao.getRootCategoryAccounts().first()
                     .filter { it.accountClass == KIND_EXPENSE }

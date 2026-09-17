@@ -43,5 +43,15 @@ data class TransactionProvenanceEntity(
      * reclaim can re-run account matching without re-parsing the raw SMS.
      */
     @ColumnInfo(name = "parsed_facts")
-    val parsedFacts: String? = null
+    val parsedFacts: String? = null,
+
+    /**
+     * The running balance the SMS stated AFTER this movement. Kept here —
+     * NOT on lines (Rust Q12 deletes balance_after_paise from lines: it was
+     * written from SMS claims and never maintained on edits) — so the
+     * reconciliation continuity check still has its anchor while balances
+     * stay derived from lines only.
+     */
+    @ColumnInfo(name = "stated_balance_paise")
+    val statedBalancePaise: Long? = null
 )

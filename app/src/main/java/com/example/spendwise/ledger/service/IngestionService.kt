@@ -10,6 +10,7 @@ import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
+import com.example.spendwise.data.database.dao.TagDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import javax.inject.Inject
 
@@ -27,6 +28,7 @@ class IngestionService @Inject constructor(
     private val transactionDao: TransactionDao,
     private val transactionLineDao: TransactionLineDao,
     private val provenanceDao: TransactionProvenanceDao,
+    private val tagDao: TagDao,
     private val ledger: LedgerService,
     private val counterparties: CounterpartyService,
     private val contacts: ContactsService,
@@ -222,9 +224,9 @@ class IngestionService @Inject constructor(
         val smsLines = transactionLineDao.getByTransactionList(smsEntryId).toMutableList()
         val qrLines = transactionLineDao.getByTransactionList(qr.id)
 
-        // Tags: union, order-preserving, deduped.
-        val tags = LinkedHashSet(TagCodec.decode(smsEntry.tags))
-        tags.addAll(TagCodec.decode(qr.tags))
+        // Tags: union, order-preserving, deduped — from the join tables now.
+        val mergedTags = LinkedHashSet(tagDao.namesFor(smsEntryId))
+        mergedTags.addAll(tagDao.namesFor(qr.id))
 
         // If the SMS couldn't name an account but the user's scan did, adopt it.
         val unmatchedPot = ledger.systemAccount(LedgerService.SystemRole.UNMATCHED).id
@@ -263,10 +265,10 @@ class IngestionService @Inject constructor(
             smsEntry.copy(
                 counterpartyId = smsEntry.counterpartyId ?: qr.counterpartyId,
                 note = smsEntry.note ?: qr.note,
-                tags = TagCodec.encode(tags.toList()),
                 status = TransactionStatus.CONFIRMED,
             )
         )
+        ledger.setTags(smsEntryId, mergedTags.toList())
         smsLines.forEach { transactionLineDao.update(it) }
 
         // The QR entry is now redundant.

@@ -16,12 +16,15 @@ import androidx.room.PrimaryKey
         ),
     ],
     indices = [
-        Index("account_id")
+        Index(value = ["account_id", "period"], unique = true)
     ]
 )
 /**
- * A spend ceiling on one category account. [effectiveFrom/To] are
- * transitional — 3b-2 re-keys budgets to monthly `period` ('YYYY-MM').
+ * An envelope: a monthly spend cap on one expense-node account (Rust
+ * migration 006). Keyed by (account_id, [period]) with period 'YYYY-MM' —
+ * "left to spend" = amount - SUM(confirmed lines to the node within the
+ * month). No allocation transactions exist; value-holding goal pots are
+ * child accounts (parent_id), not budgets.
  */
 data class BudgetEntity(
 
@@ -31,14 +34,11 @@ data class BudgetEntity(
     @ColumnInfo(name = "account_id")
     val accountId: Long,
 
+    /** Month key, 'YYYY-MM'. */
+    val period: String,
+
     @ColumnInfo(name = "amount_paise")
     val amountPaise: Long,
-
-    @ColumnInfo(name = "effective_from")
-    val effectiveFrom: Long,
-
-    @ColumnInfo(name = "effective_to")
-    val effectiveTo: Long? = null,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long

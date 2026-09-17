@@ -14,12 +14,12 @@ import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.api.LineSpec
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
-import com.example.spendwise.ledger.service.TagCodec
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
 import com.example.spendwise.data.database.dao.TransactionDao
+import com.example.spendwise.data.database.dao.TagDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
 import com.example.spendwise.data.repository.InboxRepository
 import com.example.spendwise.data.repository.SettingsRepository
@@ -54,6 +54,7 @@ class TransactionViewModel @Inject constructor(
     private val counterpartyService: CounterpartyService,
     private val provenanceDao: TransactionProvenanceDao,
     private val transactionDao: TransactionDao,
+    private val tagDao: TagDao,
     private val settingsRepository: SettingsRepository,
     private val inboxRepository: InboxRepository,
     savedStateHandle: SavedStateHandle,
@@ -66,22 +67,10 @@ class TransactionViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
-        // Suggestion pool for the tag picker: labels already in use across
-        // the ledger, most used first (ties alphabetical).
+        // Suggestion pool for the tag picker: the most-used labels in the
+        // ledger (ties alphabetical), straight from the tags join tables.
         viewModelScope.launch {
-            val labels = transactionDao.getAllTagStrings()
-                .flatMap { TagCodec.decode(it) }
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-            val known = labels.groupingBy { it }.eachCount()
-                .entries
-                .sortedWith(
-                    compareByDescending<Map.Entry<String, Int>> { it.value }
-                        .thenBy { it.key }
-                )
-                .take(24)
-                .map { it.key }
-            _uiState.update { it.copy(knownTags = known) }
+            _uiState.update { it.copy(knownTags = tagDao.popularLabels(24)) }
         }
     }
 

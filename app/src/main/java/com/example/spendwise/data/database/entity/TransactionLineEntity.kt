@@ -19,26 +19,20 @@ import androidx.room.PrimaryKey
             entity = AccountEntity::class,
             parentColumns = ["id"],
             childColumns = ["account_id"]
-        ),
-        ForeignKey(
-            entity = CounterpartyEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["counterparty_id"]
         )
     ],
     indices = [
         Index("transaction_id"),
-        Index("account_id"),
-        Index("counterparty_id")
+        Index("account_id")
     ]
 )
 /**
- * One posting, onto exactly one account node — which may be a bank account,
- * a category account (class income/expense) or a system pot. Pure lines
- * (transaction_id, account_id, amount_paise) plus the two transitional
- * enrichments [counterpartyId] (who owes, on receivable legs) and
- * [balanceAfterPaise] (SMS-stated running balance), both slated to move in
- * 3b-2.
+ * One posting, onto exactly one account node — PURE (Rust migration 005):
+ * (transaction_id, account_id, amount_paise). A line may target a bank
+ * account, a category account (class income/expense), a system pot or a
+ * per-person receivable child pot — accounts are the only thing a line can
+ * aim at; who owes whom lives on the account node (per-person pots), not
+ * here. SMS-stated balances live on transaction_provenance.
  */
 data class TransactionLineEntity(
 
@@ -53,10 +47,4 @@ data class TransactionLineEntity(
 
     @ColumnInfo(name = "amount_paise")
     val amountPaise: Long,
-
-    @ColumnInfo(name = "counterparty_id")
-    val counterpartyId: Long? = null,
-
-    @ColumnInfo(name = "balance_after_paise")
-    val balanceAfterPaise: Long? = null
 )

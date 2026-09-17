@@ -9,17 +9,16 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "transactions",
     foreignKeys = [
-
         ForeignKey(
             entity = CounterpartyEntity::class,
             parentColumns = ["id"],
             childColumns = ["counterparty_id"]
         ),
-//        ForeignKey(
-//            entity = GroupEntity::class,
-//            parentColumns = ["id"],
-//            childColumns = ["group_id"]
-//        ),
+        ForeignKey(
+            entity = GroupEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["group_id"]
+        ),
         ForeignKey(
             entity = TransactionEntity::class,
             parentColumns = ["id"],
@@ -37,6 +36,13 @@ data class TransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
+    /**
+     * What the transaction is — written ONCE at creation (Rust 9-value
+     * vocabulary: expense/income/transfer/loan/loan_repayment/split/
+     * investment/opening/reconciliation). Readers never re-derive it from
+     * line shapes; adding a kind = adding a value plus the lines it posts.
+     */
+    val kind: String,
 
     @ColumnInfo(name = "occurred_on")
     val occurredOn: Long,
@@ -51,8 +57,6 @@ data class TransactionEntity(
     val groupId: Long? = null,
 
     val note: String? = null,
-
-    val tags: String? = null,
 
     val status: String,
 

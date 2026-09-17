@@ -92,8 +92,8 @@ class BucketTest : BackendTestBase() {
         assertEquals(TransactionKind.OPENING, opening.kind)
         assertEquals(45_000L, ledger.accountBalance(cardId)) // owed
 
-        // The opening-equity pot took the contra.
-        val eq = db.AccountDao().findSystemBySubtype("opening_equity")!!
+        // The (merged) equity pot took the contra.
+        val eq = db.AccountDao().findSystemBySubtype("equity")!!
         assertEquals(45_000L, ledger.accountBalance(eq.id))
     }
 }

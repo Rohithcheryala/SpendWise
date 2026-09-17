@@ -66,39 +66,3 @@ object Text {
     }
 }
 
-/** Tiny JSON-string-list codec matching the old server's tags storage. */
-object TagCodec {
-
-    fun encode(tags: List<String>): String =
-        "[" + tags.joinToString(",") { tag ->
-            "\"" + tag.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-        } + "]"
-
-    fun decode(raw: String?): List<String> {
-        if (raw.isNullOrBlank()) return emptyList()
-        val out = mutableListOf<String>()
-        var i = 1
-        val end = raw.length - 1
-        val sb = StringBuilder()
-        var inString = false
-        while (i < end) {
-            val c = raw[i]
-            when {
-                c == '\\' && inString && i + 1 < end -> {
-                    sb.append(raw[i + 1]); i++
-                }
-
-                c == '"' -> {
-                    if (inString) {
-                        out.add(sb.toString()); sb.clear()
-                    }
-                    inString = !inString
-                }
-
-                inString -> sb.append(c)
-            }
-            i++
-        }
-        return out
-    }
-}

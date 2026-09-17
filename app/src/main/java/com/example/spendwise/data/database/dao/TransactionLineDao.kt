@@ -9,9 +9,9 @@ import androidx.room.Update
 import com.example.spendwise.data.database.entity.TransactionLineEntity
 import kotlinx.coroutines.flow.Flow
 
-/** Projection for per-counterparty loan nets (see netByCounterpartyOnAccount). */
+/** Projection for per-person receivable nets (see CounterpartyDao.receivableNets). */
 data class CounterpartyNetRow(
-    val cpId: Long?,
+    val cpId: Long,
     val net: Long,
 )
 
@@ -53,9 +53,12 @@ interface TransactionLineDao {
     suspend fun getByTransactionList(transactionId: Long): List<TransactionLineEntity>
 
     /**
-     * Signed sum of this account's lines on confirmed, non-voided transactions,
-     * optionally bounded by occurred_on <= :throughMillis. The service layer
-     * inverts liabilities on top of this raw sum.
+     * Signed raw sum of this account's lines on confirmed, non-voided
+     * transactions, optionally bounded by occurred_on <= :throughMillis —
+     * the THROUGH-BOUNDED path, kept solely for the reconciliation
+     * continuity check (a view can't take a date parameter). The default
+     * balance read path is v_account_balances (AccountDao.balanceOf); the
+     * service layer applies the liability sign flip there.
      */
     @Query(
         """
@@ -74,21 +77,6 @@ interface TransactionLineDao {
     @Query("SELECT DISTINCT transaction_id FROM transaction_lines WHERE account_id = :accountId")
     suspend fun transactionIdsForAccount(accountId: Long): List<Long>
 
-    /** Net receivable per counterparty from confirmed transactions on one pot account. */
-    @Query(
-        """
-        SELECT COALESCE(l.counterparty_id, e.counterparty_id) AS cpId,
-               SUM(l.amount_paise) AS net
-        FROM transaction_lines l
-        JOIN transactions e ON e.id = l.transaction_id
-        WHERE l.account_id = :accountId
-          AND e.status = 'confirmed'
-          AND e.voided_at IS NULL
-        GROUP BY cpId
-    """
-    )
-    suspend fun netByCounterpartyOnAccount(accountId: Long): List<CounterpartyNetRow>
-
     @Query(
         """
         SELECT * FROM transaction_lines
@@ -97,15 +85,6 @@ interface TransactionLineDao {
     """
     )
     fun getByAccount(accountId: Long): Flow<List<TransactionLineEntity>>
-
-    @Query(
-        """
-        SELECT * FROM transaction_lines
-        WHERE counterparty_id = :counterpartyId
-        ORDER BY id DESC
-    """
-    )
-    fun getByCounterparty(counterpartyId: Long): Flow<List<TransactionLineEntity>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entryLine: TransactionLineEntity): Long

@@ -58,13 +58,22 @@ class SplitLifecycleTest : BackendTestBase() {
         val lines = db.TransactionLineDao().getByTransactionList(transactionId)
         assertEquals(0L, lines.sumOf { it.amountPaise }) // still balanced
 
-        // Category line shrank by the shares; receivable pot carries them.
+        // Category line shrank by the shares; each share sits on that
+        // person's own receivable child pot (pure lines — no line metadata).
         val catLine = lines.first { ln ->
             db.AccountDao().getById(ln.accountId)!!.accountClass == LedgerService.CLASS_EXPENSE
         }
         assertEquals(35_000L, catLine.amountPaise)
-        val recvLines = lines.filter { it.counterpartyId != null }
-        assertEquals(listOf(40_000L to rahul, 25_000L to priya), recvLines.map { it.amountPaise to it.counterpartyId })
+        val pot = ledger.systemAccount(LedgerService.SystemRole.RECEIVABLE)
+        val recvLines = lines.filter { ln ->
+            val a = db.AccountDao().getById(ln.accountId)!!
+            a.isSystem && a.subtype == "receivable" && a.parentId == pot.id
+        }
+        val cpDao = db.CounterpartyDao()
+        assertEquals(
+            listOf(40_000L to rahul, 25_000L to priya),
+            recvLines.map { it.amountPaise to (cpDao.withReceivableUnder(pot.id).first { c -> c.receivableAccountId == it.accountId }.id) }
+        )
 
         // Bank leg untouched: the full amount really did leave the account.
         assertEquals(-100_000L, ledger.accountBalance(bank))

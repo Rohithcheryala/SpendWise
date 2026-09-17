@@ -10,10 +10,10 @@ package com.example.spendwise.ledger.api
 
 enum class Direction { IN, OUT }
 
-/** How an entry reads to the UI, derived from its lines (never stored). */
+/** How the transaction reads to the UI — written ONCE at creation, never re-derived. */
 enum class TransactionKind {
-    OPENING, RECONCILIATION, ALLOCATION, SPLIT, LOAN, LOAN_REPAYMENT,
-    INVESTMENT, TRANSFER, EXPENSE, INCOME, OTHER
+    OPENING, RECONCILIATION, SPLIT, LOAN, LOAN_REPAYMENT,
+    INVESTMENT, TRANSFER, EXPENSE, INCOME
 }
 
 object TransactionStatus {
@@ -45,18 +45,25 @@ object Intent {
 
 /**
  * One posting, onto exactly one account node — a real account, a category
- * account (class income/expense) or a system pot.
+ * account (class income/expense) or a system pot. Pure (Rust migration 005):
+ * who owes whom lives on per-person receivable pots, not on lines; SMS-stated
+ * balances live on provenance.
  */
 data class LineSpec(
     val amountPaise: Long,
     val accountId: Long,
-    val counterpartyId: Long? = null,
-    val balanceAfterPaise: Long? = null,
 )
 
 data class CreateTransactionRequest(
     val occurredOn: Long,
     val lines: List<LineSpec>,
+    /**
+     * Kind written once at creation. Null = derive from the line shape
+     * (expense/income/transfer/loan/loan_repayment/split/investment).
+     * opening/reconciliation CANNOT be derived once the two equity pots merged
+     * into one — those callers must pass it explicitly.
+     */
+    val kind: TransactionKind? = null,
     val status: String = TransactionStatus.CONFIRMED,
     val source: String = TransactionSource.MANUAL,
     val happenedAt: Long? = null,

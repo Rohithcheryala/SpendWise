@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.example.spendwise.data.database.entity.AccountBalanceRow
 import com.example.spendwise.data.database.entity.AccountEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -35,6 +36,14 @@ interface AccountDao {
     """
     )
     fun getUserAccounts(): Flow<List<AccountEntity>>
+
+    /**
+     * The ONE balance read path: v_account_balances (signed sum of confirmed,
+     * non-voided lines, liabilities already inverted). Returns null when the
+     * account doesn't exist — callers decide whether that's an error.
+     */
+    @Query("SELECT * FROM v_account_balances WHERE account_id = :accountId")
+    suspend fun balanceOf(accountId: Long): AccountBalanceRow?
 
     /** User-visible accounts of one class (categories live here too). */
     @Query(

@@ -75,10 +75,45 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
   (buildView can't tell opening from reconciliation on one shared pot);
   bucket allocation is a plain transfer DOWN to the child (funding account
   balance drops, net worth unchanged — accepted semantics, tested).
-- [ ] **STEP 3b-2 — NEXT** (see checklist below; equity merge + stored kind
-  + pure lines + @DatabaseView + groups + budgets period + receivable posting)
+- [x] **STEP 3b-2 DONE** — pure lines + stored kind + annotations (Rust 004/006):
+  - **Pure lines**: `TransactionLineEntity` = (id, transactionId, accountId,
+    amountPaise) — categoryId/bucketId/counterpartyId/balanceAfterPaise all
+    dropped. SMS-stated balance → `TransactionProvenanceEntity
+    .statedBalancePaise` (`LineSpec.balanceAfterPaise` moved to provenance in
+    the API; ReconciliationEngine carries it on its request struct, never
+    stored on lines).
+  - **Stored kind**: `kind: String` on `TransactionEntity` (Rust 9-value
+    vocabulary). Computed ONCE at write time in createTransaction/ingest;
+    `describeTransaction` no longer re-derives. Kind→shape validation matrix
+    in createTransaction. ALLOCATION enum value died (→ transfer), OTHER
+    dropped.
+  - **Equity merge**: the two equity pots (OPEN_EQUITY/RECON_EQUITY subtypes)
+    merged into ONE `equity` subtype pot — unblocked by stored kind.
+  - **@DatabaseView**: `AccountBalanceRow` mirrors `v_account_balances`
+    (balance + liability sign flip); `accountBalance` rewired to it; ad-hoc
+    `sumConfirmedForAccount` deleted (one balance read path).
+  - **Tags → join tables** (006 port, added scope at user's direction):
+    `TagEntity(id, name UNIQUE)` + `TransactionTagEntity(transactionId, tagId,
+    PK both, CASCADE, tag_id index)` + `TagDao` (insert/idByName/all/
+    usageCount). Room v17 destructive. Tag picker/suggestions query the join
+    tables; `TagCodec` deleted (zero remaining references).
+    **DEVIATION**: no data backfill — existing `tags` JSON strings on
+    transactions are dropped on upgrade (pre-release, destructive policy,
+    dev data only).
+  - **Groups** (004 port): `GroupEntity(groups)` + `GroupMemberEntity
+    (group_members, PK (group_id, counterparty_id), CASCADE both ways)` +
+    `GroupDao`. Splits can reference a group; member shares post onto each
+    counterparty's receivable child account.
+  - **Budgets**: monthly `period` TEXT 'YYYY-MM' keyed, unique
+    (account_id, period); `effective_from/effective_to` dropped (BudgetDao +
+    BudgetViewModel adapted).
+  - **Receivable posting**: loan/split legs post onto
+    `counterparties.receivable_account_id` child accounts (the ledger bridge
+    3b-1 added as a bare column now used).
+  - Tests rewritten (stored kind, view-based liability balance, group/tag
+    seams): **91 tests, 0 failed**. `:app:assembleDebug` green.
 - [x] **Step 5 DONE (UI pass)** — done ahead of 3b-2 at the user's request;
-  3b-2 is untouched and still the next ledger step.
+  3b-3 is untouched and still the next ledger step (sealed error types).
   - **Typography**: `res/font/outfit_{regular,medium,semibold,bold,extrabold}.ttf`
     (static Outfit instances, downloaded from Fontsource; chosen because Outfit
     ships **true tabular figures** — verified `tnum` present in GSUB).

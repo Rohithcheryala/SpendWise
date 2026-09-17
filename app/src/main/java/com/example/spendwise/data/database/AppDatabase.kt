@@ -10,9 +10,12 @@ import com.example.spendwise.data.database.dao.BudgetDao
 import com.example.spendwise.data.database.dao.ContactDao
 import com.example.spendwise.data.database.dao.CounterpartyAliasDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
+import com.example.spendwise.data.database.dao.GroupDao
+import com.example.spendwise.data.database.dao.TagDao
 import com.example.spendwise.data.database.dao.TransactionDao
 import com.example.spendwise.data.database.dao.TransactionLineDao
 import com.example.spendwise.data.database.dao.TransactionProvenanceDao
+import com.example.spendwise.data.database.entity.AccountBalanceRow
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
 import com.example.spendwise.data.database.entity.AppMetadataEntity
@@ -21,9 +24,13 @@ import com.example.spendwise.data.database.entity.BudgetEntity
 import com.example.spendwise.data.database.entity.ContactEntity
 import com.example.spendwise.data.database.entity.CounterpartyAliasEntity
 import com.example.spendwise.data.database.entity.CounterpartyEntity
+import com.example.spendwise.data.database.entity.GroupEntity
+import com.example.spendwise.data.database.entity.GroupMemberEntity
+import com.example.spendwise.data.database.entity.TagEntity
 import com.example.spendwise.data.database.entity.TransactionEntity
 import com.example.spendwise.data.database.entity.TransactionLineEntity
 import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
+import com.example.spendwise.data.database.entity.TransactionTagEntity
 
 
 @Database(
@@ -37,11 +44,16 @@ import com.example.spendwise.data.database.entity.TransactionProvenanceEntity
 
         CounterpartyEntity::class,
         CounterpartyAliasEntity::class,
+        GroupEntity::class,
+        GroupMemberEntity::class,
+        TagEntity::class,
         TransactionEntity::class,
         TransactionLineEntity::class,
-        TransactionProvenanceEntity::class
+        TransactionProvenanceEntity::class,
+        TransactionTagEntity::class
     ],
-    version = 16
+    views = [AccountBalanceRow::class],
+    version = 17
 )
 abstract class AppDatabase : RoomDatabase() {
 
@@ -59,6 +71,10 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun CounterpartyDao(): CounterpartyDao
 
     abstract fun CounterpartyAliasDao(): CounterpartyAliasDao
+
+    abstract fun GroupDao(): GroupDao
+
+    abstract fun TagDao(): TagDao
 
     abstract fun TransactionDao(): TransactionDao
 

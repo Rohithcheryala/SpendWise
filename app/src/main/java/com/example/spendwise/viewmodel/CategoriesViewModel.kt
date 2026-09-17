@@ -61,7 +61,7 @@ class CategoriesViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isLoading = _uiState.value.categories.isEmpty())
 
             runCatching {
-                val budgets = budgetDao.getActiveBudgets(monthStart).first()
+                val budgets = budgetDao.getByPeriod(month.toString()).first()
                     .associateBy { it.accountId }
                 val roots = accountDao.getRootCategoryAccounts().first()
                     .filter { it.accountClass == KIND_EXPENSE }
@@ -168,9 +168,8 @@ class CategoriesViewModel @Inject constructor(
     fun setCategoryBudget(accountId: Long, monthlyBudget: Double) {
         viewModelScope.launch {
             runCatching {
-                val existing = budgetDao.getActiveBudgets(monthStartMillis())
-                    .first()
-                    .firstOrNull { it.accountId == accountId }
+                val period = YearMonth.now().toString()
+                val existing = budgetDao.getFor(accountId, period)
                 val paise = (monthlyBudget * 100).toLong()
                 when {
                     paise > 0 && existing != null ->
@@ -178,8 +177,8 @@ class CategoriesViewModel @Inject constructor(
                     paise > 0 -> budgetDao.insert(
                         BudgetEntity(
                             accountId = accountId,
+                            period = period,
                             amountPaise = paise,
-                            effectiveFrom = monthStartMillis(),
                             createdAt = System.currentTimeMillis(),
                         )
                     )
@@ -196,24 +195,22 @@ class CategoriesViewModel @Inject constructor(
     /** Insert or update the current month's budget for one category row. */
     private suspend fun upsertMonthlyBudget(accountId: Long, monthlyBudget: Double) {
         val paise = (monthlyBudget * 100).toLong()
-        if (paise > 0) {
+        if (paise <= 0) return
+        val period = YearMonth.now().toString()
+        val existing = budgetDao.getFor(accountId, period)
+        if (existing != null) {
+            budgetDao.update(existing.copy(amountPaise = paise))
+        } else {
             budgetDao.insert(
                 BudgetEntity(
                     accountId = accountId,
+                    period = period,
                     amountPaise = paise,
-                    effectiveFrom = monthStartMillis(),
                     createdAt = System.currentTimeMillis(),
                 )
             )
         }
     }
-
-    private fun monthStartMillis(): Long =
-        YearMonth.now().atDay(1)
-            .atTime(0, 0)
-            .atZone(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
 
     fun consumeError() {
         if (_uiState.value.error != null) {

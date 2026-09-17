@@ -53,6 +53,7 @@ object BackendModule {
             transactionDao = db.TransactionDao(),
             transactionLineDao = db.TransactionLineDao(),
             provenanceDao = db.TransactionProvenanceDao(),
+            tagDao = db.TagDao(),
             ledger = ledger,
             counterparties = counterpartyService,
             contacts = contactsService,
@@ -71,6 +72,7 @@ object BackendModule {
             transactionDao = db.TransactionDao(),
             transactionLineDao = db.TransactionLineDao(),
             provenanceDao = db.TransactionProvenanceDao(),
+            tagDao = db.TagDao(),
             counterpartyService = counterpartyService,
         )
 }

@@ -58,15 +58,8 @@ interface TransactionDao {
     )
     fun getByStatus(status: String): Flow<List<TransactionEntity>>
 
-    /** All non-empty tag strings ever saved, for the tag picker's suggestions. */
-    @Query(
-        """
-        SELECT tags FROM transactions
-        WHERE tags IS NOT NULL AND tags != ''
-          AND voided_at IS NULL
-    """
-    )
-    suspend fun getAllTagStrings(): List<String>
+    /** All non-voided transactions carrying at least one of the given tags' ids. */
+    // (tag lookups live in TagDao — tags are joined rows now, not a column)
 
     // ── Backend service additions (suspend, non-Flow) ───────────────────────
 
