@@ -140,14 +140,14 @@ class FriendsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val trimmed = name.trim()
-                if (trimmed.isBlank()) throw ApiException("friend name must not be blank")
+                if (trimmed.isBlank()) throw ApiException.InvalidRequest("friend name must not be blank")
 
                 val id = counterpartyService.resolveOrCreate(
                     userId = LedgerService.USER_ID,
                     rawName = trimmed,
                     displayName = trimmed,
                     aliasSource = "manual",
-                ) ?: throw ApiException("friend name must not be blank")
+                ) ?: throw ApiException.NotFound("counterparty", -1L)  // resolveOrCreate found nothing usable
 
                 counterpartyService.ensurePartyType(id, CounterpartyService.PARTY_PERSON)
                 if (!phone.isNullOrBlank()) {

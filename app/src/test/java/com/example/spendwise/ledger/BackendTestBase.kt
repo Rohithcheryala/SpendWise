@@ -11,10 +11,12 @@ import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.AppDatabase
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
+import kotlin.reflect.KClass
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -80,23 +82,43 @@ abstract class BackendTestBase {
 
     // ── factories ────────────────────────────────────────────────────────
 
-    /** Asserts the block raises [ApiException] and returns it (suspend-safe). */
+    /**
+     * Asserts the block raises [ApiException] — narrowed to [klass] when
+     * given — and returns it (suspend-safe). The sealed hierarchy (3b-3)
+     * lets each test pin the *cause*, not just the message. Existing
+     * `expectApiError("msg") {}` calls keep compiling (they assert only
+     * "some ApiException").
+     */
     protected suspend fun expectApiError(
         expectedMessage: String? = null,
+        klass: KClass<out ApiException>? = null,
         block: suspend () -> Unit,
     ): ApiException {
-        val thrown = try {
+        val thrown: ApiException = try {
             block()
-            null
+            throw AssertionError(
+                "expected ApiException" + (expectedMessage?.let { "('$it')" } ?: "")
+            )
         } catch (e: ApiException) {
             e
         }
-        if (thrown == null) {
-            throw AssertionError("expected ApiException" + (expectedMessage?.let { "('$it')" } ?: ""))
+        if (klass != null) {
+            assertTrue(
+                "expected ${klass.simpleName}, got ${thrown::class.simpleName}: ${thrown.message}",
+                klass.isInstance(thrown),
+            )
         }
         expectedMessage?.let { assertEquals(it, thrown.message) }
         return thrown
     }
+
+    /** Typed sugar: `expectApiError<ApiException.NotFound>("...") { ... }`. */
+    protected suspend inline fun <reified T : ApiException> expectApiErrorOf(
+        expectedMessage: String? = null,
+        noinline block: suspend () -> Unit,
+    ): T =
+        @Suppress("UNCHECKED_CAST")
+        expectApiError(expectedMessage, T::class, block) as T
 
     /**
      * Insert a user account (asset by default) with a TESTBANK last-4

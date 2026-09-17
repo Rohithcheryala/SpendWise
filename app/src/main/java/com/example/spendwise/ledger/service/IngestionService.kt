@@ -159,7 +159,7 @@ class IngestionService @Inject constructor(
      */
     suspend fun claimOrphansForAccount(accountId: Long): Int {
         val account = accountDao.getById(accountId)
-            ?: throw com.example.spendwise.ledger.api.ApiException("account $accountId not found")
+            ?: throw com.example.spendwise.ledger.api.ApiException.NotFound("account", accountId)
         val hasIdentifier = identifierDao.getByAccountList(accountId).any { it.isActive }
         if (account.bank == null || !hasIdentifier) return 0
 

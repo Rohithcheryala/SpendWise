@@ -98,8 +98,9 @@ class LedgerService @Inject constructor(
      * income/expense category account. Attaches provenance when any is given.
      */
     override suspend fun ingest(request: IngestRequest): TransactionView {
-        if (request.intent !in Intent.ALL) throw ApiException("unknown intent '${request.intent}'")
-        if (request.amountPaise <= 0) throw ApiException("amount must be positive")
+        if (request.intent !in Intent.ALL) throw ApiException.InvalidRequest("unknown intent '${request.intent}'")
+        if (request.amountPaise <= 0) throw ApiException.InvalidRequest("amount must be positive")
+        requireFreshDedupeHash(request.dedupeHash)
         val sign = if (request.direction == Direction.IN) 1L else -1L
         val primaryAccount = request.accountId ?: systemAccount(SystemRole.UNMATCHED).id
 
@@ -167,7 +168,8 @@ class LedgerService @Inject constructor(
         balanceAfterPaise: Long?,
         note: String?,
     ): TransactionView {
-        if (fromAccountId == toAccountId) throw ApiException("transfer legs must differ")
+        if (fromAccountId == toAccountId) throw ApiException.InvalidRequest("transfer legs must differ")
+        requireFreshDedupeHash(dedupeHash)
         val view = createTransaction(
             CreateTransactionRequest(
                 occurredOn = occurredOn,
@@ -238,12 +240,12 @@ class LedgerService @Inject constructor(
     }
 
     private fun validateLines(lines: List<LineSpec>) {
-        if (lines.size < 2) throw ApiException("a transaction needs at least two lines")
+        if (lines.size < 2) throw ApiException.UnbalancedLines("a transaction needs at least two lines")
         val total = lines.sumOf { it.amountPaise }
-        if (total != 0L) throw ApiException("transaction lines must sum to zero (got $total)")
+        if (total != 0L) throw ApiException.UnbalancedLines("transaction lines must sum to zero (got $total)")
         for (ln in lines) {
             if (ln.accountId <= 0L) {
-                throw ApiException("each line must post onto an account")
+                throw ApiException.UnbalancedLines("each line must post onto an account")
             }
         }
     }
@@ -267,7 +269,7 @@ class LedgerService @Inject constructor(
     }
 
     private suspend fun requireView(id: Long): TransactionView =
-        getTransaction(id) ?: throw ApiException("transaction $id vanished after write")
+        getTransaction(id) ?: throw ApiException.NotFound("transaction", id)  // raced a concurrent delete
 
     override suspend fun listTransactions(
         status: String?,
@@ -284,6 +286,18 @@ class LedgerService @Inject constructor(
     }
 
     /**
+     * Write-path dedupe guard (3b-3): refuses to record the same SMS/scan
+     * hash twice, no matter which ingest entry point was called. The
+     * pre-check in [IngestionService] stays (it returns a friendly
+     * Duplicate result); this is the invariant backstop.
+     */
+    private suspend fun requireFreshDedupeHash(dedupeHash: String?) {
+        if (dedupeHash != null && provenanceDao.getByDedupeHash(dedupeHash) != null) {
+            throw ApiException.DuplicateDedupeHash(dedupeHash)
+        }
+    }
+
+    /**
      * Signed sum of an account's confirmed, non-voided lines. Liabilities are
      * inverted (balance = amount owed). [through] bounds it for reconciliation
      * continuity checks. Buckets — being plain child accounts — use the same
@@ -291,7 +305,7 @@ class LedgerService @Inject constructor(
      */
     override suspend fun accountBalance(accountId: Long, through: Long?): Long {
         val account = accountDao.getById(accountId)
-            ?: throw ApiException("account $accountId not found")
+            ?: throw ApiException.NotFound("account", accountId)
         // Default read path: v_account_balances (the liability sign flip
         // happens IN the view — the only sign inversion anywhere). Only the
         // reconciliation continuity check needs a through-bounded sum; that
@@ -426,7 +440,7 @@ class LedgerService @Inject constructor(
         }
         return when {
             SystemRole.EQUITY.subtype in sysRoles ->
-                throw ApiException("equity legs require an explicit kind (opening/reconciliation)")
+                throw ApiException.EquityGuardViolation("equity legs require an explicit kind (opening/reconciliation)")
 
             recvLegs.isNotEmpty() && expenseLegs.isNotEmpty() -> TransactionKind.SPLIT
 
@@ -473,42 +487,42 @@ class LedgerService @Inject constructor(
         }
 
         if (hasEquity && kind != TransactionKind.OPENING && kind != TransactionKind.RECONCILIATION) {
-            throw ApiException("equity legs are only allowed on opening/reconciliation transactions")
+            throw ApiException.EquityGuardViolation("equity legs are only allowed on opening/reconciliation transactions")
         }
         when (kind) {
             TransactionKind.OPENING, TransactionKind.RECONCILIATION -> {
-                if (!hasEquity) throw ApiException("$kind must post an equity pot leg")
+                if (!hasEquity) throw ApiException.EquityGuardViolation("$kind must post an equity pot leg")
             }
 
             TransactionKind.TRANSFER -> {
                 // ≥2 holder legs ONLY — no terminals, no pots.
                 if (terminalLegs.isNotEmpty() || recvLegs.isNotEmpty() || invLegs.isNotEmpty()) {
-                    throw ApiException("transfer must contain only holder legs")
+                    throw ApiException.EquityGuardViolation("transfer must contain only holder legs")
                 }
-                if (holderLegs.size < 2) throw ApiException("transfer needs at least two holder legs")
+                if (holderLegs.size < 2) throw ApiException.EquityGuardViolation("transfer needs at least two holder legs")
             }
 
             TransactionKind.LOAN, TransactionKind.LOAN_REPAYMENT -> {
-                if (terminalLegs.isNotEmpty()) throw ApiException("$kind must not contain terminal legs")
-                if (recvLegs.isEmpty()) throw ApiException("$kind must post a receivable pot leg")
+                if (terminalLegs.isNotEmpty()) throw ApiException.EquityGuardViolation("$kind must not contain terminal legs")
+                if (recvLegs.isEmpty()) throw ApiException.EquityGuardViolation("$kind must post a receivable pot leg")
             }
 
             TransactionKind.SPLIT -> {
-                if (terminalLegs.isEmpty()) throw ApiException("split must keep a terminal leg")
-                if (recvLegs.isEmpty()) throw ApiException("split must add receivable legs")
+                if (terminalLegs.isEmpty()) throw ApiException.EquityGuardViolation("split must keep a terminal leg")
+                if (recvLegs.isEmpty()) throw ApiException.EquityGuardViolation("split must add receivable legs")
             }
 
             TransactionKind.INVESTMENT -> {
-                if (terminalLegs.isNotEmpty()) throw ApiException("investment must not contain terminal legs")
-                if (invLegs.isEmpty()) throw ApiException("investment must post the investment pot")
+                if (terminalLegs.isNotEmpty()) throw ApiException.EquityGuardViolation("investment must not contain terminal legs")
+                if (invLegs.isEmpty()) throw ApiException.EquityGuardViolation("investment must post the investment pot")
             }
 
             TransactionKind.EXPENSE -> {
-                if (expenseLegs.isEmpty()) throw ApiException("expense must post an expense terminal leg")
+                if (expenseLegs.isEmpty()) throw ApiException.EquityGuardViolation("expense must post an expense terminal leg")
             }
 
             TransactionKind.INCOME -> {
-                if (incomeLegs.isEmpty()) throw ApiException("income must post an income terminal leg")
+                if (incomeLegs.isEmpty()) throw ApiException.EquityGuardViolation("income must post an income terminal leg")
             }
         }
     }
@@ -526,7 +540,7 @@ class LedgerService @Inject constructor(
         if (counterpartyId == null) return pot
         val cpDao = db.CounterpartyDao()
         val cp = cpDao.getById(counterpartyId)
-            ?: throw ApiException("counterparty $counterpartyId not found")
+            ?: throw ApiException.NotFound("counterparty", counterpartyId)
         cp.receivableAccountId?.let { id ->
             accountDao.getById(id)?.let { return it }
         }
@@ -557,7 +571,7 @@ class LedgerService @Inject constructor(
             val tagId = tagDao.idByName(name)
                 ?: tagDao.insert(TagEntity(name = name)).takeIf { it != -1L }
                 ?: tagDao.idByName(name)
-                ?: throw ApiException("could not create tag '$name'")
+                ?: throw ApiException.InvalidRequest("could not create tag '$name'")
             TransactionTagEntity(transactionId = transactionId, tagId = tagId)
         }
         if (rows.isNotEmpty()) tagDao.attachAll(rows)
@@ -575,15 +589,20 @@ class LedgerService @Inject constructor(
      */
     override suspend fun confirmTransaction(id: Long, extraTags: List<String>) {
         db.withTransaction {
-            val entry = transactionDao.getById(id) ?: throw ApiException("transaction $id not found")
+            val entry = transactionDao.getById(id) ?: throw ApiException.NotFound("transaction", id)
             val lines = transactionLineDao.getByTransactionList(id)
             val hasRealAccount = lines.map { it.accountId }.any { leg ->
                 val acct = accountDao.getById(leg)
                 acct != null && !acct.isSystem && isBalanceSheetClass(acct.accountClass)
             }
             if (!hasRealAccount) {
-                throw ApiException(
+                throw ApiException.InvalidLifecycleTransition(
                     "cannot confirm transaction $id: no real account line yet (classify the orphan first)"
+                )
+            }
+            if (entry.voidedAt != null) {
+                throw ApiException.InvalidLifecycleTransition(
+                    "transaction $id is voided and cannot be confirmed"
                 )
             }
             if (extraTags.isEmpty()) {
@@ -606,18 +625,18 @@ class LedgerService @Inject constructor(
      */
     override suspend fun assignAccount(transactionId: Long, accountId: Long): TransactionView {
         val target = accountDao.getById(accountId)
-            ?: throw ApiException("account $accountId not found")
+            ?: throw ApiException.NotFound("account", accountId)
         if (target.isSystem) {
-            throw ApiException("cannot assign a system account")
+            throw ApiException.InvalidRequest("cannot assign a system account")
         }
         return db.withTransaction {
-            transactionDao.getById(transactionId) ?: throw ApiException("transaction $transactionId not found")
+            transactionDao.getById(transactionId) ?: throw ApiException.NotFound("transaction", transactionId)
             val lines = transactionLineDao.getByTransactionList(transactionId).toMutableList()
             val idx = lines.indexOfFirst { ln ->
                 val acct = accountDao.getById(ln.accountId)
                 acct != null && !acct.isSystem && isBalanceSheetClass(acct.accountClass)
             }
-            if (idx < 0) throw ApiException("transaction $transactionId has no account leg to assign")
+            if (idx < 0) throw ApiException.InvalidLifecycleTransition("transaction $transactionId has no account leg to assign")
             lines[idx] = lines[idx].copy(accountId = accountId)
             transactionLineDao.update(lines[idx])
             requireView(transactionId)
@@ -626,7 +645,7 @@ class LedgerService @Inject constructor(
 
     /** Audit-soft-delete. Voided transactions drop out of every balance and list. */
     override suspend fun voidTransaction(id: Long, reason: String?) {
-        val entry = transactionDao.getById(id) ?: throw ApiException("transaction $id not found")
+        val entry = transactionDao.getById(id) ?: throw ApiException.NotFound("transaction", id)
         if (entry.voidedAt != null) return
         transactionDao.update(entry.copy(voidedAt = System.currentTimeMillis(), voidedReason = reason))
     }
@@ -649,21 +668,21 @@ class LedgerService @Inject constructor(
      * Friends.
      */
     override suspend fun splitTransaction(id: Long, request: SplitRequest): TransactionView {
-        if (request.shares.isEmpty()) throw ApiException("split needs at least one share")
+        if (request.shares.isEmpty()) throw ApiException.InvalidRequest("split needs at least one share")
         return db.withTransaction {
-            val entry = transactionDao.getById(id) ?: throw ApiException("transaction $id not found")
+            val entry = transactionDao.getById(id) ?: throw ApiException.NotFound("transaction", id)
             val lines = transactionLineDao.getByTransactionList(id).toMutableList()
 
             val plIdx = lines.indexOfFirst { ln ->
                 val acct = accountDao.getById(ln.accountId)
                 acct != null && (acct.accountClass == CLASS_EXPENSE || acct.accountClass == CLASS_INCOME)
             }
-            if (plIdx < 0) throw ApiException("split target must have a single category line")
+            if (plIdx < 0) throw ApiException.InvalidRequest("split target must have a single category line")
 
             for (share in request.shares) {
                 val current = lines[plIdx]
                 if (current.amountPaise - share.amountPaise < 0) {
-                    throw ApiException("shares exceed the paid amount")
+                    throw ApiException.InvalidRequest("shares exceed the paid amount")
                 }
                 lines[plIdx] = current.copy(amountPaise = current.amountPaise - share.amountPaise)
                 // Per-person pot (Rust Q4/Q14): each share posts onto that
@@ -788,7 +807,7 @@ class LedgerService @Inject constructor(
     ): TransactionView? {
         return db.withTransaction {
             val account = accountDao.getById(accountId)
-                ?: throw ApiException("account $accountId not found")
+                ?: throw ApiException.NotFound("account", accountId)
             val eq = systemAccount(SystemRole.EQUITY)
 
             // Prior opening transactions = transactions with lines on BOTH nodes.
@@ -803,7 +822,7 @@ class LedgerService @Inject constructor(
             if (amountPaise == 0L) return@withTransaction null
 
             val occurredOn = onDate ?: detailsDao.getForAccount(account.id)?.reconciledThrough
-                ?: throw ApiException("cannot record opening balance without a date")
+                ?: throw ApiException.InvalidRequest("cannot record opening balance without a date")
 
             val sign = if (account.accountClass == CLASS_LIABILITY) -1L else 1L
             val amount = sign * amountPaise

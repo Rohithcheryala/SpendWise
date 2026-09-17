@@ -98,7 +98,7 @@ class CounterpartyService @Inject constructor(
     }
 
     suspend fun requireCounterparty(id: Long): CounterpartyEntity =
-        counterpartyDao.getById(id) ?: throw ApiException("counterparty $id not found")
+        counterpartyDao.getById(id) ?: throw ApiException.NotFound("counterparty", id)
 
     companion object {
         const val PARTY_MERCHANT = "merchant"

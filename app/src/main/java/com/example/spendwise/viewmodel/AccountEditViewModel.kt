@@ -101,7 +101,7 @@ class AccountEditViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
             try {
                 val account = accountDao.getById(accountId)
-                    ?: throw ApiException("account not found")
+                    ?: throw ApiException.NotFound("account", accountId)
                 accountDao.update(
                     account.copy(
                         name = s.name.trim(),
@@ -140,7 +140,7 @@ class AccountEditViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaving = true, error = null)
             runCatching {
                 val account = accountDao.getById(accountId)
-                    ?: throw ApiException("account not found")
+                    ?: throw ApiException.NotFound("account", accountId)
                 // Archive: deactivated, hidden everywhere, ledger history kept.
                 accountDao.update(account.copy(isArchived = true))
             }.onSuccess {

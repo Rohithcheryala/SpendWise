@@ -136,5 +136,30 @@ data class FriendBalance(
     val netPaise: Long,
 )
 
-/** Thrown for 4xx-equivalent violations (bad input, invariant breaches). */
-class ApiException(message: String) : Exception(message)
+/**
+ * Thrown for 4xx-equivalent violations (bad input, invariant breaches). Sealed
+ * so callers can branch on the failure cause instead of parsing messages
+ * (3b-3), while `message` stays human-readable for snackbars/logs.
+ */
+sealed class ApiException(message: String) : Exception(message) {
+
+    /** Lines don't balance, are singular, or post onto no account. */
+    class UnbalancedLines(message: String) : ApiException(message)
+
+    /** A dedupe hash that already exists in provenance was written again. */
+    class DuplicateDedupeHash(val dedupeHash: String) :
+        ApiException("duplicate dedupe hash '$dedupeHash'")
+
+    /** A line/pot constraint tied to the equity guard was breached. */
+    class EquityGuardViolation(message: String) : ApiException(message)
+
+    /** A status/lifecycle rule was breached (void resurrection etc.). */
+    class InvalidLifecycleTransition(message: String) : ApiException(message)
+
+    /** The referenced row does not exist (bad id, or raced a delete). */
+    class NotFound(what: String, id: Long) :
+        ApiException("$what $id not found")
+
+    /** Everything else 4xx-shaped: bad intent, bad amount, bad shape. */
+    class InvalidRequest(message: String) : ApiException(message)
+}

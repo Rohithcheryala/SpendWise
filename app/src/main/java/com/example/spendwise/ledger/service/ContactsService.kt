@@ -109,9 +109,9 @@ class ContactsService(
      */
     suspend fun linkWithContact(counterpartyId: Long, phone: String?, name: String) {
         val cp = counterpartyDao.getById(counterpartyId)
-            ?: throw com.example.spendwise.ledger.api.ApiException("counterparty $counterpartyId not found")
+            ?: throw com.example.spendwise.ledger.api.ApiException.NotFound("counterparty", counterpartyId)
         if (name.isBlank()) {
-            throw com.example.spendwise.ledger.api.ApiException("contact name must not be blank")
+            throw com.example.spendwise.ledger.api.ApiException.InvalidRequest("contact name must not be blank")
         }
 
         counterpartyDao.update(cp.copy(displayName = name.trim()))

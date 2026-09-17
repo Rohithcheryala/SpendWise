@@ -112,8 +112,8 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
     3b-1 added as a bare column now used).
   - Tests rewritten (stored kind, view-based liability balance, group/tag
     seams): **91 tests, 0 failed**. `:app:assembleDebug` green.
-- [x] **Step 5 DONE (UI pass)** — done ahead of 3b-2 at the user's request;
-  3b-3 is untouched and still the next ledger step (sealed error types).
+- [x] **Step 5 DONE (UI pass)** — done ahead of the 3b wave at the user's
+  request; 3b-3 has since landed (see its DONE block below).
   - **Typography**: `res/font/outfit_{regular,medium,semibold,bold,extrabold}.ttf`
     (static Outfit instances, downloaded from Fontsource; chosen because Outfit
     ships **true tabular figures** — verified `tnum` present in GSUB).
@@ -298,17 +298,33 @@ code on 3a's HEAD.
   TEXT ('YYYY-MM') keyed (accountId, period); drop effective_from/to
   (BudgetViewModel + BudgetDao adapt).
 
-**3b-3: errors + tests**
-- Sealed error types on the LedgerApi seam: UnbalancedLines,
-  DuplicateDedupeHash, EquityGuardViolation, InvalidLifecycleTransition
-  (replaces bare `ApiException` strings in ledger/).
-- Tests to rewrite in `app/src/test/java/com/example/spendwise/ledger/`:
-  BackendTestBase (seed data now: accounts w/ class/subtype + pots),
-  BalanceTest (liability sign via view), BucketTest (bucket as child
-  account), IngestTest/IngestionServiceTest (KIND_BRIDGE, orphan pot),
-  DescribeEntryTest (stored kind; ALLOCATION/OTHER expectations gone),
-  LedgerValidationTest (kind→shape matrix), SplitLifecycleTest,
-  CounterpartyServiceTest, ContactsServiceTest.
+**3b-3: errors + tests — ✅ DONE** (see Status; sealed hierarchy on the
+LedgerApi seam, message-based `ApiException` gone):
+- `ApiException` is now **sealed** with `UnbalancedLines`,
+  `DuplicateDedupeHash`, `EquityGuardViolation`, `InvalidLifecycleTransition`,
+  plus `NotFound(what, id)` and `InvalidRequest` for the sites the four named
+  types can't honestly cover (bad intent/amount, "account X not found").
+  `message` stays human-readable; callers can finally branch on cause.
+- All ~40 throw sites across LedgerService / IngestionService /
+  ContactsService / CounterpartyService retyped via explicit mapping script
+  (nothing was left as a bare constructor). The 4 VM-side constructions
+  (AccountEditViewModel, FriendsViewModel) moved to NotFound/InvalidRequest.
+- **Two invariant upgrades that fell out of the typing**:
+  1. `createTransaction`/`ingestTransfer` now enforce dedupe at the write
+     path (`requireFreshDedupeHash` → `DuplicateDedupeHash`) — previously
+     only `IngestionService` pre-checked, so a direct `ingestTransfer` with a
+     seen hash silently wrote a duplicate.
+  2. `confirmTransaction` refuses to resurrect a **voided** transaction
+     (`InvalidLifecycleTransition`) — previously it silently re-confirmed it.
+- `ReconciliationEngine`'s `require(...)` stays (parse-layer input shape,
+  not an API invariant). No production caller branched on `ApiException`
+  type (verified: all catches are `catch (e: Exception)`), so sealing is
+  non-breaking; VMs surface `e.message` as before.
+- Tests: `expectApiError` gained an optional `KClass` narrowing param
+  (old call sites unchanged) + `expectApiErrorOf<T>()` sugar. 5 new tests in
+  LedgerValidationTest: duplicate dedupe hash, confirm-after-void,
+  equity-leg-without-kind, transfer-with-terminal-leg, NotFound on confirm.
+  **96 tests, 0 failed**; `:app:assembleDebug` green.
 - Rust cleanup NOT to port: 008 global contacts table; `user_id` columns
   (single-user, documented deviation).
 
