@@ -35,7 +35,9 @@ private const val TRANSACTION_ROUTE = "transaction?transactionId={transactionId}
 
 @Composable
 fun AppNavHost(
-    navController: NavHostController
+    navController: NavHostController,
+    deepLinkRoute: String? = null,
+    onDeepLinkHandled: () -> Unit = {},
 ) {
     NavHost(
         navController = navController,
@@ -196,5 +198,14 @@ fun AppNavHost(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
+    }
+
+    // A notification tap carries the ledger entry it is about; open that entry
+    // once the graph exists. The handler clears the request afterwards, so a
+    // recomposition or a configuration change cannot replay the navigation.
+    LaunchedEffect(deepLinkRoute) {
+        if (deepLinkRoute == null) return@LaunchedEffect
+        navController.navigate(deepLinkRoute)
+        onDeepLinkHandled()
     }
 }

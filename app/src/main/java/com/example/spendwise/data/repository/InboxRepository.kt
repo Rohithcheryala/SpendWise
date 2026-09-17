@@ -74,6 +74,7 @@ class InboxRepository @Inject constructor(
      * transactions the live SMS receiver missed. Duplicates return null.
      */
     data class CapturedSms(
+        val transactionId: Long,
         val party: String,
         val amountPaise: Long,
         val isDebit: Boolean,
@@ -115,6 +116,7 @@ class InboxRepository @Inject constructor(
             .take(MAX_FRESH_NOTIFICATIONS)
             .forEach {
                 notifier.postCapturedTransaction(
+                    transactionId = it.transactionId,
                     party = it.party,
                     amountPaise = it.amountPaise,
                     isDebit = it.isDebit,
@@ -189,6 +191,7 @@ class InboxRepository @Inject constructor(
 
         if (notifyUser) {
             notifier.postCapturedTransaction(
+                transactionId = result.transactionId,
                 party = parsed.merchant ?: parsed.bankName,
                 amountPaise = amountPaise,
                 isDebit = direction == Direction.OUT,
@@ -196,6 +199,7 @@ class InboxRepository @Inject constructor(
             )
         }
         return CapturedSms(
+            transactionId = result.transactionId,
             party = parsed.merchant ?: parsed.bankName,
             amountPaise = amountPaise,
             isDebit = direction == Direction.OUT,

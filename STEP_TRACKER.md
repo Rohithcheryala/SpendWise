@@ -223,6 +223,48 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
     `:app:assembleDebug` and `:app:testDebugUnitTest` all green. UI-only — no
     schema, DAO or ledger change.
 
+- [x] **Notification tap routing — the alert now opens the entry it is about**:
+  reported as "tapping the notification took me to Transactions instead of
+  Transaction details". Diagnosis: the tap carried **no destination at all**,
+  for three separate reasons. (1) `TransactionNotifier` built its content
+  intent from `packageManager.getLaunchIntentForPackage()`, which is the bare
+  `MAIN`/`LAUNCHER` intent — no extras, no data URI. (2) Nothing read it: there
+  was no `onNewIntent` override anywhere in the app and no `deepLinks` on any
+  `composable()`, so with `FLAG_ACTIVITY_SINGLE_TOP` a tap while the app was
+  alive simply **resumed the task on whatever screen was last showing** (cold
+  start went to Budget instead — inconsistent either way). (3) The payload
+  could not name its target: `postCapturedTransaction` took no id, even though
+  `SmsIngestResult.Parsed.transactionId` was available and being discarded at
+  `InboxRepository.kt:188`.
+  - **`TransactionNotifier`**: signature gains `transactionId`; the same
+    explicit-component launch intent is re-pointed at `ACTION_VIEW` +
+    `spendwise://transaction/<id>` + `EXTRA_TRANSACTION_ID`. Notification id
+    and `PendingIntent` request code are now keyed on the transaction: a
+    re-alert replaces rather than stacks, and — since extras are **not** part of
+    `Intent.filterEquals` — a shared request code with `FLAG_UPDATE_CURRENT`
+    would otherwise make one alert's tap open another entry.
+  - **`InboxRepository`**: `CapturedSms` gains `transactionId`; both notify
+    call sites (the live SMS receiver path and the sync path) pass
+    `result.transactionId`.
+  - **`MainActivity`**: `onNewIntent` added (`setIntent` + re-derive), and
+    `Intent.toAlertRoute()` maps the extra to `transaction?transactionId=<id>`.
+    The route is held in `mutableStateOf` until the nav host consumes it rather
+    than navigated in `onCreate` — the graph does not exist yet, and not at all
+    until onboarding completes, which is exactly why the request must survive.
+  - **`AppNavHost`**: `deepLinkRoute` / `onDeepLinkHandled` params plus a
+    `LaunchedEffect(deepLinkRoute)` that navigates once and clears the request,
+    so a recomposition or a rotation cannot replay it.
+  - **Manifest**: `MainActivity` gets `launchMode="singleTop"`.
+  - Target is the **detail** screen (the reported expectation, and what the
+    other entry points already do — `InboxScreen.onEditItem` routes buffer
+    entries to `transaction?transactionId=`). The alert's *copy* ("Tap to
+    review in the Buffer Inbox") is now the only part that disagrees.
+  - Tests: `AlertDeepLinkTest` (4, Robolectric) pins alert→route,
+    launcher-tap→no redirect, and missing/non-positive ids.
+    `:app:compileDebugKotlin`, `:app:assembleDebug` and
+    `:app:testDebugUnitTest` green (**102 tests / 16 classes**).
+
+
 ## STEP 1 checklist (exact edits)
 
 Delete files:

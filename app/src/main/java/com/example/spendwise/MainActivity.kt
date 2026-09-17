@@ -1,5 +1,6 @@
 package com.example.spendwise
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -11,11 +12,13 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.example.spendwise.core.notifications.TransactionNotifier
 import com.example.spendwise.data.repository.ThemeMode
 import com.example.spendwise.navigation.AppNavHost
 import com.example.spendwise.ui.screens.onboarding.OnboardingNavGraph
@@ -28,17 +31,54 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    /**
+     * The route a notification tap asked for, consumed by the nav host once it
+     * exists. Held as state rather than navigated immediately because the graph
+     * is not composed yet in [onCreate] — and not at all until onboarding is
+     * done, which is exactly why the request has to survive until then.
+     */
+    private val deepLinkRoute = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        deepLinkRoute.value = intent.toAlertRoute()
         setContent {
-            AppRoot()
+            AppRoot(
+                deepLinkRoute = deepLinkRoute.value,
+                onDeepLinkHandled = { deepLinkRoute.value = null },
+            )
         }
     }
+
+    /**
+     * The alert intent sets `FLAG_ACTIVITY_SINGLE_TOP`, so a tap while the app
+     * is alive is delivered here rather than to [onCreate]. Without this
+     * override the intent was dropped on the floor and the app simply resumed
+     * on whatever screen it was last showing — the bug this fixes.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        deepLinkRoute.value = intent.toAlertRoute()
+    }
+}
+
+/**
+ * The in-app route a transaction alert should open, or null for any other
+ * launch. Keyed off the notifier's extra alone, so a plain launcher tap (which
+ * carries no extras) is never redirected anywhere.
+ */
+internal fun Intent?.toAlertRoute(): String? {
+    val transactionId = this?.getLongExtra(TransactionNotifier.EXTRA_TRANSACTION_ID, -1L) ?: -1L
+    return if (transactionId > 0L) "transaction?transactionId=$transactionId" else null
 }
 
 @Composable
 fun AppRoot(
+    deepLinkRoute: String? = null,
+    onDeepLinkHandled: () -> Unit = {},
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val onboardingViewModel: OnboardingViewModel = hiltViewModel()
@@ -83,7 +123,10 @@ fun AppRoot(
     SpendwiseTheme(darkTheme = darkTheme) {
         Log.d("isOnboardingComplete", "AppRoot: $isOnboardingComplete")
         if (isOnboardingComplete) {
-            SpendwiseAppComposable()
+            SpendwiseAppComposable(
+                deepLinkRoute = deepLinkRoute,
+                onDeepLinkHandled = onDeepLinkHandled,
+            )
         } else {
             OnboardingNavGraph(viewModel = onboardingViewModel)
         }
@@ -92,10 +135,15 @@ fun AppRoot(
 
 
 @Composable
-fun SpendwiseAppComposable() {
+fun SpendwiseAppComposable(
+    deepLinkRoute: String? = null,
+    onDeepLinkHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
 
     AppNavHost(
-        navController = navController
+        navController = navController,
+        deepLinkRoute = deepLinkRoute,
+        onDeepLinkHandled = onDeepLinkHandled,
     )
 }

@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -28,6 +29,9 @@ import javax.inject.Singleton
  *
  * Everything else stays silent — a denied permission or an off toggle must
  * never throw into the SMS receive path.
+ *
+ * Tap routing lives here too: each alert carries the ledger entry id it is
+ * about, so the tap can open *that* entry instead of merely resuming the app.
  */
 @Singleton
 class TransactionNotifier @Inject constructor(
@@ -37,6 +41,7 @@ class TransactionNotifier @Inject constructor(
 
     /** One auto-detected bank SMS turned into a buffer entry. */
     suspend fun postCapturedTransaction(
+        transactionId: Long,
         party: String,
         amountPaise: Long,
         isDebit: Boolean,
@@ -75,8 +80,19 @@ class TransactionNotifier @Inject constructor(
             if (!accountName.isNullOrBlank()) append(" • ").append(accountName)
         }
 
+        // Tap routing. `getLaunchIntentForPackage` returns the bare
+        // MAIN/LAUNCHER intent, which names no destination — tapping the alert
+        // then did nothing but resume the task wherever the user had left it.
+        // Re-point that same (explicit-component) intent at ACTION_VIEW with a
+        // `spendwise://transaction/<id>` URI and the id as an extra, so the tap
+        // can open the entry it is actually about.
         val openApp = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP) }
+            ?.apply {
+                action = Intent.ACTION_VIEW
+                data = deepLinkUri(transactionId)
+                putExtra(EXTRA_TRANSACTION_ID, transactionId)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_transaction)
@@ -91,7 +107,7 @@ class TransactionNotifier @Inject constructor(
                     setContentIntent(
                         PendingIntent.getActivity(
                             context,
-                            (System.currentTimeMillis() and 0xFFFF).toInt(),
+                            transactionId.toInt(),
                             openApp,
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                         )
@@ -101,7 +117,13 @@ class TransactionNotifier @Inject constructor(
             .build()
 
         runCatching {
-            notificationManager.notify((System.currentTimeMillis() and 0x7FFFFFFF).toInt(), notification)
+            // Keyed on the entry, not the clock: a re-alert for the same
+            // transaction replaces its notification instead of stacking a
+            // duplicate, and it keeps the PendingIntent request code distinct
+            // per transaction. That matters because extras are NOT part of
+            // Intent.filterEquals — with a shared request code plus
+            // FLAG_UPDATE_CURRENT, one alert's tap would open another's entry.
+            notificationManager.notify(transactionId.toInt(), notification)
         }.onFailure {
             Log.w(TAG, "Alert post failed", it)
         }
@@ -124,5 +146,15 @@ class TransactionNotifier @Inject constructor(
     companion object {
         private const val TAG = "TransactionNotifier"
         const val CHANNEL_ID = "transaction_alerts"
+
+        /**
+         * Read back by `MainActivity.toAlertRoute()` to turn a tap into an
+         * in-app route. Declared here because this class is what produces the
+         * intent; the consumer lives in the app layer.
+         */
+        const val EXTRA_TRANSACTION_ID = "com.example.spendwise.extra.TRANSACTION_ID"
+
+        /** `spendwise://transaction/42` — the alert's machine-readable target. */
+        fun deepLinkUri(transactionId: Long): Uri = Uri.parse("spendwise://transaction/$transactionId")
     }
 }
