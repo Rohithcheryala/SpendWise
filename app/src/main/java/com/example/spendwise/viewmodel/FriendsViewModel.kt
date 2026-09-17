@@ -10,6 +10,7 @@ import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.service.ContactsService
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.ledger.service.Text
 import com.example.spendwise.core.contacts.Contact
 import com.example.spendwise.core.contacts.ContactReader
 import com.example.spendwise.data.database.dao.CounterpartyDao
@@ -96,7 +97,7 @@ class FriendsViewModel @Inject constructor(
             runCatching {
                 contactReader.getContacts()
                     .filter { it.name.isNotBlank() }
-                    .distinctBy { it.name.trim().lowercase() to it.phoneNumber }
+                    .distinctByPhone()
                     .sortedBy { it.name.lowercase() }
             }.onSuccess { contacts ->
                 uiState = uiState.copy(contactsLoading = false, contacts = contacts)
@@ -160,4 +161,24 @@ class FriendsViewModel @Inject constructor(
             }
         }
     }
+}
+
+/**
+ * Dedupe for the Add-Friend contact picker. The ContactsProvider returns one
+ * row per raw-contact phone entry, and a person merged from device + Google +
+ * WhatsApp accounts carries the same number once per copy — each in that
+ * copy's own format ("+91 91217 95607" vs "+919121795607"). Collapse on the
+ * same last-10 key the contacts cache uses (Text.normalizePhone) so the
+ * picker shows one row per real number; different names sharing a number
+ * stay separate rows. Unnormalizable phones (too short to be a real number,
+ * also skipped by the contacts cache) are dropped.
+ */
+internal fun List<Contact>.distinctByPhone(): List<Contact> {
+    val seen = LinkedHashMap<Pair<String, String>, Contact>()
+    for (c in this) {
+        val phone = Text.normalizePhone(c.phoneNumber)
+        if (phone.isEmpty()) continue
+        seen.putIfAbsent(phone to c.name.trim().lowercase(), c)
+    }
+    return seen.values.toList()
 }

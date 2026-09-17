@@ -252,7 +252,7 @@ private fun ContactsMode(
             ) {
                 items(
                     filteredContacts,
-                    key = { "${it.id}-${it.phoneNumber}" }
+                    key = { "${it.id}-${it.name}-${it.phoneNumber}" }
                 ) { contact ->
                     Row(
                         modifier = Modifier

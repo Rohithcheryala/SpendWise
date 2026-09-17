@@ -100,8 +100,72 @@ class CounterpartyService @Inject constructor(
     suspend fun requireCounterparty(id: Long): CounterpartyEntity =
         counterpartyDao.getById(id) ?: throw ApiException.NotFound("counterparty", id)
 
+    // ── learned defaults ("remember for this merchant") ─────────────────
+
+    /**
+     * Persist what the user actually used for this counterparty so the next
+     * entry with the same one prefills: [intent] (an [com.example.spendwise.ledger.api.Intent]
+     * constant), [tags] (label list, stored comma-separated in
+     * `default_tags`) and [categoryId] (a category *account* id, stored in
+     * `default_account_id` — documented as the default posting account).
+     *
+     * Semantics are "last save wins": tags and intent are always overwritten
+     * (an empty [tags] clears the memory — the user removed them), while a
+     * null [categoryId] means "no category applied in this save" (e.g. a
+     * loan) and leaves a previously learned category untouched.
+     */
+    suspend fun rememberDefaults(
+        counterpartyId: Long,
+        intent: String?,
+        tags: List<String>,
+        categoryId: Long? = null,
+    ) {
+        if (counterpartyId <= 0) return
+        val cp = counterpartyDao.getById(counterpartyId) ?: return
+        val cleanedTags = tags.map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        val updated = cp.copy(
+            defaultIntent = intent?.trim()?.ifBlank { null },
+            defaultTags = cleanedTags.joinToString(TAG_SEPARATOR).ifBlank { null },
+            defaultAccountId = categoryId?.takeIf { it > 0 } ?: cp.defaultAccountId,
+        )
+        if (updated != cp) counterpartyDao.update(updated)
+    }
+
+    /**
+     * The learned defaults for [counterpartyId], or null when it has none —
+     * the prefill source for the transaction editor. Tag labels come back
+     * trimmed and in stored order.
+     */
+    suspend fun learnedDefaults(counterpartyId: Long): CounterpartyDefaults? {
+        if (counterpartyId <= 0) return null
+        val cp = counterpartyDao.getById(counterpartyId) ?: return null
+        val tags = cp.defaultTags
+            ?.split(TAG_SEPARATOR)
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            .orEmpty()
+        if (cp.defaultIntent == null && tags.isEmpty() && cp.defaultAccountId == null) return null
+        return CounterpartyDefaults(
+            intent = cp.defaultIntent,
+            tags = tags,
+            categoryId = cp.defaultAccountId,
+        )
+    }
+
+    /** Learned editor defaults for a counterparty (see [learnedDefaults]). */
+    data class CounterpartyDefaults(
+        val intent: String?,
+        val tags: List<String>,
+        val categoryId: Long?,
+    )
+
     companion object {
         const val PARTY_MERCHANT = "merchant"
         const val PARTY_PERSON = "person"
+
+        /** Delimiter inside the `default_tags` column. */
+        const val TAG_SEPARATOR = ","
     }
 }

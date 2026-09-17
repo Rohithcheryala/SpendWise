@@ -87,6 +87,13 @@ class TransactionViewModel @Inject constructor(
     private var activeContextTag: String? = null
     private var activeTagSuppressed = false
 
+    /**
+     * True once the user explicitly picked a direction or record-as mode in
+     * this session — the learned default intent must never overwrite their
+     * choice. (Edit mode never prefills, so it starts "touched".)
+     */
+    private var intentTouched = transactionId > 0
+
     init {
         loadOptions()
         if (transactionId > 0) {
@@ -142,8 +149,17 @@ class TransactionViewModel @Inject constructor(
         // The "owes you" context line only makes sense in loan mode, and must
         // track both the mode and the picked person.
         val after = _uiState.value
+        if (after.direction != before.direction || after.otherSide != before.otherSide) {
+            intentTouched = true
+        }
         if (after.otherSide != before.otherSide || after.counterparty != before.counterparty) {
             viewModelScope.launch { refreshLoanOutstanding() }
+        }
+        // Picking a counterparty on a new entry pulls in its learned defaults
+        // (the "remember for this merchant" memory) — everything stays editable.
+        val picked = after.counterparty
+        if (picked != null && picked != before.counterparty) {
+            picked.id.toLongOrNull()?.let { applyLearnedDefaults(it) }
         }
     }
 
@@ -189,6 +205,9 @@ class TransactionViewModel @Inject constructor(
                     it.copy(counterparty = option)
                 }
                 refreshLoanOutstanding()
+                // Inline-add can resolve an EXISTING counterparty (typed name
+                // matched an alias) — pull its learned defaults like a pick.
+                option.id.toLongOrNull()?.let { applyLearnedDefaults(it) }
             } catch (e: Exception) {
                 setError(e.message ?: "Could not add")
             }
@@ -218,6 +237,9 @@ class TransactionViewModel @Inject constructor(
                     OtherSide.TRANSFER -> saveTransfer(s, amountPaise!!)
                     OtherSide.LOAN -> saveLoan(s, amountPaise!!, contextTag)
                 }
+                // Remember what the user just used for this counterparty so
+                // the next entry with the same one prefills it.
+                learnFrom(s)
                 // The save path can confirm/replace a buffer entry (opened from
                 // the inbox) — invalidate the shared inbox flow so the list and
                 // the bottom-nav badge update immediately.
@@ -347,6 +369,80 @@ class TransactionViewModel @Inject constructor(
         }
     }
 
+    // ── learned defaults (remember for this merchant) ──
+
+    /**
+     * Prefill from a counterparty's learned defaults when it gets picked on a
+     * NEW entry: learned tags are appended (deduped against what's already on
+     * the entry, so the active context tag and user-added tags survive), the
+     * learned category applies when nothing is picked yet, and the learned
+     * intent applies only while the user hasn't chosen a direction/record-as
+     * themselves. Everything stays editable — prefill, never enforcement.
+     * Edit mode never prefills: the loaded entry carries its own details.
+     */
+    private fun applyLearnedDefaults(counterpartyId: Long) {
+        if (transactionId > 0) return
+        if (_uiState.value.otherSide == OtherSide.TRANSFER) return
+        viewModelScope.launch {
+            val defaults = runCatching { counterpartyService.learnedDefaults(counterpartyId) }
+                .getOrNull() ?: return@launch
+            _uiState.update { s ->
+                var next = s
+                if (!intentTouched) {
+                    defaults.intent?.let { intent ->
+                        selectionForIntent(intent)?.let { (direction, side) ->
+                            next = next.copy(direction = direction, otherSide = side)
+                        }
+                    }
+                }
+                if (defaults.tags.isNotEmpty()) {
+                    val existing = next.tags.map { it.id }.toSet()
+                    val learned = defaults.tags
+                        .filter { it !in existing }
+                        .map { TagUiModel(id = it, label = it) }
+                    next = next.copy(tags = next.tags + learned)
+                }
+                if (next.category == null) {
+                    defaults.categoryId?.toString()?.let { cid ->
+                        next.categories.firstOrNull { it.id == cid }?.let { option ->
+                            next = next.copy(category = option)
+                        }
+                    }
+                }
+                next
+            }
+        }
+    }
+
+    /**
+     * The write side of the memory: on every confirmed save (create or edit —
+     * an edit voids + recreates, so the state is the final word) store what
+     * the user actually used for the counterparty. Transfers are skipped —
+     * their "counterparty" is a destination account, not a party. The active
+     * context tag is excluded: a trip stamp is session-scoped, not a
+     * merchant default.
+     */
+    private suspend fun learnFrom(s: TransactionUiState) {
+        if (s.otherSide == OtherSide.TRANSFER) return
+        val counterpartyId = s.counterparty?.id?.toLongOrNull() ?: return
+        val intent = when (s.otherSide) {
+            OtherSide.CATEGORY ->
+                if (s.direction == TransactionDirection.INCOME) Intent.INCOME else Intent.EXPENSE
+            OtherSide.LOAN ->
+                if (s.direction == TransactionDirection.INCOME) Intent.LOAN_REPAYMENT else Intent.LOAN
+            else -> return
+        }
+        val tags = s.tags.map { it.label }.filter { it != activeContextTag }
+        val categoryId = if (s.otherSide == OtherSide.CATEGORY) {
+            s.category?.id?.toLongOrNull()
+        } else {
+            null // loans have no category — leave a previously learned one alone
+        }
+        runCatching {
+            counterpartyService.rememberDefaults(counterpartyId, intent, tags, categoryId)
+        }
+    }
+
     // ── load path ──
 
     private fun loadOptions() {
@@ -454,3 +550,18 @@ class TransactionViewModel @Inject constructor(
         _uiState.update { it.copy(error = message) }
     }
 }
+
+/**
+ * Maps a learned [Intent] constant to the editor's two selectors (direction +
+ * record-as). Returns null for intents the editor has no mode for
+ * (investment, reconciliation) — those are never prefilled. Pure; unit-tested.
+ */
+internal fun selectionForIntent(intent: String): Pair<TransactionDirection, OtherSide>? =
+    when (intent) {
+        Intent.EXPENSE -> TransactionDirection.EXPENSE to OtherSide.CATEGORY
+        Intent.INCOME -> TransactionDirection.INCOME to OtherSide.CATEGORY
+        Intent.LOAN -> TransactionDirection.EXPENSE to OtherSide.LOAN
+        Intent.LOAN_REPAYMENT -> TransactionDirection.INCOME to OtherSide.LOAN
+        Intent.TRANSFER -> TransactionDirection.EXPENSE to OtherSide.TRANSFER
+        else -> null
+    }

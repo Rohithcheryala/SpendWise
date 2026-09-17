@@ -1,11 +1,14 @@
 package com.example.spendwise.ledger
 
+import com.example.spendwise.ledger.api.Intent
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.ledger.service.Text
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -73,6 +76,56 @@ class CounterpartyServiceTest : BackendTestBase() {
         // No-op when already right.
         counterparties.ensurePartyType(cp, CounterpartyService.PARTY_PERSON)
         assertEquals(CounterpartyService.PARTY_PERSON, db.CounterpartyDao().getById(cp)!!.partyType)
+    }
+
+    // ── learned defaults ("remember for this merchant") ──────────────────
+
+    @Test
+    fun `rememberDefaults stores and learnedDefaults round-trips`() = runTest {
+        val cp = counterparties.resolveOrCreate(uid, "swiggy")!!
+        val category = newCategory("Food")
+        counterparties.rememberDefaults(
+            cp, intent = Intent.EXPENSE, tags = listOf("Food", " Lunch "), categoryId = category,
+        )
+        val learned = counterparties.learnedDefaults(cp)!!
+        assertEquals(Intent.EXPENSE, learned.intent)
+        assertEquals(listOf("Food", "Lunch"), learned.tags) // trimmed, order kept
+        assertEquals(category, learned.categoryId)
+        assertEquals("Food,Lunch", db.CounterpartyDao().getById(cp)!!.defaultTags)
+    }
+
+    @Test
+    fun `saving with no tags clears the tag memory but keeps the category`() = runTest {
+        val cp = counterparties.resolveOrCreate(uid, "swiggy")!!
+        val category = newCategory("Eating out")
+        counterparties.rememberDefaults(cp, Intent.EXPENSE, listOf("Food"), categoryId = category)
+        // Later save: tags removed, no category applied (e.g. loan) — intent
+        // and tags follow the last save, the category stays.
+        counterparties.rememberDefaults(cp, Intent.LOAN, emptyList())
+        val learned = counterparties.learnedDefaults(cp)!!
+        assertEquals(Intent.LOAN, learned.intent)
+        assertTrue(learned.tags.isEmpty())
+        assertEquals(category, learned.categoryId)
+    }
+
+    @Test
+    fun `learnedDefaults is null until something is learned`() = runTest {
+        val cp = counterparties.resolveOrCreate(uid, "zomato")!!
+        assertNull(counterparties.learnedDefaults(cp))
+        counterparties.rememberDefaults(cp, Intent.EXPENSE, emptyList())
+        assertNotNull(counterparties.learnedDefaults(cp))
+    }
+
+    @Test
+    fun `learned defaults tolerate unknown ids and junk labels`() = runTest {
+        assertNull(counterparties.learnedDefaults(424242L))
+        assertNull(counterparties.learnedDefaults(-1L))
+        val cp = counterparties.resolveOrCreate(uid, "swiggy")!!
+        counterparties.rememberDefaults(cp, "   ", listOf("  ", "", "Food"), categoryId = null)
+        val learned = counterparties.learnedDefaults(cp)!!
+        assertNull(learned.intent)
+        assertEquals(listOf("Food"), learned.tags)
+        assertNull(learned.categoryId)
     }
 
     // ── pure text rules ──────────────────────────────────────────────────
