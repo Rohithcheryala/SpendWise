@@ -17,6 +17,18 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// Debug-only SMS test senders: comma-separated phone numbers in local.properties
+// (gitignored) as TEST_SENDERS=+91XXXXXXXXXX,+91YYYYYYYYYY. Baked into
+// BuildConfig so DebugTestSmsParser can claim them; empty = parser inert.
+val localProperties = Properties().apply {
+    val localFile = rootProject.file("local.properties")
+    if (localFile.exists()) {
+        localFile.inputStream().use { load(it) }
+    }
+}
+val testSenders = (localProperties["TEST_SENDERS"] as String?).orEmpty().trim()
+    .replace("\"", "")
+
 android {
     namespace = "com.example.spendwise"
 
@@ -39,6 +51,9 @@ android {
             "UPDATE_MANIFEST_URL",
             "\"https://apk.spendwise-api.rohithcheryala.dev/version.json\""
         )
+        // Debug SMS test-sender allowlist (local.properties TEST_SENDERS,
+        // comma-separated). Empty string when unset — parser stays inert.
+        buildConfigField("String", "TEST_SENDERS", "\"$testSenders\"")
     }
 
     signingConfigs {

@@ -10,6 +10,7 @@ import com.example.spendwise.core.parser_pw.bank.BankParserFactory.parse
 object BankParserFactory {
 
     private val parsers = listOf(
+        DebugTestSmsParser(),  // DEBUG-ONLY: TEST_SENDERS allowlist; inert in release/empty
         HDFCMutualFundParser(),  // HDFC Mutual Fund (must be before HDFCBankParser to avoid interception by HDFC's broad DLT pattern)
         NaviMutualFundParser(),  // Navi Mutual Fund (AMC SIP / unit-allotment SMS — NAVAMC sender)
         HDFCBankParser(),

@@ -1,8 +1,6 @@
 package com.example.spendwise.data.repository
 
 
-import android.util.Log
-import com.example.spendwise.BuildConfig
 import com.example.spendwise.ledger.api.Direction
 import com.example.spendwise.ledger.api.TransactionStatus
 import com.example.spendwise.ledger.api.TransactionView
@@ -148,14 +146,7 @@ class InboxRepository @Inject constructor(
             sender = sender,
             timestamp = timestamp
         )
-        if (parsed == null) {
-            // DEBUG-ONLY probe: in debug builds, ANY message from ANY sender
-            // is treated as a bank message so the notification flow can be
-            // exercised without waiting for a real bank SMS. Nothing is
-            // ingested into the ledger — only the alert path fires.
-            if (BuildConfig.DEBUG) notifyDebugCapture(sender, body, notifyUser)
-            return null
-        }
+        if (parsed == null) return null
 
         val amountPaise = parsed.amount
             .movePointRight(2)
@@ -275,37 +266,6 @@ class InboxRepository @Inject constructor(
         refreshBuffer()
     }
 
-    /**
-     * DEBUG-ONLY: fire the capture alert for a message no bank parser matched,
-     * so the notification flow (including every gate inside
-     * [TransactionNotifier.postCapturedTransaction] and its reason logging) can
-     * be tested from an arbitrary sender. Respects the same [notifyUser]
-     * contract as the real path — only the live receive path alerts.
-     */
-    private suspend fun notifyDebugCapture(sender: String, body: String, notifyUser: Boolean) {
-        // Same tag as TransactionNotifier so one logcat filter shows the whole flow.
-        Log.i("TransactionNotifier", "DEBUG capture: sender '$sender' matched no bank parser — treating as bank message")
-        if (!notifyUser) return
-        notifier.postCapturedTransaction(
-            party = "$sender (debug)",
-            amountPaise = debugAmountPaise(body),
-            isDebit = !DEBUG_INCOME_HINTS.any { body.lowercase().contains(it) },
-            accountName = "DEBUG",
-        )
-    }
-
-    /** First number in the body as paise; falls back to ₹100.00 when none. */
-    private fun debugAmountPaise(body: String): Long {
-        val fallback = 100_00L
-        val value = Regex("""\d+(?:,\d{3})*(?:\.\d+)?""").find(body)
-            ?.value
-            ?.replace(",", "")
-            ?.toBigDecimalOrNull()
-            ?: return fallback
-        return value.movePointRight(2).setScale(0, RoundingMode.HALF_UP).toLong()
-            .takeIf { it > 0 } ?: fallback
-    }
-
     private suspend fun enrich(
         entry: TransactionView,
         accountNames: Map<Long, String>,
@@ -346,9 +306,6 @@ class InboxRepository @Inject constructor(
     }
 
     companion object {
-        /** DEBUG capture: body hints that make it alert as INCOME instead of spend. */
-        private val DEBUG_INCOME_HINTS = listOf("received", "credited", "deposited", "refunded")
-
         /** When no watermark exists yet, scan the last 30 days of SMS. */
         const val DEFAULT_LOOKBACK_MS = 30L * 24 * 60 * 60 * 1000
 
