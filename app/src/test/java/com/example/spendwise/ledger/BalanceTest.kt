@@ -134,4 +134,30 @@ class BalanceTest : BackendTestBase() {
         assertEquals(15_000_00, ledger.accountBalance(bank))
         assertEquals(null, ledger.getTransaction(opening.id))
     }
+
+    @Test
+    fun `balance adjustment books only the delta vs equity`() = runTest {
+        val bank = newAccount("bank")
+        ledger.recordOpeningBalance(bank, 10_000_00, onDate = 0L)
+
+        // Interest the bank credited without an SMS: user says 10_500.
+        val adj = ledger.recordBalanceAdjustment(bank, 10_500_00)!!
+        assertEquals(10_500_00, ledger.accountBalance(bank))
+        assertEquals("Balance adjustment", adj.note)
+
+        // An in-sync target books nothing.
+        assertEquals(null, ledger.recordBalanceAdjustment(bank, 10_500_00))
+        assertEquals(10_500_00, ledger.accountBalance(bank))
+    }
+
+    @Test
+    fun `balance adjustment on a liability moves the owed amount`() = runTest {
+        val card = newAccount("card", accountClass = LedgerService.CLASS_LIABILITY)
+        ledger.recordOpeningBalance(card, 45_000, onDate = 0L)
+        assertEquals(45_000, ledger.accountBalance(card))
+
+        // A payment the bank processed without an SMS: ledger reads 25_000 owed.
+        ledger.recordBalanceAdjustment(card, 25_000)!!
+        assertEquals(25_000, ledger.accountBalance(card))
+    }
 }

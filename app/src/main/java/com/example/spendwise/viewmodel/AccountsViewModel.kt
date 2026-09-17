@@ -20,6 +20,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Real source of truth for the Accounts screen: reads persisted accounts from
@@ -108,8 +109,10 @@ class AccountsViewModel @Inject constructor(
                 }
                 val last4Digits = ui.accountNumber.removePrefix("•••• ").trim()
                     .takeIf { it.isNotBlank() && !it.contains("•") }
-                val openingPaise = abs(ui.balance).toLong() * 100
-
+                // The entered value is today's balance; with no history booked
+                // yet, it IS the opening. roundToLong, not toLong — truncating
+                // loses the paise (4004.42 → 400400).
+                val openingPaise = (abs(ui.balance) * 100).roundToLong()
                 val id = accountDao.insert(
                     AccountEntity(
                         name = ui.name,
@@ -251,6 +254,12 @@ class AccountsViewModel @Inject constructor(
         detectionState = detectionState.copy(isImporting = true, error = null)
         viewModelScope.launch {
             val now = System.currentTimeMillis()
+            // Opening balances are meaningful as of "day one" of the ledger —
+            // the same instant onboarding uses — not the import moment.
+            val openingDate = runCatching { appMetadataRepository.get()?.trackingStartDate }
+                .getOrNull()
+                ?.takeIf { it in 1 until now }
+                ?: now
             runCatching {
                 for (account in selected) {
                     val id = accountDao.insert(
@@ -272,14 +281,20 @@ class AccountsViewModel @Inject constructor(
                             createdAt = now,
                         )
                     )
-                    // Book the opening balance when the user entered one (or
-                    // it was detected from the SMS running balance). The sign
-                    // is handled internally by LedgerService per account class.
-                    val openingPaise =
-                        (abs(balances[account.key]?.toDoubleOrNull() ?: 0.0) * 100).toLong()
-                    if (openingPaise != 0L) {
-                        runCatching {
-                            ledgerApi.recordOpeningBalance(id, openingPaise, now)
+                    // The entered (or SMS-prefilled) value is the account's
+                    // CURRENT balance — the prefill is the latest SMS-quoted
+                    // balance. The opening, booked at the tracking start date,
+                    // is that target minus the window's SMS net flow, so the
+                    // transactions claimed onto the account land it exactly on
+                    // the target instead of double-counting on top of it.
+                    val target = balances[account.key]?.toDoubleOrNull()
+                    if (target != null) {
+                        val openingPaise =
+                            (abs(target) * 100).roundToLong() - account.netPaise
+                        if (openingPaise != 0L) {
+                            runCatching {
+                                ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
+                            }
                         }
                     }
                     runCatching { ingestionService.claimOrphansForAccount(id) }

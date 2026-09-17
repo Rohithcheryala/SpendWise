@@ -1,7 +1,11 @@
 package com.example.spendwise.ui.screens.accounts
 
 import android.Manifest
+import android.app.Activity
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.view.inputmethod.InputMethodManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
@@ -41,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -62,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -436,10 +442,34 @@ fun AddAccountBottomSheet(
     // Swipe-to-dismiss is disabled: one accidental swipe used to wipe every
     // field the user had typed. The sheet can only be closed via the Cancel
     // button or system back — both of which ask for confirmation first.
+    //
+    // Back handling: predictive back dismisses ModalBottomSheet regardless of
+    // confirmValueChange (Material3 1.3 bug), which used to throw away the
+    // whole form when the user only meant to fold the keyboard. The sheet's
+    // own back handling is switched off and a BackHandler takes over: with
+    // the keyboard up, back folds the keyboard; only a second back dismisses
+    // (asking for confirmation when anything was typed).
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { it != SheetValue.Hidden }
     )
+    val context = LocalContext.current
+    val view = LocalView.current
+
+    /** Ask the IME to hide; true when it actually initiated hiding. */
+    fun hideKeyboard(): Boolean {
+        var ctx = context
+        while (ctx is ContextWrapper) {
+            if (ctx is Activity) {
+                val focus = view.findFocus() ?: return false
+                val imm = ctx.getSystemService(Activity.INPUT_METHOD_SERVICE)
+                    as? InputMethodManager
+                return imm?.hideSoftInputFromWindow(focus.windowToken, 0) == true
+            }
+            ctx = ctx.baseContext
+        }
+        return false
+    }
 
     var name by remember { mutableStateOf("") }
     var bankName by remember { mutableStateOf("") }
@@ -455,9 +485,18 @@ fun AddAccountBottomSheet(
         if (hasInput) confirmDiscard = true else onDismiss()
     }
 
+    BackHandler {
+        if (view.findFocus() != null && hideKeyboard()) {
+            // First back with the keyboard up: fold the keyboard only.
+        } else {
+            attemptDismiss()
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = { attemptDismiss() },
-        sheetState = sheetState
+        sheetState = sheetState,
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false)
     ) {
         Column(
             modifier = Modifier

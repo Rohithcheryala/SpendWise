@@ -337,6 +337,15 @@ class InboxRepository @Inject constructor(
          * initial-balance field so the user only has to confirm or adjust.
          */
         val balance: BigDecimal? = null,
+        /**
+         * Net flow (paise, in balance space: +money in, −money out; for cards
+         * +more owed) of every transaction SMS parsed for this account within
+         * the scan window. Import derives the opening balance from it —
+         * opening = confirmed current balance − net — so the window's
+         * transactions landing on top of the opening bring the account exactly
+         * to the balance the user confirmed instead of double-counting it.
+         */
+        val netPaise: Long = 0,
     ) {
         /** Stable key for selection state in the UI. */
         val key: String get() = "$bank|$last4"
@@ -384,6 +393,22 @@ class InboxRepository @Inject constructor(
             val last4 = parsed.accountLast4
             if (last4.isNullOrBlank() || last4 in existingLast4) continue
             val key = "${parsed.bankName}|$last4"
+            // Net balance-space flow of this SMS, mirroring ingestRawSms's
+            // exact direction mapping and its amount<=0 skip, so the
+            // estimate matches what ingest will actually book.
+            val amountPaise = parsed.amount
+                .movePointRight(2)
+                .setScale(0, RoundingMode.HALF_UP)
+                .toLong()
+            val flowPaise = if (amountPaise > 0) {
+                val isIn = parsed.type == TransactionType.INCOME
+                when {
+                    parsed.isFromCard && isIn -> -amountPaise // card payment: less owed
+                    parsed.isFromCard -> amountPaise          // card spend: more owed
+                    isIn -> amountPaise                       // credit: more money
+                    else -> -amountPaise                      // debit: less money
+                }
+            } else 0L
             val existing = detected[key]
             detected[key] = if (existing == null) {
                 DetectedAccount(
@@ -392,10 +417,12 @@ class InboxRepository @Inject constructor(
                     isCard = parsed.isFromCard,
                     transactionCount = 1,
                     balance = parsed.balance,
+                    netPaise = flowPaise,
                 )
             } else {
                 existing.copy(
                     transactionCount = existing.transactionCount + 1,
+                    netPaise = existing.netPaise + flowPaise,
                     // Keep the most recent non-null balance (messages are
                     // read in chronological order from oldest to newest).
                     balance = parsed.balance ?: existing.balance,

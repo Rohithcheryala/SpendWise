@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.spendwise.ledger.api.ApiException
+import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
@@ -17,17 +18,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 import javax.inject.Inject
+import kotlin.math.roundToLong
 
 /**
- * Edit screen for one account: rename, update bank/masked number, or close
- * the account. Changing the last-4 keeps the SMS identifier in sync so
- * matching continues to work.
+ * Edit screen for one account: rename, update bank/masked number, override the
+ * current balance, or close the account. Changing the last-4 keeps the SMS
+ * identifier in sync so matching continues to work.
  */
 @HiltViewModel
 class AccountEditViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val identifierDao: AccountIdentifierDao,
+    private val ledgerApi: LedgerApi,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -42,6 +46,7 @@ class AccountEditViewModel @Inject constructor(
         val name: String = "",
         val bankName: String = "",
         val last4: String = "",
+        val balance: String = "",
         val typeLabel: String = "",
         val isActive: Boolean = true,
         val isSaving: Boolean = false,
@@ -50,6 +55,12 @@ class AccountEditViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState = _uiState.asStateFlow()
+
+    /** What the ledger believed when the screen loaded — the adjustment baseline. */
+    private var loadedBalancePaise: Long = 0L
+
+    /** The identifier value loaded from the DB — the last-4 change baseline. */
+    private var loadedLast4: String = ""
 
     init {
         load()
@@ -65,11 +76,15 @@ class AccountEditViewModel @Inject constructor(
             // The masked number lives on the active identifier, not the account.
             val last4 = identifierDao.getByAccountList(accountId)
                 .firstOrNull { it.isActive }?.value
+            loadedBalancePaise = runCatching { ledgerApi.accountBalance(accountId) }
+                .getOrDefault(0L)
+            loadedLast4 = last4.orEmpty()
             _uiState.value = UiState(
                 isLoading = false,
                 name = account.name,
                 bankName = account.bank.orEmpty(),
                 last4 = last4.orEmpty(),
+                balance = formatPaise(loadedBalancePaise),
                 typeLabel = when {
                     account.accountClass == LedgerService.CLASS_LIABILITY -> "Credit card"
                     account.subtype == "cash" -> "Cash"
@@ -109,8 +124,11 @@ class AccountEditViewModel @Inject constructor(
                     )
                 )
 
-                // Keep the SMS identifier in sync when the last-4 changes.
-                if (digits.isNotEmpty() && digits != s.last4) {
+                // Keep the SMS identifier in sync when the last-4 changed
+                // relative to what was loaded. (Comparing against the DB
+                // value, not a filtered copy of itself — the UI already
+                // sanitises input to digits, so that check never fired.)
+                if (digits.isNotEmpty() && digits != loadedLast4) {
                     val existing = identifierDao.getByAccountList(accountId)
                     val kind = existing.firstOrNull()?.kind ?: "account"
                     existing.filter { it.isActive }.forEach { identifierDao.deactivate(it.id) }
@@ -123,6 +141,23 @@ class AccountEditViewModel @Inject constructor(
                             createdAt = System.currentTimeMillis(),
                         )
                     )
+                }
+
+                // Balance override: the user's word over the ledger's (bank
+                // interest credited without an SMS, a fee the parser missed).
+                // Book the delta as a reconciliation adjustment — history and
+                // SMS matching stay intact.
+                val target = s.balance.toDoubleOrNull()?.let { (it * 100).roundToLong() }
+                if (target != null && target != loadedBalancePaise) {
+                    try {
+                        ledgerApi.recordBalanceAdjustment(accountId, target)
+                    } catch (e: Exception) {
+                        _uiState.value = _uiState.value.copy(
+                            isSaving = false,
+                            error = e.message ?: "Could not update balance",
+                        )
+                        return@launch
+                    }
                 }
                 finished.tryEmit(Unit)
             } catch (e: Exception) {
@@ -153,4 +188,8 @@ class AccountEditViewModel @Inject constructor(
             }
         }
     }
+
+    /** Paise → editable rupee text, without trailing zeros ("4004.42", "4004"). */
+    private fun formatPaise(paise: Long): String =
+        BigDecimal.valueOf(paise, 2).stripTrailingZeros().toPlainString()
 }

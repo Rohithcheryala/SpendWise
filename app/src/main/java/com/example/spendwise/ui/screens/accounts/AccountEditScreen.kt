@@ -117,6 +117,22 @@ fun AccountEditScreen(
                 singleLine = true
             )
 
+            // The user's word over the ledger's. Banks credit interest,
+            // charge fees and round differently than any SMS ever will — an
+            // override here books only the delta as an adjustment, keeping
+            // the whole transaction history intact.
+            OutlinedTextField(
+                value = uiState.balance,
+                onValueChange = { value ->
+                    onUpdateState { it.copy(balance = value.filter { c -> c.isDigit() || c == '.' }) }
+                },
+                label = { Text("Current Balance (₹)") },
+                supportingText = { Text("Change it to match your bank — the difference is booked as an adjustment") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
             Spacer(Modifier.height(8.dp))
 
             Button(

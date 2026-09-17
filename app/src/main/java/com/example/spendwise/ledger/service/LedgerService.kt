@@ -842,6 +842,43 @@ class LedgerService @Inject constructor(
         }
     }
 
+    /**
+     * Book the user's word over the ledger's: an adjustment transaction that
+     * moves the account to [targetPaise] (balance space — owed-positive for
+     * liabilities) via opening equity, leaving history intact. This is how
+     * off-ledger reality lands in the books — bank interest credited without
+     * an SMS, a fee the parser missed, reconciliation drift. Returns null
+     * when the ledger already agrees with the target.
+     */
+    override suspend fun recordBalanceAdjustment(
+        accountId: Long,
+        targetPaise: Long,
+        onDate: Long?,
+    ): TransactionView? {
+        return db.withTransaction {
+            val account = accountDao.getById(accountId)
+                ?: throw ApiException.NotFound("account", accountId)
+            val delta = targetPaise - accountBalance(account.id)
+            if (delta == 0L) return@withTransaction null
+            val eq = systemAccount(SystemRole.EQUITY)
+            // Balance space (owed-positive for liabilities) → raw line space.
+            val amount = if (account.accountClass == CLASS_LIABILITY) -delta else delta
+            createTransaction(
+                CreateTransactionRequest(
+                    occurredOn = onDate ?: System.currentTimeMillis(),
+                    kind = TransactionKind.RECONCILIATION,
+                    status = TransactionStatus.CONFIRMED,
+                    source = TransactionSource.MANUAL,
+                    note = "Balance adjustment",
+                    lines = listOf(
+                        LineSpec(amount, accountId = account.id),
+                        LineSpec(-amount, accountId = eq.id),
+                    ),
+                )
+            )
+        }
+    }
+
     companion object {
         /** The account-class vocabulary (Rust migration 002). */
         const val CLASS_ASSET = "asset"

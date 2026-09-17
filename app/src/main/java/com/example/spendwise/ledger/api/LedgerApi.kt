@@ -73,6 +73,18 @@ interface LedgerApi {
     ): TransactionView?
 
     /**
+     * PUT /accounts/{id}/balance-adjustment — book the delta between
+     * [targetPaise] (balance space: owed-positive for liabilities) and the
+     * ledger's computed balance as a reconciliation transaction vs equity.
+     * Null when the ledger already agrees with the target.
+     */
+    suspend fun recordBalanceAdjustment(
+        accountId: Long,
+        targetPaise: Long,
+        onDate: Long? = null,
+    ): TransactionView?
+
+    /**
      * GET /friends — net outstanding per person counterparty, from the loans
      * receivable pot. Only persons appear (loan paths force the type); settled
      * parties (net 0) are omitted. Positive = they owe you.

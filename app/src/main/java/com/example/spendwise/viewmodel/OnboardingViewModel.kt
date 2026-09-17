@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 
 // For Budget, Friends, Groups, Accounts — each one is just:
@@ -211,13 +212,21 @@ class OnboardingViewModel @Inject constructor(
                     )
 
                     // Book the opening balance when the user entered one (or it
-                    // was detected from the SMS running balance). The sign is
-                    // handled internally by LedgerService per account class.
-                    val openingPaise =
-                        (abs(s.initialBalances[account.key]?.toDoubleOrNull() ?: 0.0) * 100).toLong()
-                    if (openingPaise != 0L) {
-                        runCatching {
-                            ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
+                    // was detected from the SMS running balance). The entered
+                    // value is the account's CURRENT balance — the prefill is
+                    // the latest SMS-quoted balance — so the opening, booked at
+                    // the scan start date, is that target minus the window's
+                    // SMS net flow: the ingested transactions then land the
+                    // account exactly on the target instead of double-counting
+                    // on top of it.
+                    val target = s.initialBalances[account.key]?.toDoubleOrNull()
+                    if (target != null) {
+                        val openingPaise =
+                            (abs(target) * 100).roundToLong() - account.netPaise
+                        if (openingPaise != 0L) {
+                            runCatching {
+                                ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
+                            }
                         }
                     }
                 }
