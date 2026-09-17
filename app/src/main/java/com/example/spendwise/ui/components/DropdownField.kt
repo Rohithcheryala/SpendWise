@@ -2,26 +2,27 @@ package com.example.spendwise.ui.components
 
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.example.spendwise.ui.theme.Dimens
 
+/**
+ * A tap-to-choose field. Now a thin wrapper over [SpendwiseField], so it is
+ * pixel-identical to the amount box it sits beside: same fill, same hairline,
+ * same 48dp row, same label style.
+ *
+ * [leadingIcon] / [trailingIcon] exist so a caller can say what the field
+ * *means* without leaving the shared chrome — a date swaps the chevron for a
+ * calendar, an account could show its bank mark.
+ */
 @Composable
 fun DropdownField(
     label: String?,
@@ -30,58 +31,48 @@ fun DropdownField(
     modifier: Modifier = Modifier,
     placeholder: String? = null,
     enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
+    trailingIcon: ImageVector? = Icons.Rounded.KeyboardArrowDown,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    SpendwiseField(
+        modifier = modifier,
+        label = label,
+        onClick = if (enabled) onClick else null,
     ) {
-        if (label != null) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            )
+        val displayText = value.ifBlank { placeholder.orEmpty() }
+        val isPlaceholder = value.isBlank() || !enabled
+        val textColor = if (isPlaceholder) {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            MaterialTheme.colorScheme.onSurface
         }
 
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(enabled = enabled, onClick = onClick),
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Dimens.lg, vertical = Dimens.md),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val displayText = value.ifBlank { placeholder.orEmpty() }
-                val textColor = if (value.isNotBlank()) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+        if (leadingIcon != null) {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(Dimens.md))
+        }
 
-                Text(
-                    text = displayText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = textColor,
-                    fontWeight = if (value.isNotBlank()) FontWeight.Medium else FontWeight.Normal,
-                    modifier = Modifier.weight(1f)
-                )
+        Text(
+            text = displayText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyLarge,
+            color = textColor,
+            fontWeight = if (isPlaceholder) FontWeight.Normal else FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
 
-                Spacer(Modifier.width(8.dp))
-
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        if (trailingIcon != null) {
+            Spacer(Modifier.width(Dimens.sm))
+            Icon(
+                imageVector = trailingIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

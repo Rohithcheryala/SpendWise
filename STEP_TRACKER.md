@@ -23,6 +23,10 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
 - Invariants Room can't express (sum-zero, kind→shape matrix, idempotent
   ingest) stay enforced in `LedgerService` — see backend repo
   `migrations/README.md` "App responsibilities".
+- **Schema sync gaps are recorded in `SCHEMA_SYNC.md`** (G1–G11): the diff
+  between this Room schema and the Rust reference migrations, plus the
+  accepted deviations. All deferred — none are breaking changes. Read it
+  before changing any `@Entity`, and mark entries RESOLVED as they land.
 
 ## Status
 
@@ -169,6 +173,55 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
   - **Tests added**: `MoneyFormatTest` (5) + `UpiQrTest` (7, Robolectric, incl. a
     build→parse round-trip). Full `:app:testDebugUnitTest` +
     `:app:assembleDebug` green.
+- [x] **UI pass 2 — transaction detail form (amount/date + note)**: reported as
+  "amount & date side by side each have their own design language" and "note
+  should be multi-line". Root cause of the first: the amount was an
+  `OutlinedTextField` (SDK 56dp floor, `surface` fill, **direction-coloured**
+  focus border) sitting directly beside the date as a borderless
+  `surfaceContainerHigh` `DropdownField` (46dp) — and the `Row` had no
+  `horizontalArrangement`, so the two boxes were also flush against each other.
+  Root cause of the second: `NotesSection` set `imeAction = ImeAction.Done` on
+  a multi-line field, so Enter *submitted* instead of inserting a newline.
+  - **New `ui/components/SpendwiseField.kt`** — the app's one field chrome
+    (field counterpart of `SpendwiseCard`): `surfaceContainerHigh` fill + 1dp
+    `outlineVariant` hairline + `shapes.small` + `heightIn(min =
+    Dimens.fieldHeight)`. Also `FieldLabel` (one label style) and
+    `SpendwiseFieldDefaults` (padding tokens). The hairline is load-bearing:
+    light-theme `surfaceContainerHigh` is **1.005:1** on `background`, so
+    fields were invisible without it.
+  - **`AmountSection`**: amount rebuilt as a private `AmountInput` on
+    `BasicTextField` + the shared chrome (no 56dp floor), ₹ prefix and digits
+    in the direction accent, **focus hairline is `primary` for every field** —
+    the old red border read as "invalid", not "focused". `Row` now gets
+    `spacedBy(Dimens.sm)`. Direction toggle track picked up the hairline.
+  - **`Dimens.fieldHeight = 48.dp`** added. Every field resolves to it, so the
+    amount and the date are now exactly the same height (was 56 vs 46).
+    Applied via `heightIn`, never `height`, so large font scales grow instead
+    of clip.
+  - **`DropdownField`** rebuilt on the shared chrome (same API — `label`,
+    `value`, `onClick`, `placeholder`, `enabled` — plus `leadingIcon` /
+    `trailingIcon`). Date passes `trailingIcon = Icons.Rounded.CalendarMonth`.
+  - **Date now displays `15 Sep 2026`, not `2026-09-15`** — new
+    `LocalDate.toDisplayDate()` in `core/extensions/DateExt.kt` (explicit
+    `Locale.US`, day-first, so it can't flip to "Sep 15 2026" on an en-US
+    device). Pinned by `DateDisplayFormatTest` (2).
+  - **`NotesSection`**: `imeAction` default → **Enter inserts a newline**;
+    `minLines 3 / maxLines 8` (was 4/6); label demoted from a bold
+    `titleMedium` to the shared `labelMedium`; the `0/500` counter is now
+    hidden until the last 100 characters instead of sitting there permanently;
+    placeholder is "Add a note" (the old field showed "Add a note" *and*
+    "Optional" stacked).
+  - **`OtherSideSelector` (Type track)**: selected thumb was
+    `surface` — a **darker** plane than its own `surfaceContainerHigh` track,
+    so "selected" painted a hole; now `surfaceContainerHighest` (one tonal step
+    up). `height(36.dp)` → `heightIn(min = 36.dp)` (the audit §Step 11 flagged
+    this exact literal for font-scale clipping). Label → `FieldLabel`.
+  - **Not touched**: `OutlinedTextField` remains in the inbox/scanner/counterparty
+    *dialogs* and in the other screens' forms — that is a separate sweep, and
+    the modal dialogs are not part of this form.
+  - Tests: `DateDisplayFormatTest` added; `:app:compileDebugKotlin`,
+    `:app:assembleDebug` and `:app:testDebugUnitTest` all green. UI-only — no
+    schema, DAO or ledger change.
 
 ## STEP 1 checklist (exact edits)
 

@@ -2,6 +2,7 @@ package com.example.spendwise.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,7 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Handshake
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.screens.transactiondetail.OtherSide
 
 /**
@@ -47,31 +49,40 @@ fun OtherSideSelector(
 ) {
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(Dimens.xs)
     ) {
-        Text(
-            text = "Type",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium
-        )
+        FieldLabel(text = "Type")
 
+        // Same chrome rule as every field: surfaceContainerHigh + 1dp
+        // outlineVariant. The Type track sits directly under the Account field,
+        // so without the hairline it read as a different kind of control.
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    .padding(Dimens.xs),
+                horizontalArrangement = Arrangement.spacedBy(Dimens.xs)
             ) {
                 OtherSide.entries.forEach { side ->
                     val isSelected = selected == side
 
                     val bgColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        // `surfaceContainerHighest`, not `surface`: the track is
+                        // `surfaceContainerHigh`, so selecting with `surface`
+                        // painted a *darker* plane inside the track — the
+                        // selected pill read as a hole rather than a raised
+                        // thumb. One tonal step up is what "selected" looks
+                        // like everywhere else in the app.
+                        targetValue = if (isSelected) {
+                            MaterialTheme.colorScheme.surfaceContainerHighest
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        },
                         label = "otherside_bg"
                     )
 
@@ -83,14 +94,16 @@ fun OtherSideSelector(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(36.dp)
+                            // `heightIn`, not `height`: the pill must grow with
+                            // the font scale instead of clipping its label.
+                            .heightIn(min = 36.dp)
                             .clip(MaterialTheme.shapes.extraSmall)
                             .background(bgColor)
                             .clickable { onSelected(side) },
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(Dimens.xs),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(

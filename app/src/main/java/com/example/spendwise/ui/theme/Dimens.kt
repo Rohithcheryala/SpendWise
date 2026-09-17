@@ -20,4 +20,14 @@ object Dimens {
     /** Standard card inner padding + card corner, so cards stop diverging. */
     val cardPadding = xl
     val screenGutter = lg
+
+    /**
+     * Interactive control height — the row a text field, a dropdown, a
+     * segmented track and a toggle pill all resolve to. Applied with
+     * `heightIn` (never `height`): at a large font scale the control grows
+     * instead of clipping its value. 48dp is deliberately *not* the SDK's
+     * 56dp `OutlinedTextField` floor, which is what made the amount box sit
+     * 8dp taller than the date box beside it.
+     */
+    val fieldHeight = 48.dp
 }

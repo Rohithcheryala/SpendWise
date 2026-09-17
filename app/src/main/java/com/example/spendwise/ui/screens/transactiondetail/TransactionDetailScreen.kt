@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AssistChip
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +50,7 @@ import com.example.spendwise.ui.components.TransactionDirection
 import com.example.spendwise.ui.components.OtherSideSelector
 import com.example.spendwise.ui.components.SpendwiseTopBar
 import com.example.spendwise.core.extensions.toAmountString
+import com.example.spendwise.core.extensions.toDisplayDate
 import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,11 +154,16 @@ fun TransactionDetailScreen(
                     // so Account gets the full row: accounts are identified by
                     // long names ("HDFC Bank a/c ••5924") that must stay
                     // readable before you can verify which one you picked.
+                    //
+                    // It is a DropdownField on the shared chrome, so it is the
+                    // amount box's twin; the calendar glyph replaces the
+                    // chevron because what opens is a date, not a list.
                     trailingField = {
                         DropdownField(
                             modifier = Modifier.weight(1f),
                             label = null,
-                            value = uiState.date.toString(),
+                            value = uiState.date.toDisplayDate(),
+                            trailingIcon = Icons.Rounded.CalendarMonth,
                             onClick = { showDatePicker = true }
                         )
                     }
