@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import java.math.BigDecimal
 import java.math.RoundingMode
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -330,6 +331,12 @@ class InboxRepository @Inject constructor(
         val last4: String,
         val isCard: Boolean,
         val transactionCount: Int,
+        /**
+         * Latest balance quoted in an SMS for this account, if the bank
+         * included one in any of the messages we read. Pre-populates the
+         * initial-balance field so the user only has to confirm or adjust.
+         */
+        val balance: BigDecimal? = null,
     ) {
         /** Stable key for selection state in the UI. */
         val key: String get() = "$bank|$last4"
@@ -384,9 +391,15 @@ class InboxRepository @Inject constructor(
                     last4 = last4,
                     isCard = parsed.isFromCard,
                     transactionCount = 1,
+                    balance = parsed.balance,
                 )
             } else {
-                existing.copy(transactionCount = existing.transactionCount + 1)
+                existing.copy(
+                    transactionCount = existing.transactionCount + 1,
+                    // Keep the most recent non-null balance (messages are
+                    // read in chronological order from oldest to newest).
+                    balance = parsed.balance ?: existing.balance,
+                )
             }
         }
 

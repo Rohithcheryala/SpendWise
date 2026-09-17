@@ -163,6 +163,7 @@ class AccountsViewModel @Inject constructor(
         val scanSummary: String? = null,
         val detected: List<InboxRepository.DetectedAccount> = emptyList(),
         val selectedKeys: Set<String> = emptySet(),
+        val initialBalances: Map<String, String> = emptyMap(),
         val isImporting: Boolean = false,
         val error: String? = null,
     )
@@ -206,6 +207,11 @@ class AccountsViewModel @Inject constructor(
                         // Auto-select everything — the user unticks what they
                         // don't want (same flow as onboarding).
                         selectedKeys = report.accounts.mapTo(mutableSetOf()) { it.key },
+                        // Pre-fill each account's initial balance from the
+                        // running balance the SMS quoted (when available).
+                        initialBalances = report.accounts.associate {
+                            it.key to (it.balance?.toPlainString() ?: "")
+                        },
                     )
                 }
             }.onFailure { e ->
@@ -223,6 +229,14 @@ class AccountsViewModel @Inject constructor(
         )
     }
 
+    /** Record the user's initial-balance entry for a detected account key. */
+    fun updateInitialBalance(key: String, balance: String) {
+        val s = detectionState
+        detectionState = s.copy(
+            initialBalances = s.initialBalances.toMutableMap().apply { this[key] = balance }
+        )
+    }
+
     fun dismissDetection() {
         if (!detectionState.isDetecting && !detectionState.isImporting) {
             detectionState = DetectionState()
@@ -233,6 +247,7 @@ class AccountsViewModel @Inject constructor(
     fun importDetectedAccounts() {
         val selected = detectionState.detected.filter { it.key in detectionState.selectedKeys }
         if (selected.isEmpty() || detectionState.isImporting) return
+        val balances = detectionState.initialBalances
         detectionState = detectionState.copy(isImporting = true, error = null)
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -257,6 +272,16 @@ class AccountsViewModel @Inject constructor(
                             createdAt = now,
                         )
                     )
+                    // Book the opening balance when the user entered one (or
+                    // it was detected from the SMS running balance). The sign
+                    // is handled internally by LedgerService per account class.
+                    val openingPaise =
+                        (abs(balances[account.key]?.toDoubleOrNull() ?: 0.0) * 100).toLong()
+                    if (openingPaise != 0L) {
+                        runCatching {
+                            ledgerApi.recordOpeningBalance(id, openingPaise, now)
+                        }
+                    }
                     runCatching { ingestionService.claimOrphansForAccount(id) }
                 }
                 runCatching { inboxRepository.refreshBuffer() }

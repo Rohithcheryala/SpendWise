@@ -276,6 +276,7 @@ fun AccountsScreen(
             onToggle = viewModel::toggleDetected,
             onImport = viewModel::importDetectedAccounts,
             onDismiss = viewModel::dismissDetection,
+            onInitialBalanceChange = viewModel::updateInitialBalance,
         )
     }
 }
@@ -631,6 +632,7 @@ fun DetectedAccountsSheet(
     onToggle: (String) -> Unit,
     onImport: () -> Unit,
     onDismiss: () -> Unit,
+    onInitialBalanceChange: (String, String) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -716,6 +718,21 @@ fun DetectedAccountsSheet(
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        // Optional initial balance — pre-filled from the
+                        // SMS running balance when the bank quoted one,
+                        // editable so the user can confirm or adjust.
+                        OutlinedTextField(
+                            value = state.initialBalances[account.key] ?: "",
+                            onValueChange = { onInitialBalanceChange(account.key, it) },
+                            label = { Text("Initial Balance (₹)") },
+                            placeholder = { Text("e.g. 5000") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            enabled = selected,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                        )
                     }
 
                     Button(

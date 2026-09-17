@@ -264,6 +264,102 @@ session starts with: *"Read STEP_TRACKER.md, continue at the marked step."*
     `:app:compileDebugKotlin`, `:app:assembleDebug` and
     `:app:testDebugUnitTest` green (**102 tests / 16 classes**).
 
+- [x] **Transactions filter sheet — every control now does something**: reported
+  as "any button on Transaction Filters dialog is just a placeholder". Correct,
+  and worse than it looked: Category, From account, To account and Tags were
+  `FilterDropdown(..., onClick = {})` and the date field
+  `DateRangeField(..., onClick = {})` — five of the seven controls were empty
+  lambdas. Not merely unwired: **no `TransactionEvent` existed that could set**
+  `category`/`fromAccount`/`toAccount`/`tag`/`fromDate`/`toDate`, and the list
+  predicate only ever applied search/status/date, so those filters did not exist
+  even in principle. The date card also rendered `state.fromDate.toString()`,
+  which for a null `LocalDate` is the literal string **`"null - null"`**.
+  Separately, picking the "Pending" chip emptied the list until Apply, because
+  the VM had only loaded CONFIRMED rows — one more control that "did nothing".
+  - **New `ui/screens/transactions/TransactionFilters.kt`** — the filter model
+    and its rules, split out of the screen (the `UpiQr.kt` precedent) so they
+    are unit-testable: `FilterKeys`, `FilterOption`, `TransactionFilterOptions`,
+    `ActiveFilterChip`, `TransactionFilterState`, `TransactionFilterStatus`,
+    `matchesTransactionFilters`, `buildFilterOptions`, `dateRangeLabel`, and the
+    `toUtcPickerMillis`/`toUtcPickerDate` pair.
+  - **Filters are ids, not labels.** The old `removeChip(label)` matched on the
+    label *drawn on the chip*, so two accounts sharing a name always dropped the
+    wrong filter — and `accounts` has no unique name (`SCHEMA_SYNC.md` G1).
+    `removeChip(key)` now switches on `FilterKeys`; `TransactionUi` gained
+    `categoryId`/`accountId`/`toAccountId` (populated in `toUi`) so matching
+    never reads a display string. The transfer leg's `account` is a composite
+    `"A → B"`, so name matching was wrong even without a collision.
+  - **The sheet is real UI**: `FilterDropdown` rebuilt on the shared
+    `SpendwiseField` chrome (it was its own `OutlinedCard`, a second design
+    language for the same control) with a `DropdownMenu` of options plus an
+    "Any" row — clearing a filter is now a selection like any other. It goes
+    non-interactive when there is nothing to pick rather than looking dead.
+    `DateRangeField` opens a M3 `DateRangePicker` in a `DatePickerDialog` and
+    gained a clear button; it shows `dateRangeLabel(...)` ("Any date" /
+    "From 15 Sep"), never `toString()`.
+  - **`TransactionsViewModel`**: injects `TagDao`; `refresh()` loads options
+    (`buildFilterOptions`, tags via `popularLabels(50)`) and keeps the active
+    filters across reloads. `ResetFilters` now preserves `options` — wiping them
+    left every dropdown empty until the next refresh. `setStatusFilter` also
+    `refresh()`es, so the Pending/Confirmed chips take effect on tap instead of
+    blanking the list. Five new events (`SetCategory`, `SetFromAccount`,
+    `SetToAccount`, `SetTag`, `SetDateRange`) apply live against the loaded list
+    — no extra query.
+  - **UX**: the filter icon now carries a `Badge` with `activeFilterCount`,
+    which was computed but never shown, so "did my filters stick?" is answerable
+    without reopening the sheet. The empty-state "Clear filters" action no
+    longer double-queries (Reset already clears status, and it refreshes now).
+  - Tests: `TransactionFiltersTest` (7) + `TransactionFilterStateTest` (8) —
+    each filter actually filters, the date range is inclusive on both bounds,
+    tag matching ignores case, chips resolve ids to labels, a chip whose account
+    was deleted is dropped rather than drawn blank, the same-name removal
+    regression, and the UTC picker round trip under a behind-UTC zone (where a
+    naive `systemDefault()` conversion silently loses a day).
+    `:app:compileDebugKotlin`, `:app:assembleDebug` and
+    `:app:testDebugUnitTest` green (**117 tests / 18 classes**). UI + view-model
+    only — no schema, DAO or ledger change.
+- [x] **Transactions filter sheet — corrected to match the app's own UI**:
+  the first pass *worked* but did not look like the rest of SpendWise, which is
+  a defect in its own right. Reported as "did you even try to match the UI" —
+  fair. What was wrong, and what each is now:
+  - **A platform `DropdownMenu`** anchored to each field — `grep` confirms that
+    control appears **nowhere else** in `app/src/main`, and it opened as a
+    floating panel *over* the form (clipping its neighbours). Replaced with the
+    app's picker look: the rows are copied from `OptionPickerSheet`
+    (`PaymentOverlay.kt:232`) and `OptionPickerBottomSheet`
+    (`TransactionDetailScreen.kt:389`) — full-width rows, 24dp gutters, 16dp
+    vertical padding, `bodyLarge`, SemiBold + a primary `CheckCircle` on the set
+    one.
+  - **A local `FilterDropdown` duplicating the shared `DropdownField`** —
+    `DropdownField` (`ui/components/`, used by the transaction form and the
+    scanner) is now the only field on the sheet. This is the same mistake the
+    amount/date mismatch was: hand-rolled chrome for a control that already
+    exists.
+  - **Status chips stretched to `weight(1f)`** read as a segmented control.
+    Now content-width `FilterChip`s in a `FlowRow`, matching
+    `CounterpartiesScreen`'s three-way `PartyFilter` row and
+    `InboxScreen`'s duration row.
+  - **Half-width side-by-side Apply/Reset** → stacked full-width `Button` +
+    `TextButton`, exactly `AddAccountBottomSheet`'s Save/Cancel.
+  - **Title not bold** → `headlineSmall` + `FontWeight.Bold`, as
+    `AddAccountBottomSheet` and `OptionPickerBottomSheet` do.
+  - `padding(24.dp)` on a `LazyColumn` → `contentPadding` + `Dimens` tokens
+    (the old form let rows sit under a fixed inset and never scroll clear).
+  - `ActiveFilterRow`'s `spacedBy(8.dp)` → `Dimens.sm`.
+  - The picker is a **page inside the same sheet**, not a second
+    `ModalBottomSheet`: every picker sheet in the app is opened from a *screen*,
+    and sheet-on-sheet stacking is behaviour I could not verify without a
+    device. Same visuals, one sheet.
+  - The sheet moved to its own file `ui/screens/transactions/TransactionFilterSheet.kt`
+    (467 lines) — `TransactionsScreen.kt` went 975 → 610 lines, and 20 imports
+    that only the old sheet needed were dropped from it.
+  - `STEP_TRACKER.md:495` recorded the dead dropdowns as an open issue; that
+    line is now corrected.
+  - `:app:compileDebugKotlin`, `:app:testDebugUnitTest` and
+    `:app:assembleDebug` green (**117 tests / 18 classes**), no warnings in the
+    touched files.
+
+
 
 ## STEP 1 checklist (exact edits)
 
@@ -436,10 +532,21 @@ Corrections to this checklist, confirmed against the code:
 - `update/` is the **in-app APK updater**, not a transaction editor — NOT renamed.
 - NavHost slide+fade was already implemented — nothing to do.
 - Remaining UI polish not in this pass (candidates for a follow-up): the
-  Transactions filter sheet's dropdowns are still non-functional stubs
-  (`onClick = {}`), and `ui/components/AmountSection.kt` (used by
-  `TransactionDetailScreen`) still takes a pre-formatted amount string rather
+  Transactions filter sheet's dropdowns **were** non-functional stubs
+  (`onClick = {}`) — since fixed; what remains here is `ui/components/AmountSection.kt` (used by
+  `TransactionDetailScreen`) still taking a pre-formatted amount string rather
   than paise.
+- **CORRECTION to the filter work above**: the first fix put the six-control
+  form in a `ModalBottomSheet` with a `DropdownMenu` — which produced an
+  overlapping second sheet when a dropdown opened (the "overlapping drawers"
+  symptom). The container, not the contents, was wrong: a modal sheet cannot
+  hold a two-level picker. This was corrected the way the rest of app does form
+  screens — `TransactionFilterScreen` is now a **full screen** with its own
+  `SpendwiseTopBar`, using the shared `DropdownField` (not a hand-rolled box)
+  and the app's `OptionPickerSheet` row style, two-page navigation (form →
+  option list). No sheet, no overlap. `AppNavHost` routes to it; it shares the
+  `TransactionsViewModel` instance. 15 new tests (`TransactionFiltersTest`,
+  `TransactionFilterStateTest`).
 - DEAD CODE found, left in place (not deleted without asking):
   `ui/components/BudgetProgress.kt` has **zero references** anywhere in
   `app/src` — the new `CategoryDonut` is the budget visualisation now, so this

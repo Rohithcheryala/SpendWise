@@ -26,12 +26,19 @@ import com.example.spendwise.ui.screens.categories.CategoriesScreen
 import com.example.spendwise.ui.screens.settings.SettingsScreen
 import com.example.spendwise.ui.screens.transactiondetail.TransactionDetailScreen
 import com.example.spendwise.ui.screens.transactiondetail.TransactionUiEvent
+import com.example.spendwise.ui.screens.transactions.TransactionFilterScreen
 import com.example.spendwise.ui.screens.transactions.TransactionsScreen
 import com.example.spendwise.ui.screens.update.UpdateScreen
 import com.example.spendwise.viewmodel.TransactionViewModel
 import com.example.spendwise.viewmodel.TransactionsViewModel
 
 private const val TRANSACTION_ROUTE = "transaction?transactionId={transactionId}"
+
+/**
+ * The filters screen. A full route rather than a sheet, so it covers the app's
+ * bottom navigation the way every other form in the app does.
+ */
+private const val FILTERS_ROUTE = "filters"
 
 @Composable
 fun AppNavHost(
@@ -93,8 +100,29 @@ fun AppNavHost(
                 onAddTransactionClick = {
                     navController.navigate("transaction")
                 },
+                // Filters are a screen (see TransactionFilterScreen): a bottom
+                // sheet could not hold a six-control form with a two-level
+                // picker without stacking a second surface over it.
+                onOpenFilters = { navController.navigate(FILTERS_ROUTE) },
+                onEvent = vm::onEvent
+            )
+        }
+
+        composable(FILTERS_ROUTE) { entry ->
+            // The SAME ViewModel instance as the list underneath, resolved
+            // through the list's back-stack entry rather than by re-creating it
+            // — otherwise the filters screen would edit a second copy of the
+            // state and the list would never see the changes. The list entry is
+            // always present because this route is only reachable from there.
+            val vm: TransactionsViewModel = hiltViewModel(
+                navController.getBackStackEntry(Screen.Transactions.route)
+            )
+
+            TransactionFilterScreen(
+                state = vm.filterState,
+                onStatusChange = vm::setStatusFilter,
                 onEvent = vm::onEvent,
-                onStatusChange = vm::setStatusFilter
+                onBack = { navController.popBackStack() }
             )
         }
 

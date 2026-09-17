@@ -6,6 +6,7 @@ import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.data.database.entity.AccountIdentifierEntity
+import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.service.IngestionService
 import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.data.repository.AppMetadataRepository
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.abs
 
 
 // For Budget, Friends, Groups, Accounts — each one is just:
@@ -44,6 +46,7 @@ class OnboardingViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val identifierDao: AccountIdentifierDao,
     private val appMetadataRepository: AppMetadataRepository,
+    private val ledgerApi: LedgerApi,
 ) : ViewModel() {
 
     /** Phases of the SMS-scan onboarding step. */
@@ -55,6 +58,7 @@ class OnboardingViewModel @Inject constructor(
         val transactionsDetected: Int = 0,
         val accounts: List<InboxRepository.DetectedAccount> = emptyList(),
         val selectedKeys: Set<String> = emptySet(),
+        val initialBalances: Map<String, String> = emptyMap(),
         val error: String? = null,
         /** The scan start the user picked — persisted as the tracking start date. */
         val scanStartMillis: Long? = null,
@@ -130,6 +134,17 @@ class OnboardingViewModel @Inject constructor(
                         // Auto-select every detected account — the user just
                         // unticks what they don't want.
                         selectedKeys = report.accounts.mapTo(mutableSetOf()) { it.key },
+                        // Pre-fill each account's initial balance from the
+                        // running balance the SMS quoted (when the bank
+                        // included one), so the user can confirm or adjust.
+                        initialBalances = report.accounts.associate {
+                            it.key to (it.balance?.toPlainString() ?: "")
+                        },
+                        // Carry the scan start date forward — needed both as
+                        // the opening-balance transaction date and for
+                        // completeScan() to persist the tracking start date
+                        // (previously lost when transitioning to DONE).
+                        scanStartMillis = _scanState.value.scanStartMillis,
                     )
                 }
                 .onFailure { e ->
@@ -150,7 +165,15 @@ class OnboardingViewModel @Inject constructor(
         )
     }
 
-    /** Create the ticked accounts (no opening balance — the ledger starts here). */
+    /** Record the user's initial-balance entry for a detected account key. */
+    fun updateInitialBalance(key: String, balance: String) {
+        val s = _scanState.value
+        _scanState.value = s.copy(
+            initialBalances = s.initialBalances.toMutableMap().apply { this[key] = balance }
+        )
+    }
+
+    /** Create the ticked accounts, booking each account's opening balance. */
     fun createSelectedAccounts() {
         val s = _scanState.value
         val selected = s.accounts.filter { it.key in s.selectedKeys }
@@ -158,6 +181,9 @@ class OnboardingViewModel @Inject constructor(
             completeScan()
             return
         }
+        // Opening balances are meaningful as of the scan start date ("day
+        // one" of the ledger), not necessarily "right now".
+        val openingDate = s.scanStartMillis ?: System.currentTimeMillis()
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             runCatching {
@@ -183,6 +209,17 @@ class OnboardingViewModel @Inject constructor(
                             createdAt = now,
                         )
                     )
+
+                    // Book the opening balance when the user entered one (or it
+                    // was detected from the SMS running balance). The sign is
+                    // handled internally by LedgerService per account class.
+                    val openingPaise =
+                        (abs(s.initialBalances[account.key]?.toDoubleOrNull() ?: 0.0) * 100).toLong()
+                    if (openingPaise != 0L) {
+                        runCatching {
+                            ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
+                        }
+                    }
                 }
                 // The scan ingested SMS before these accounts existed, so those
                 // transactions sit orphaned on the unmatched pot. Re-run matching

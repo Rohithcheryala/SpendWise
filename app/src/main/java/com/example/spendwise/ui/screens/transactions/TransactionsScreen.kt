@@ -1,52 +1,40 @@
 package com.example.spendwise.ui.screens.transactions
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.example.spendwise.ui.components.SpendwiseTopBar
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,36 +62,20 @@ import com.example.spendwise.ui.components.SpendwiseCard
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
-        state: TransactionFilterState = TransactionFilterState(),
+    state: TransactionFilterState = TransactionFilterState(),
     transactions: List<TransactionUi> = emptyList(),
     onNavigateBack: (() -> Unit)? = null,
     onTransactionClick: ((Long) -> Unit)? = null,
     onAddTransactionClick: (() -> Unit)? = null,
+    onOpenFilters: () -> Unit = {},
     onEvent: (TransactionEvent) -> Unit = {},
-    onStatusChange: (TransactionFilterStatus?) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var searchQuery by remember { mutableStateOf("") }
 
-    val filteredTransactions = transactions.filter { tx ->
-        // Search: title or account
-        val matchesSearch = searchQuery.isBlank() ||
-            tx.title.contains(searchQuery, ignoreCase = true) ||
-            (tx.account?.contains(searchQuery, ignoreCase = true) == true)
-
-        // Status filter (null = keep whatever the ViewModel loaded)
-        val matchesStatus = state.status == null ||
-            tx.status == state.status
-
-        // Date-range filter (both bounds inclusive on the local date)
-        val txDate = Instant.ofEpochMilli(tx.occurredOn)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate()
-        val matchesDate = (state.fromDate == null || !txDate.isBefore(state.fromDate)) &&
-            (state.toDate == null || !txDate.isAfter(state.toDate))
-
-        matchesSearch && matchesStatus && matchesDate
+    // Rules live in TransactionFilters.kt so they can be unit-tested.
+    val filteredTransactions = transactions.filter {
+        matchesTransactionFilters(it, state, searchQuery)
     }
 
     Scaffold(
@@ -114,8 +86,22 @@ fun TransactionsScreen(
                 title = "Transactions",
                 onBack = onNavigateBack,
                 actions = {
-                    IconButton(onClick = { onEvent(TransactionEvent.OpenFilters) }) {
-                        Icon(Icons.Rounded.FilterList, contentDescription = "Filters")
+                    IconButton(onClick = onOpenFilters) {
+                        // A live count, so "did my filters stick?" is answerable
+                        // without reopening the filters. `activeFilterCount`
+                        // was computed but never shown.
+                        if (state.activeFilterCount > 0) {
+                            BadgedBox(
+                                badge = { Badge { Text(state.activeFilterCount.toString()) } }
+                            ) {
+                                Icon(Icons.Rounded.FilterList, contentDescription = "Filters")
+                            }
+                        } else {
+                            Icon(
+                                Icons.Rounded.FilterList,
+                                contentDescription = "Filters"
+                            )
+                        }
                     }
                 }
             )
@@ -157,8 +143,8 @@ fun TransactionsScreen(
             item {
                 ActiveFilterRow(
                     filters = state.activeFilters,
-                    onRemove = {
-                        onEvent(TransactionEvent.RemoveFilter(it))
+                    onRemove = { chip ->
+                        onEvent(TransactionEvent.RemoveFilter(chip.key))
                     }
                 )
             }
@@ -188,8 +174,10 @@ fun TransactionsScreen(
                         },
                         onAction = {
                             searchQuery = ""
+                            // ResetFilters clears status too, and it now
+                            // re-queries; calling onStatusChange(null) as well
+                            // would fire a second identical ledger read.
                             onEvent(TransactionEvent.ResetFilters)
-                            onStatusChange(null)
                         }
                     )
                 }
@@ -223,269 +211,30 @@ fun TransactionsScreen(
             }
         }
     }
-
-    if (state.showFilters) {
-
-        TransactionFilterSheet(
-            state = state,
-            sheetState = sheetState,
-            onDismiss = {
-                onEvent(TransactionEvent.CloseFilters)
-            },
-            onApply = {
-                onEvent(TransactionEvent.ApplyFilters)
-            },
-            onReset = {
-                onEvent(TransactionEvent.ResetFilters)
-            },
-            onStatusChange = onStatusChange
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TransactionFilterSheet(
-    state: TransactionFilterState,
-    sheetState: SheetState,
-    onDismiss: () -> Unit,
-    onApply: () -> Unit,
-    onReset: () -> Unit,
-    onStatusChange: (TransactionFilterStatus?) -> Unit
-) {
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
-    ) {
-
-        LazyColumn(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
-
-            item {
-
-                Text(
-                    "Filters",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-            }
-
-            item {
-
-                Text(
-                    "Status",
-                    style = MaterialTheme.typography.labelMedium
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = state.status == null,
-                        onClick = { onStatusChange(null) },
-                        label = { Text("Any") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = state.status == TransactionFilterStatus.Confirmed,
-                        onClick = { onStatusChange(TransactionFilterStatus.Confirmed) },
-                        label = { Text("Confirmed") },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = state.status == TransactionFilterStatus.Pending,
-                        onClick = { onStatusChange(TransactionFilterStatus.Pending) },
-                        label = { Text("Pending") },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            item {
-
-                FilterDropdown(
-                    title = "Category",
-                    value = state.category ?: "Any",
-                    onClick = {}
-                )
-            }
-
-            item {
-
-                FilterDropdown(
-                    title = "From account",
-                    value = state.fromAccount ?: "Any",
-                    onClick = {}
-                )
-            }
-
-            item {
-
-                FilterDropdown(
-                    title = "To account",
-                    value = state.toAccount ?: "Any",
-                    onClick = {}
-                )
-            }
-
-            item {
-
-                DateRangeField(
-                    from = state.fromDate.toString(),
-                    to = state.toDate.toString(),
-                    onClick = {}
-                )
-            }
-
-            item {
-
-                FilterDropdown(
-                    title = "Tags",
-                    value = state.tag ?: "Any",
-                    onClick = {}
-                )
-            }
-
-            item {
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onReset
-                    ) {
-                        Text("Reset")
-                    }
-
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        onClick = onApply
-                    ) {
-                        Text("Apply")
-                    }
-                }
-            }
-
-            item {
-                Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
-            }
-        }
-    }
-}
-
-@Composable
-fun FilterDropdown(
-    title: String,
-    value: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-
-    Column(
-        modifier = modifier
-    ) {
-
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium
-        )
-
-        Spacer(Modifier.height(4.dp))
-
-        OutlinedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-        ) {
-
-            Row(
-                modifier = Modifier
-                    .padding(Dimens.cardPadding)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Text(
-                    value,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Icon(
-                    Icons.Rounded.KeyboardArrowDown,
-                    null
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun DateRangeField(
-    from: String?,
-    to: String?,
-    onClick: () -> Unit
-) {
-
-    Column {
-
-        Text(
-            "Date Range",
-            style = MaterialTheme.typography.labelMedium
-        )
-
-        Spacer(Modifier.height(4.dp))
-
-        OutlinedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-        ) {
-
-            Row(
-                modifier = Modifier.padding(Dimens.cardPadding)
-            ) {
-
-                Icon(
-                    Icons.Rounded.CalendarMonth,
-                    null
-                )
-
-                Spacer(Modifier.width(12.dp))
-
-                Text(
-                    "${from ?: "Any"} - ${to ?: "Any"}"
-                )
-            }
-        }
-    }
 }
 
 @Composable
 fun ActiveFilterRow(
-    filters: List<String>,
-    onRemove: (String) -> Unit
+    filters: List<ActiveFilterChip>,
+    onRemove: (ActiveFilterChip) -> Unit
 ) {
     if (filters.isEmpty()) return
 
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(Dimens.sm)
     ) {
         items(filters.size) { index ->
-            val filterText = filters[index]
+            val filter = filters[index]
             InputChip(
                 selected = true,
-                onClick = { onRemove(filterText) },
+                onClick = { onRemove(filter) },
                 label = {
-                    Text(filterText)
+                    Text(filter.label)
                 },
                 trailingIcon = {
                     Icon(
                         Icons.Rounded.Close,
-                        contentDescription = "Remove",
+                        contentDescription = "Remove ${filter.label}",
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -709,95 +458,60 @@ data class TransactionUi(
     /** Epoch millis the entry occurred; enables date-range filtering. */
     val occurredOn: Long = 0L,
     /** Same value as [amount] but numeric, so charts never parse the string. */
-    val amountPaise: Long = 0L
+    val amountPaise: Long = 0L,
+    /*
+     * Ids alongside the display strings. The sheet's category/account filters
+     * match on these, not on the names — two accounts may share a name
+     * (`SCHEMA_SYNC.md` G1) and [account] is a composite "A → B" on transfers,
+     * so neither is a safe match key.
+     */
+    val categoryId: Long? = null,
+    val accountId: Long? = null,
+    val toAccountId: Long? = null
 )
-
-data class TransactionFilterState(
-    val showFilters: Boolean = false,
-
-    val status: TransactionFilterStatus? = null,
-    val category: String? = null,
-
-    val fromAccount: String? = null,
-    val toAccount: String? = null,
-
-    val tag: String? = null,
-
-    val fromDate: LocalDate? = null,
-    val toDate: LocalDate? = null
-) {
-
-    val activeFilterCount: Int
-        get() = listOf(
-            status,
-            category,
-            fromAccount,
-            toAccount,
-            tag,
-            fromDate,
-            toDate
-        ).count { it != null }
-
-    val activeFilters: List<String>
-        get() = buildList {
-
-            status?.let {
-                add(it.label)
-            }
-
-            category?.let {
-                add(it)
-            }
-
-            fromAccount?.let {
-                add(it)
-            }
-
-            toAccount?.let {
-                add(it)
-            }
-
-            tag?.let {
-                add(it)
-            }
-
-            if (fromDate != null || toDate != null) {
-                add("Date")
-            }
-        }
-
-    /** Drop an active-filter chip by its label (used by RemoveFilter events). */
-    fun removeChip(label: String): TransactionFilterState = when {
-        status?.label == label -> copy(status = null)
-        category == label -> copy(category = null)
-        fromAccount == label -> copy(fromAccount = null)
-        toAccount == label -> copy(toAccount = null)
-        tag == label -> copy(tag = null)
-        label == "Date" -> copy(fromDate = null, toDate = null)
-        else -> this
-    }
-}
-
-enum class TransactionFilterStatus(
-    val label: String
-) {
-    Confirmed("Confirmed"),
-    Pending("Pending"),
-    Voided("Voided")
-}
 
 sealed interface TransactionEvent {
 
-    data object OpenFilters : TransactionEvent
-
-    data object CloseFilters : TransactionEvent
-
+    /**
+     * Re-query and close. Filters apply live against the loaded list, so this
+     * exists so the user's explicit "done" always re-reads the ledger — it is
+     * not what applies the selections.
+     */
     data object ApplyFilters : TransactionEvent
 
     data object ResetFilters : TransactionEvent
 
+    /** Remove one active chip by its [FilterKeys] key. */
     data class RemoveFilter(
-        val filter: String
+        val key: String
+    ) : TransactionEvent
+
+    /*
+     * The selection events the sheet needs to be more than decoration. All of
+     * these are applied live against the already-loaded list (the predicate in
+     * `TransactionFilters.kt`), so none of them re-queries — status is not here
+     * because it goes through `setStatusFilter`, which must re-query: the ledger
+     * set itself differs between CONFIRMED and BUFFER.
+     */
+    data class SetCategory(
+        val categoryId: Long?
+    ) : TransactionEvent
+
+    data class SetFromAccount(
+        val accountId: Long?
+    ) : TransactionEvent
+
+    data class SetToAccount(
+        val accountId: Long?
+    ) : TransactionEvent
+
+    data class SetTag(
+        val tag: String?
+    ) : TransactionEvent
+
+    data class SetDateRange(
+        val from: LocalDate?,
+        val to: LocalDate?
     ) : TransactionEvent
 }
 
@@ -854,12 +568,20 @@ private fun TransactionsScreenPreview() {
 
         TransactionsScreen(
             state = TransactionFilterState(
-                showFilters = false,
                 status = TransactionFilterStatus.Confirmed,
-                category = "Food",
-                tag = "Rahul"
+                categoryId = 2L,
+                tag = "Rahul",
+                options = TransactionFilterOptions(
+                    categories = listOf(
+                        FilterOption(2L, "Food"),
+                        FilterOption(3L, "Income"),
+                    ),
+                    accounts = listOf(FilterOption(1L, "HDFC Savings")),
+                    tags = listOf("Rahul", "Shopping", "Home"),
+                )
             ),
             transactions = transactions,
+            onOpenFilters = {},
             onEvent = {}
         )
     }
