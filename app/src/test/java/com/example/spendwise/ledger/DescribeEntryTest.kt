@@ -114,7 +114,8 @@ class DescribeEntryTest : BackendTestBase() {
 
         // The person's own receivable child pot carries +500 (money lent
         // out); the top-level pot itself carries nothing. Lines, not
-        // balances — an ingested loan is BUFFER, and buffers don't count.
+        // balances — an ingested loan is BUFFER, and only its lines prove
+        // where the money sits.
         val loansPot = db.AccountDao().findSystemBySubtype("receivable")!!
         val entryLines = db.TransactionLineDao().getByTransactionList(view.id)
         val child = db.AccountDao().getChildren(loansPot.id).first().first()
@@ -139,10 +140,10 @@ class DescribeEntryTest : BackendTestBase() {
         assertEquals(199_00, view.amountPaise)
         assertNull(view.accountId) // surfaced as "needs an account"
 
-        // Balances count only confirmed transactions, so the buffered orphan hasn't
-        // moved anything yet.
+        // Pending-review already counts (the money left) — the parked orphan
+        // shows up on the unmatched pot while it waits for a home.
         val unmatchedPot = db.AccountDao().findSystemBySubtype("unmatched")!!
-        assertEquals(0L, ledger.accountBalance(unmatchedPot.id))
+        assertEquals(-199_00L, ledger.accountBalance(unmatchedPot.id))
 
         // A statement-imported (already-proven) orphan books straight through.
         val provenOrphan = ledger.ingest(
@@ -157,6 +158,6 @@ class DescribeEntryTest : BackendTestBase() {
             )
         )
         assertEquals(TransactionKind.RECONCILIATION, provenOrphan.kind)
-        assertEquals(-80_00, ledger.accountBalance(unmatchedPot.id))
+        assertEquals(-279_00, ledger.accountBalance(unmatchedPot.id))
     }
 }

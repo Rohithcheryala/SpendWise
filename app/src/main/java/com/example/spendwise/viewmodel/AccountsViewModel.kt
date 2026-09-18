@@ -169,6 +169,8 @@ class AccountsViewModel @Inject constructor(
         val initialBalances: Map<String, String> = emptyMap(),
         val isImporting: Boolean = false,
         val error: String? = null,
+        /** Window the detection scanned — re-scanned with ingest at import. */
+        val scanFromMillis: Long? = null,
     )
 
     var detectionState by mutableStateOf(DetectionState())
@@ -189,11 +191,11 @@ class AccountsViewModel @Inject constructor(
         if (detectionState.isDetecting || detectionState.isImporting) return
         detectionState = DetectionState(isDetecting = true)
         viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val fromMillis = appMetadataRepository.get()?.trackingStartDate
+                ?.takeIf { it in 1 until now }
+                ?: (now - DETECT_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L)
             runCatching {
-                val now = System.currentTimeMillis()
-                val fromMillis = appMetadataRepository.get()?.trackingStartDate
-                    ?.takeIf { it in 1 until now }
-                    ?: (now - DETECT_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L)
                 inboxRepository.scanFrom(fromMillis, ingest = false)
             }.onSuccess { report ->
                 detectionState = if (report.accounts.isEmpty()) {
@@ -215,6 +217,7 @@ class AccountsViewModel @Inject constructor(
                         initialBalances = report.accounts.associate {
                             it.key to (it.balance?.toPlainString() ?: "")
                         },
+                        scanFromMillis = fromMillis,
                     )
                 }
             }.onFailure { e ->
@@ -248,19 +251,16 @@ class AccountsViewModel @Inject constructor(
 
     /** Create the ticked accounts; orphaned SMS transactions attach automatically. */
     fun importDetectedAccounts() {
-        val selected = detectionState.detected.filter { it.key in detectionState.selectedKeys }
-        if (selected.isEmpty() || detectionState.isImporting) return
-        val balances = detectionState.initialBalances
+        val s = detectionState
+        val selected = s.detected.filter { it.key in s.selectedKeys }
+        if (selected.isEmpty() || s.isImporting) return
+        val balances = s.initialBalances
+        val scanFromMillis = s.scanFromMillis
         detectionState = detectionState.copy(isImporting = true, error = null)
         viewModelScope.launch {
             val now = System.currentTimeMillis()
-            // Opening balances are meaningful as of "day one" of the ledger —
-            // the same instant onboarding uses — not the import moment.
-            val openingDate = runCatching { appMetadataRepository.get()?.trackingStartDate }
-                .getOrNull()
-                ?.takeIf { it in 1 until now }
-                ?: now
             runCatching {
+                val createdIds = mutableListOf<Long>()
                 for (account in selected) {
                     val id = accountDao.insert(
                         AccountEntity(
@@ -272,6 +272,7 @@ class AccountsViewModel @Inject constructor(
                             createdAt = now,
                         )
                     )
+                    createdIds += id
                     identifierDao.insert(
                         AccountIdentifierEntity(
                             accountId = id,
@@ -281,23 +282,43 @@ class AccountsViewModel @Inject constructor(
                             createdAt = now,
                         )
                     )
-                    // The entered (or SMS-prefilled) value is the account's
-                    // CURRENT balance — the prefill is the latest SMS-quoted
-                    // balance. The opening, booked at the tracking start date,
-                    // is that target minus the window's SMS net flow, so the
-                    // transactions claimed onto the account land it exactly on
-                    // the target instead of double-counting on top of it.
-                    val target = balances[account.key]?.toDoubleOrNull()
-                    if (target != null) {
-                        val openingPaise =
-                            (abs(target) * 100).roundToLong() - account.netPaise
-                        if (openingPaise != 0L) {
-                            runCatching {
-                                ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
-                            }
+                }
+
+                // The detection scan was read-only — bring the scanned window
+                // into the ledger now, exactly like the onboarding scan does.
+                // With the identifiers live, the window's SMS attach straight
+                // onto their accounts as pending-review entries; the sync
+                // watermark advances too, so the regular sync continues from
+                // now. (Re-parses are deduped, and SMS for accounts the user
+                // skipped park as orphans until that account exists.)
+                scanFromMillis?.let {
+                    runCatching { inboxRepository.scanFrom(it, ingest = true) }
+                }
+                // SMS ingested BEFORE these accounts existed (e.g. from the
+                // notification flow) sit on the unmatched pot — claim them.
+                for (id in createdIds) {
+                    runCatching { ingestionService.claimOrphansForAccount(id) }
+                }
+
+                // The entered value is the account's CURRENT balance. With the
+                // window's (pending-review) SMS now counted by the balance,
+                // the opening is whatever delta brings the live ledger onto
+                // that target — approving the pending history later never
+                // moves the balance away from it.
+                val openingDate = runCatching { appMetadataRepository.get()?.trackingStartDate }
+                    .getOrNull()
+                    ?.takeIf { it in 1 until now }
+                    ?: now
+                selected.forEachIndexed { index, account ->
+                    val id = createdIds[index]
+                    val target = balances[account.key]?.toDoubleOrNull() ?: return@forEachIndexed
+                    val openingPaise = (abs(target) * 100).roundToLong() -
+                        runCatching { ledgerApi.accountBalance(id) }.getOrDefault(0L)
+                    if (openingPaise != 0L) {
+                        runCatching {
+                            ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
                         }
                     }
-                    runCatching { ingestionService.claimOrphansForAccount(id) }
                 }
                 runCatching { inboxRepository.refreshBuffer() }
             }.onSuccess {

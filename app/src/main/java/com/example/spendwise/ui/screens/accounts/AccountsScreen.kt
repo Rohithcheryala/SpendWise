@@ -1,14 +1,17 @@
 package com.example.spendwise.ui.screens.accounts
 
 import android.Manifest
-import android.app.Activity
-import android.content.ContextWrapper
+import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
-import androidx.activity.compose.BackHandler
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -18,8 +21,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -59,10 +62,12 @@ import androidx.compose.material3.TextButton
 import com.example.spendwise.ui.components.SpendwiseTopBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +76,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -435,6 +442,67 @@ fun AccountCardItem(
     }
 }
 
+/**
+ * Back handling for a ModalBottomSheet's dialog window, solving two
+ * Material3 1.3 problems at once:
+ *
+ * 1. With shouldDismissOnBackPress = false, M3 registers NO back callback on
+ *    the sheet's dialog window — predictive back is dropped in the void and
+ *    back does literally nothing (proven from the 1.3.0 bytecode of
+ *    ModalBottomSheetDialogLayout.maybeRegisterBackCallback).
+ * 2. With shouldDismissOnBackPress = true, M3's own callback fires even while
+ *    the keyboard is up, dismissing the sheet AND folding the keyboard in one
+ *    back press.
+ *
+ * So this registers our own OnBackInvokedCallback on the sheet's dialog
+ * window (the view here is the ModalBottomSheetDialogLayout, which implements
+ * DialogWindowProvider) and checks the IME's real insets at invocation time:
+ * keyboard up → fold the keyboard only; keyboard down → run [onSheetBack]
+ * (close the sheet). Must be called inside the ModalBottomSheet content
+ * lambda — outside it, LocalView is the activity view and the window lookup
+ * finds nothing.
+ */
+@Composable
+private fun SheetDialogBackHandler(onSheetBack: () -> Unit) {
+    val dialogView = LocalView.current
+    val latestOnSheetBack = rememberUpdatedState(onSheetBack)
+    DisposableEffect(dialogView) {
+        val window = (dialogView as? DialogWindowProvider)?.window
+        var callback: OnBackInvokedCallback? = null
+        if (window != null && Build.VERSION.SDK_INT >= 33) {
+            callback = OnBackInvokedCallback {
+                // Read the IME's real state from the window at invocation
+                // time — never from composition state, which goes stale.
+                val imeBottom = dialogView.rootWindowInsets
+                    ?.getInsets(WindowInsets.Type.ime())?.bottom ?: 0
+                if (imeBottom > 0) {
+                    // Keyboard up: fold the keyboard only, and drop focus so
+                    // nothing stale swallows the next back.
+                    val imm = dialogView.context
+                        .getSystemService(Context.INPUT_METHOD_SERVICE)
+                        as? InputMethodManager
+                    dialogView.findFocus()?.let { focused ->
+                        imm?.hideSoftInputFromWindow(focused.windowToken, 0)
+                        focused.clearFocus()
+                    }
+                } else {
+                    latestOnSheetBack.value()
+                }
+            }
+            window.onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                callback
+            )
+        }
+        onDispose {
+            if (callback != null && Build.VERSION.SDK_INT >= 33) {
+                window?.onBackInvokedDispatcher
+                    ?.unregisterOnBackInvokedCallback(callback)
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddAccountBottomSheet(
@@ -446,34 +514,16 @@ fun AddAccountBottomSheet(
     // field the user had typed. The sheet can only be closed via the Cancel
     // button or system back — both of which ask for confirmation first.
     //
-    // Back handling: predictive back dismisses ModalBottomSheet regardless of
-    // confirmValueChange (Material3 1.3 bug), which used to throw away the
-    // whole form when the user only meant to fold the keyboard. The sheet's
-    // own back handling is switched off and a BackHandler takes over: with
-    // the keyboard up, back folds the keyboard; only a second back dismisses
-    // (asking for confirmation when anything was typed).
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { it != SheetValue.Hidden }
-    )
-    val context = LocalContext.current
-    val view = LocalView.current
-
-    /** Ask the IME to hide; true when it actually initiated hiding. */
-    fun hideKeyboard(): Boolean {
-        var ctx = context
-        while (ctx is ContextWrapper) {
-            if (ctx is Activity) {
-                val focus = view.findFocus() ?: return false
-                val imm = ctx.getSystemService(Activity.INPUT_METHOD_SERVICE)
-                    as? InputMethodManager
-                return imm?.hideSoftInputFromWindow(focus.windowToken, 0) == true
-            }
-            ctx = ctx.baseContext
-        }
-        return false
-    }
-
+    // Back handling must survive Material3 1.3's bug: with
+    // shouldDismissOnBackPress = false, ModalBottomSheet registers NO
+    // OnBackInvokedCallback on the sheet's dialog window, so the system's
+    // predictive-back invocation is dropped in the void — back does nothing
+    // and an in-content BackHandler never fires (the event never leaves the
+    // dialog window). So we register our own callback on that window
+    // (ModalBottomSheetDialogLayout implements DialogWindowProvider).
+    // When the keyboard is up, the IME consumes back itself to fold the
+    // keyboard — this callback is not invoked in that state, which gives the
+    // wanted "back in a field folds the keyboard, back otherwise closes".
     var name by remember { mutableStateOf("") }
     var bankName by remember { mutableStateOf("") }
     var accountNumber by remember { mutableStateOf("") }
@@ -488,19 +538,26 @@ fun AddAccountBottomSheet(
         if (hasInput) confirmDiscard = true else onDismiss()
     }
 
-    BackHandler {
-        if (view.findFocus() != null && hideKeyboard()) {
-            // First back with the keyboard up: fold the keyboard only.
-        } else {
-            attemptDismiss()
-        }
-    }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        // Swipe-down may close the sheet only while the form is empty; with
+        // typed input the veto snaps it back open so a stray swipe can't
+        // wipe fields.
+        confirmValueChange = { it != SheetValue.Hidden || !hasInput }
+    )
 
+    // The callback must be registered on the SHEET'S dialog window, so this
+    // effect lives inside the ModalBottomSheet content where LocalView is the
+    // ModalBottomSheetDialogLayout (implements DialogWindowProvider). Out in
+    // the caller's composition LocalView is still the activity view and the
+    // lookup would find nothing.
     ModalBottomSheet(
         onDismissRequest = { attemptDismiss() },
         sheetState = sheetState,
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false)
     ) {
+        SheetDialogBackHandler { attemptDismiss() }
+
         Column(
             modifier = Modifier
                 .padding(24.dp)
@@ -676,16 +733,32 @@ fun DetectedAccountsSheet(
     onDismiss: () -> Unit,
     onInitialBalanceChange: (String, String) -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Back: M3's built-in callback (shouldDismissOnBackPress = true) closes
+    // the sheet even while the keyboard is up — folding the keyboard AND
+    // dismissing in one press. So M3's back handling is switched off and
+    // SheetDialogBackHandler (registered on the sheet's dialog window)
+    // replicates it: keyboard up → fold the keyboard only; keyboard down →
+    // close the drawer. Swipe-down still dismisses (no confirmValueChange
+    // veto).
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+    )
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        // Full-height sheet: the detected-accounts list gets a bounded
-        // viewport so it scrolls, and Import/Cancel stay pinned at the bottom
-        // instead of being pushed off-screen by a long list.
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
+    ) {
+        SheetDialogBackHandler { onDismiss() }
+
+        // NOT fillMaxHeight: a full-height sheet grows up under the status
+        // bar and clips the list's top (and hides the drag handle). The
+        // Column wraps its content; the list below is capped at a fraction of
+        // the screen so it scrolls internally and Import/Cancel stay visible
+        // right beneath it.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -731,64 +804,94 @@ fun DetectedAccountsSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Text(
+                        text = "Tap to include or skip an account. The balance is what your " +
+                            "bank shows today — approving the pending history later won't change it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                    // The scrollable middle: takes all leftover height and
-                    // scrolls when the list exceeds it, leaving the buttons
-                    // below always visible.
+                    // The scrollable middle: capped to the leftover screen
+                    // space (title, summary, buttons and system bars account
+                    // for ~420dp), so a long list scrolls inside this viewport
+                    // and Import/Cancel always sit right below it. One card
+                    // per account — header and balance field live together so
+                    // nothing reads as overlapping text.
+                    val configuration = LocalConfiguration.current
+                    val listMaxHeight = (configuration.screenHeightDp - 420)
+                        .coerceAtLeast(160).dp
                     Column(
                         modifier = Modifier
-                            .weight(1f)
+                            .heightIn(max = listMaxHeight)
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                    state.detected.forEach { account ->
-                        val selected = account.key in state.selectedKeys
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(MaterialTheme.shapes.extraSmall)
-                                .clickable { onToggle(account.key) }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = account.suggestedName,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (selected) FontWeight.SemiBold
-                                    else FontWeight.Normal
-                                )
-                                Text(
-                                    text = "${account.transactionCount} transaction" +
-                                        if (account.transactionCount == 1) "" else "s",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                        state.detected.forEach { account ->
+                            val selected = account.key in state.selectedKeys
+                            Card(
+                                onClick = { onToggle(account.key) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (selected) {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    }
+                                ),
+                                border = if (selected) {
+                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                                } else {
+                                    BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                },
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(
+                                        horizontal = 16.dp, vertical = 12.dp
+                                    ),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = account.suggestedName,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = if (selected) FontWeight.SemiBold
+                                                else FontWeight.Normal
+                                            )
+                                            Text(
+                                                text = "${account.transactionCount} transaction" +
+                                                    (if (account.transactionCount == 1) "" else "s") +
+                                                    " waiting for review",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = if (selected) Icons.Rounded.CheckCircle
+                                            else Icons.Rounded.RadioButtonUnchecked,
+                                            contentDescription = if (selected) "Selected"
+                                            else "Not selected",
+                                            tint = if (selected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    // What the bank shows today — the window's
+                                    // pending SMS already count toward it.
+                                    OutlinedTextField(
+                                        value = state.initialBalances[account.key] ?: "",
+                                        onValueChange = { onInitialBalanceChange(account.key, it) },
+                                        label = { Text("Current Balance (₹)") },
+                                        keyboardOptions = KeyboardOptions(
+                                            keyboardType = KeyboardType.Number
+                                        ),
+                                        singleLine = true,
+                                        enabled = selected,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
                             }
-                            Icon(
-                                imageVector = if (selected) Icons.Rounded.CheckCircle
-                                else Icons.Rounded.RadioButtonUnchecked,
-                                contentDescription = if (selected) "Selected" else "Not selected",
-                                tint = if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
-                        // What the bank shows today — the window's SMS
-                        // transactions are counted on top of it when the
-                        // opening balance is derived.
-                        OutlinedTextField(
-                            value = state.initialBalances[account.key] ?: "",
-                            onValueChange = { onInitialBalanceChange(account.key, it) },
-                            label = { Text("Current Balance (₹)") },
-                            supportingText = { Text("Balance today — past SMS activity is included on top") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            enabled = selected,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                        )
-                    }
                     }
 
                     Button(

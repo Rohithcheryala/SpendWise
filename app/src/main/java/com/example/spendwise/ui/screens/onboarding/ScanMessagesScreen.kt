@@ -219,14 +219,14 @@ fun ScanMessagesScreen(
                                     }
                                 }
                             }
-                            // What the bank shows today — the scan window's
-                            // SMS transactions are counted on top of it when
-                            // the opening balance is derived.
+                            // What the bank shows today — the window's pending
+                            // SMS already count toward it, so approving them
+                            // later never moves the balance.
                             OutlinedTextField(
                                 value = state.initialBalances[account.key] ?: "",
                                 onValueChange = { viewModel.updateInitialBalance(account.key, it) },
                                 label = { Text("Current Balance (₹)") },
-                                supportingText = { Text("Balance today — past SMS activity is included on top") },
+                                supportingText = { Text("What the bank shows today — approving pending history won't change it") },
                                 placeholder = { Text("e.g. 5000") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,

@@ -68,8 +68,8 @@ class IngestionServiceTest : BackendTestBase() {
 
         assertTrue(result is IngestionService.SmsIngestResult.Parsed)
         assertEquals(accountId, (result as IngestionService.SmsIngestResult.Parsed).accountId)
-        // Buffer transactions don't move balances yet.
-        assertEquals(0L, ledger.accountBalance(accountId))
+        // Pending-review already moves the balance — the money has left.
+        assertEquals(-100_00L, ledger.accountBalance(accountId))
     }
 
     @Test

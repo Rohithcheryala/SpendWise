@@ -36,7 +36,8 @@ class IngestTest : BackendTestBase() {
         )
 
         assertEquals(TransactionStatus.BUFFER, view.status)
-        assertEquals(0L, ledger.accountBalance(bank)) // buffer doesn't move balances
+        // Pending-review already moves the balance — the money has left.
+        assertEquals(-125_000L, ledger.accountBalance(bank))
 
         // Contra line landed on the expense-side system category.
         val lines = db.TransactionLineDao().getByTransactionList(view.id)

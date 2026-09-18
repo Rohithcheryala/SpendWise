@@ -298,10 +298,15 @@ class LedgerService @Inject constructor(
     }
 
     /**
-     * Signed sum of an account's confirmed, non-voided lines. Liabilities are
-     * inverted (balance = amount owed). [through] bounds it for reconciliation
-     * continuity checks. Buckets — being plain child accounts — use the same
-     * read path.
+     * Signed sum of an account's money-real lines — confirmed AND
+     * pending-review (buffer), never voided. A pending SMS/QR entry already
+     * happened (the bank debited you); the Inbox review is classification,
+     * not an accounting hold: approving never moves a balance, dismissing
+     * (void) returns the money. This is what makes the "current balance" the
+     * user enters at import true the moment import finishes. Liabilities are
+     * inverted (balance = amount owed). [through] bounds it for
+     * reconciliation continuity checks. Buckets — being plain child accounts
+     * — use the same read path.
      */
     override suspend fun accountBalance(accountId: Long, through: Long?): Long {
         val account = accountDao.getById(accountId)
@@ -313,7 +318,7 @@ class LedgerService @Inject constructor(
         if (through == null) {
             return accountDao.balanceOf(accountId)?.balancePaise ?: 0L
         }
-        val total = transactionLineDao.sumConfirmedForAccount(accountId, through)
+        val total = transactionLineDao.sumPostedForAccount(accountId, through)
         return if (account.accountClass == CLASS_LIABILITY) -total else total
     }
 

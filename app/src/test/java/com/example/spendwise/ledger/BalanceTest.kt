@@ -9,9 +9,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Balances are computed, never stored: signed sum of confirmed, non-voided
- * lines; liabilities inverted (balance = owed). Ported from ledger.py's
- * account_balance and its deletion-test discipline.
+ * Balances are computed, never stored: signed sum of money-real (confirmed or
+ * pending-review) non-voided lines; liabilities inverted (balance = owed).
+ * Ported from ledger.py's account_balance and its deletion-test discipline.
  */
 class BalanceTest : BackendTestBase() {
 
@@ -46,21 +46,30 @@ class BalanceTest : BackendTestBase() {
     }
 
     @Test
-    fun `buffer transactions do not count until confirmed`() = runTest {
+    fun `pending-review sms already count, approving never moves the balance`() = runTest {
         val bank = setupAccount()
         val food = newCategory("Food")
 
-        val buffered = ledger.createTransaction(
+        // Awaiting-review SMS: the money has moved (the bank says so), so the
+        // balance counts it — this is what makes the "current balance" typed
+        // at import true the moment import finishes.
+        val pending = ledger.createTransaction(
             CreateTransactionRequest(
                 occurredOn = 0L,
                 status = TransactionStatus.BUFFER,
                 lines = listOf(LineSpec(-300_00, accountId = bank), LineSpec(300_00, accountId = food)),
             )
         )
-        assertEquals(0L, ledger.accountBalance(bank))
-
-        ledger.confirmTransaction(buffered.id)
         assertEquals(-300_00, ledger.accountBalance(bank))
+
+        // Approving is classification only — the balance must not move,
+        // no matter how old the transaction is.
+        ledger.confirmTransaction(pending.id)
+        assertEquals(-300_00, ledger.accountBalance(bank))
+
+        // Dismissing means "this never happened" — the money comes back.
+        ledger.voidTransaction(pending.id, "duplicate")
+        assertEquals(0L, ledger.accountBalance(bank))
     }
 
     @Test

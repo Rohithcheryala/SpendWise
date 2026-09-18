@@ -53,12 +53,12 @@ interface TransactionLineDao {
     suspend fun getByTransactionList(transactionId: Long): List<TransactionLineEntity>
 
     /**
-     * Signed raw sum of this account's lines on confirmed, non-voided
-     * transactions, optionally bounded by occurred_on <= :throughMillis —
-     * the THROUGH-BOUNDED path, kept solely for the reconciliation
-     * continuity check (a view can't take a date parameter). The default
-     * balance read path is v_account_balances (AccountDao.balanceOf); the
-     * service layer applies the liability sign flip there.
+     * Signed raw sum of this account's lines on money-real transactions —
+     * confirmed or pending-review (buffer), never voided — optionally bounded
+     * by occurred_on <= :throughMillis. Same inclusion rule as
+     * v_account_balances (a view can't take a date parameter); used for the
+     * reconciliation continuity check and tests. Month-scoped spend analytics
+     * (sumConfirmedForAccountInMonth) deliberately stays confirmed-only.
      */
     @Query(
         """
@@ -66,12 +66,12 @@ interface TransactionLineDao {
         FROM transaction_lines l
         JOIN transactions e ON e.id = l.transaction_id
         WHERE l.account_id = :accountId
-          AND e.status = 'confirmed'
+          AND e.status IN ('confirmed', 'buffer')
           AND e.voided_at IS NULL
           AND (:throughMillis IS NULL OR e.occurred_on <= :throughMillis)
     """
     )
-    suspend fun sumConfirmedForAccount(accountId: Long, throughMillis: Long?): Long
+    suspend fun sumPostedForAccount(accountId: Long, throughMillis: Long?): Long
 
     /** Transaction ids having a line on the given account. */
     @Query("SELECT DISTINCT transaction_id FROM transaction_lines WHERE account_id = :accountId")

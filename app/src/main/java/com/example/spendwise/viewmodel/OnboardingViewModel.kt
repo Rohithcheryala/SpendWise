@@ -182,8 +182,8 @@ class OnboardingViewModel @Inject constructor(
             completeScan()
             return
         }
-        // Opening balances are meaningful as of the scan start date ("day
-        // one" of the ledger), not necessarily "right now".
+        // The opening lands the ledger on the balance the user confirmed, as
+        // of the scan start date ("day one" of the ledger).
         val openingDate = s.scanStartMillis ?: System.currentTimeMillis()
         viewModelScope.launch {
             val now = System.currentTimeMillis()
@@ -210,31 +210,31 @@ class OnboardingViewModel @Inject constructor(
                             createdAt = now,
                         )
                     )
-
-                    // Book the opening balance when the user entered one (or it
-                    // was detected from the SMS running balance). The entered
-                    // value is the account's CURRENT balance — the prefill is
-                    // the latest SMS-quoted balance — so the opening, booked at
-                    // the scan start date, is that target minus the window's
-                    // SMS net flow: the ingested transactions then land the
-                    // account exactly on the target instead of double-counting
-                    // on top of it.
-                    val target = s.initialBalances[account.key]?.toDoubleOrNull()
-                    if (target != null) {
-                        val openingPaise =
-                            (abs(target) * 100).roundToLong() - account.netPaise
-                        if (openingPaise != 0L) {
-                            runCatching {
-                                ledgerApi.recordOpeningBalance(id, openingPaise, openingDate)
-                            }
-                        }
-                    }
                 }
+
                 // The scan ingested SMS before these accounts existed, so those
                 // transactions sit orphaned on the unmatched pot. Re-run matching
-                // (attach-only) so they attach to the new accounts.
+                // (attach-only) so they attach to the new accounts — BEFORE the
+                // opening is derived, because the pending history is counted by
+                // the balance.
                 for (id in createdIds) {
                     runCatching { ingestionService.claimOrphansForAccount(id) }
+                }
+
+                // The entered value is the account's CURRENT balance. The
+                // window's SMS are now pending-review entries on the account
+                // (and counted by the balance), so the opening is whatever
+                // delta brings the live ledger onto that target — approving
+                // that history later never moves the balance away from it.
+                selected.forEachIndexed { index, account ->
+                    val target = s.initialBalances[account.key]?.toDoubleOrNull() ?: return@forEachIndexed
+                    val openingPaise = (abs(target) * 100).roundToLong() -
+                        runCatching { ledgerApi.accountBalance(createdIds[index]) }.getOrDefault(0L)
+                    if (openingPaise != 0L) {
+                        runCatching {
+                            ledgerApi.recordOpeningBalance(createdIds[index], openingPaise, openingDate)
+                        }
+                    }
                 }
                 runCatching { inboxRepository.refreshBuffer() }
                 completeScan()
