@@ -53,7 +53,7 @@ import com.example.spendwise.data.database.entity.TransactionTagEntity
         TransactionTagEntity::class
     ],
     views = [AccountBalanceRow::class],
-    version = 17
+    version = 18
 )
 abstract class AppDatabase : RoomDatabase() {
 

@@ -83,6 +83,40 @@ class SplitLifecycleTest : BackendTestBase() {
     }
 
     @Test
+    fun `on-behalf stamp marks the covered person and writes the column`() = runTest {
+        val (bank, transactionId) = paidAtMerchant(100_000) // ₹1,000 paid in full
+
+        val friend = counterparties.resolveOrCreate(LedgerService.USER_ID, "aasim987@oksbi")!!
+        val view = ledger.splitTransaction(
+            transactionId,
+            SplitRequest(
+                shares = listOf(SplitShare(friend, 100_000)), // the whole expense was for them
+                onBehalfOfCounterpartyId = friend,
+            ),
+        )
+
+        // The stamp is on the view and the row; the merchant keeps the
+        // counterparty slot.
+        assertEquals(friend, view.onBehalfOfCounterpartyId)
+        assertEquals(
+            friend,
+            db.TransactionDao().getById(transactionId)!!.onBehalfOf,
+        )
+        assertEquals(TransactionKind.SPLIT, view.kind)
+
+        // The covered person is forced into Friends, and their receivable
+        // pot now holds the full amount — they owe it all.
+        assertEquals("person", db.CounterpartyDao().getById(friend)!!.partyType)
+        val pot = ledger.systemAccount(LedgerService.SystemRole.RECEIVABLE)
+        val friendPotId = db.CounterpartyDao().withReceivableUnder(pot.id)
+            .first { it.receivableAccountId != null }.receivableAccountId!!
+        assertEquals(100_000L, ledger.accountBalance(friendPotId))
+
+        // The bank leg is untouched: the full amount really left the account.
+        assertEquals(-100_000L, ledger.accountBalance(bank))
+    }
+
+    @Test
     fun `shares exceeding the paid amount are rejected`() = runTest {
         val (_, transactionId) = paidAtMerchant(50_000)
         val friend = counterparties.resolveOrCreate(LedgerService.USER_ID, "friend@upi")!!

@@ -390,6 +390,7 @@ class LedgerService @Inject constructor(
                 note = entry.note,
                 tags = tagDao.namesFor(entry.id),
                 linkedTransactionId = entry.linkedTransactionId,
+                onBehalfOfCounterpartyId = entry.onBehalfOf,
             )
         }
 
@@ -701,6 +702,18 @@ class LedgerService @Inject constructor(
                 )
             }
 
+            // "Paid on behalf of" stamp — display link to the person this
+            // expense covered. Their debt is the share(s) above; the stamp
+            // never changes the accounting. Forced into Friends like any
+            // loan/split person.
+            val onBehalfOf = request.onBehalfOfCounterpartyId
+            if (onBehalfOf != null) {
+                counterpartyService.requireCounterparty(onBehalfOf)
+                counterpartyService.ensurePartyType(
+                    onBehalfOf, CounterpartyService.PARTY_PERSON
+                )
+            }
+
             val specs = lines.map { LineSpec(it.amountPaise, accountId = it.accountId) }
             validateLines(specs)
             validateKindShape(TransactionKind.SPLIT, specs)
@@ -708,7 +721,11 @@ class LedgerService @Inject constructor(
             transactionLineDao.deleteByTransaction(id)
             transactionLineDao.insertAll(lines)
             transactionDao.update(
-                entry.copy(kind = TransactionKind.SPLIT.name, groupId = request.groupId ?: entry.groupId)
+                entry.copy(
+                    kind = TransactionKind.SPLIT.name,
+                    groupId = request.groupId ?: entry.groupId,
+                    onBehalfOf = onBehalfOf ?: entry.onBehalfOf,
+                )
             )
 
             requireView(id)

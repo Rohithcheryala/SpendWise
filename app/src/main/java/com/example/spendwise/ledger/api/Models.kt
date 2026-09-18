@@ -101,6 +101,13 @@ data class SplitShare(val counterpartyId: Long, val amountPaise: Long)
 data class SplitRequest(
     val shares: List<SplitShare>,
     val groupId: Long? = null,
+    /**
+     * "Paid on behalf of" stamp: when set, the transaction is marked as
+     * covering this person (who must be a person — the service forces it).
+     * The counterparty stays whoever received the money; the shares carry
+     * the debt onto each person's receivable pot.
+     */
+    val onBehalfOfCounterpartyId: Long? = null,
 )
 
 /**
@@ -126,6 +133,8 @@ data class TransactionView(
     val note: String?,
     val tags: List<String>,
     val linkedTransactionId: Long?,
+    /** "Paid on behalf of" person, or null (see [SplitRequest.onBehalfOfCounterpartyId]). */
+    val onBehalfOfCounterpartyId: Long? = null,
 )
 
 /** GET /friends — one row per person with activity on the loans receivable pot. */

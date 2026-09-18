@@ -12,6 +12,8 @@ import com.example.spendwise.ledger.api.IngestRequest
 import com.example.spendwise.ledger.api.Intent
 import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.api.LineSpec
+import com.example.spendwise.ledger.api.SplitRequest
+import com.example.spendwise.ledger.api.SplitShare
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
 import com.example.spendwise.core.extensions.toPaiseOrNull
@@ -214,6 +216,34 @@ class TransactionViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Inline-create (or resolve) the person an expense was paid on behalf of
+     * — always a person, so it lands in Friends once the split posts.
+     */
+    fun addOnBehalfPerson(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val id = counterpartyService.resolveOrCreate(
+                    userId = LedgerService.USER_ID,
+                    rawName = trimmed,
+                    displayName = trimmed,
+                    aliasSource = "manual",
+                ) ?: return@launch
+                counterpartyService.ensurePartyType(id, CounterpartyService.PARTY_PERSON)
+                _uiState.update {
+                    it.copy(
+                        onBehalfOfEnabled = true,
+                        onBehalfOf = DropdownOption(id.toString(), trimmed),
+                    )
+                }
+            } catch (e: Exception) {
+                setError(e.message ?: "Could not add")
+            }
+        }
+    }
+
     // ── save path ──
 
     fun save() {
@@ -259,6 +289,17 @@ class TransactionViewModel @Inject constructor(
         contextTag: String?,
     ) {
         val category = s.category ?: throw IllegalArgumentException("Select a category")
+        if (s.onBehalfOfEnabled && s.onBehalfOf == null) {
+            throw IllegalArgumentException("Pick who this was paid on behalf of")
+        }
+        val onBehalfOfId = if (s.onBehalfOfEnabled) s.onBehalfOf?.id?.toLongOrNull() else null
+        if (onBehalfOfId != null && onBehalfOfId == s.counterparty?.id?.toLongOrNull()) {
+            // The person who received the money can't also owe it back — that
+            // confusion is what Loan mode exists for.
+            throw IllegalArgumentException(
+                "The counterparty can't be the same person it was paid on behalf of"
+            )
+        }
 
         val strict = settingsRepository.settings.first().strictMode
         if (strict && s.tags.isEmpty()) {
@@ -275,7 +316,7 @@ class TransactionViewModel @Inject constructor(
             amountPaise
         }
 
-        ledgerApi.createTransaction(
+        val created = ledgerApi.createTransaction(
             CreateTransactionRequest(
                 occurredOn = occurredOn(s.date),
                 lines = listOf(
@@ -289,6 +330,20 @@ class TransactionViewModel @Inject constructor(
                 tags = withContextTag(s.tags.map { it.label }, contextTag),
             )
         )
+
+        // "Paid on behalf of": the merchant keeps the counterparty slot (they
+        // got the money); the covered person's debt is carved onto their own
+        // receivable pot — the full amount — and the entry is stamped so the
+        // UI can say "for <person>".
+        if (onBehalfOfId != null) {
+            ledgerApi.splitTransaction(
+                created.id,
+                SplitRequest(
+                    shares = listOf(SplitShare(onBehalfOfId, amountPaise)),
+                    onBehalfOfCounterpartyId = onBehalfOfId,
+                ),
+            )
+        }
     }
 
     private suspend fun saveTransfer(s: TransactionUiState, amountPaise: Long) {
@@ -505,6 +560,9 @@ class TransactionViewModel @Inject constructor(
                 DropdownOption(it.id.toString(), it.displayName)
             }
         }
+        val onBehalfOf = view.onBehalfOfCounterpartyId?.let { counterpartyDao.getById(it) }?.let {
+            DropdownOption(it.id.toString(), it.displayName)
+        }
 
         _uiState.update { s ->
             s.copy(
@@ -530,6 +588,8 @@ class TransactionViewModel @Inject constructor(
                 tags = view.tags.map { TagUiModel(it, it) },
                 note = view.note.orEmpty(),
                 source = view.source,
+                onBehalfOfEnabled = onBehalfOf != null,
+                onBehalfOf = onBehalfOf,
                 rawSms = rawSms.takeIf { it.isNotBlank() },
                 canDelete = true,
                 counterparties = if (view.kind == TransactionKind.TRANSFER) {

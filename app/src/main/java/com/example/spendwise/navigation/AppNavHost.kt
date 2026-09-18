@@ -145,6 +145,7 @@ fun AppNavHost(
                 uiState = vm.uiState.collectAsStateWithLifecycle().value,
                 onUpdateState = vm::updateState,
                 onAddCounterparty = vm::addCounterparty,
+                onAddOnBehalfPerson = vm::addOnBehalfPerson,
                 onEvent = { event ->
                     when (event) {
                         is TransactionUiEvent.NavigateBack -> navController.popBackStack()

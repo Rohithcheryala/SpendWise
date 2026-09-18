@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -61,11 +62,13 @@ fun TransactionDetailScreen(
     onUpdateState: ((TransactionUiState) -> TransactionUiState) -> Unit,
     onEvent: (TransactionUiEvent) -> Unit,
     onAddCounterparty: (String) -> Unit = {},
+    onAddOnBehalfPerson: (String) -> Unit = {},
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var activePickerType by remember { mutableStateOf<PickerType?>(null) }
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showAddCounterpartyDialog by remember { mutableStateOf(false) }
+    var showAddOnBehalfDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -271,6 +274,29 @@ fun TransactionDetailScreen(
                 )
             }
 
+            // "Paid on behalf of someone" — category mode only, and last: it's
+            // a convenience on the rare expense you front for someone, so it
+            // sits after every everyday field. The merchant stays the
+            // counterparty above; the person picked here owes the full amount
+            // once saved (their receivable pot is carved).
+            if (uiState.otherSide == OtherSide.CATEGORY) {
+                item {
+                    OnBehalfSection(
+                        enabled = uiState.onBehalfOfEnabled,
+                        person = uiState.onBehalfOf,
+                        onEnabledChange = { newEnabled ->
+                            onUpdateState { current ->
+                                current.copy(
+                                    onBehalfOfEnabled = newEnabled,
+                                    onBehalfOf = if (newEnabled) current.onBehalfOf else null,
+                                )
+                            }
+                        },
+                        onPick = { activePickerType = PickerType.ON_BEHALF },
+                    )
+                }
+            }
+
             if (uiState.mode == TransactionMode.EDIT && !uiState.rawSms.isNullOrBlank()) {
                 item {
                     BackingSmsSection(sms = uiState.rawSms)
@@ -320,6 +346,8 @@ fun TransactionDetailScreen(
             PickerType.COUNTERPARTY -> (
                 if (uiState.otherSide == OtherSide.TRANSFER) "Select Destination Account" else "Select Counterparty"
                 ) to uiState.counterparties
+
+            PickerType.ON_BEHALF -> "Who was it paid on behalf of?" to uiState.counterparties
         }
 
         OptionPickerBottomSheet(
@@ -332,6 +360,8 @@ fun TransactionDetailScreen(
                 uiState.otherSide != OtherSide.TRANSFER
             ) {
                 { showAddCounterpartyDialog = true }
+            } else if (currentPicker == PickerType.ON_BEHALF) {
+                { showAddOnBehalfDialog = true }
             } else null,
             onDismiss = { activePickerType = null },
             onSelect = { option ->
@@ -340,6 +370,7 @@ fun TransactionDetailScreen(
                         PickerType.ACCOUNT -> current.copy(account = option)
                         PickerType.CATEGORY -> current.copy(category = option)
                         PickerType.COUNTERPARTY -> current.copy(counterparty = option)
+                        PickerType.ON_BEHALF -> current.copy(onBehalfOf = option, onBehalfOfEnabled = true)
                     }
                 }
                 activePickerType = null
@@ -353,6 +384,17 @@ fun TransactionDetailScreen(
             onAdd = { name ->
                 onAddCounterparty(name)
                 showAddCounterpartyDialog = false
+                activePickerType = null
+            }
+        )
+    }
+
+    if (showAddOnBehalfDialog) {
+        AddCounterpartyDialog(
+            onDismiss = { showAddOnBehalfDialog = false },
+            onAdd = { name ->
+                onAddOnBehalfPerson(name)
+                showAddOnBehalfDialog = false
                 activePickerType = null
             }
         )
@@ -380,8 +422,51 @@ fun TransactionDetailScreen(
     }
 }
 
+/**
+ * "Paid on behalf of someone" — the naa toggle. Off (default): a plain
+ * expense. On: the person picked below owes the full amount once saved;
+ * the merchant keeps the counterparty slot.
+ */
+@Composable
+private fun OnBehalfSection(
+    enabled: Boolean,
+    person: DropdownOption?,
+    onEnabledChange: (Boolean) -> Unit,
+    onPick: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Paid on behalf of someone",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "They owe you this — shows in Friends",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onEnabledChange)
+        }
+        if (enabled) {
+            DropdownField(
+                label = "On behalf of",
+                value = person?.label.orEmpty(),
+                placeholder = "Required",
+                onClick = onPick,
+            )
+        }
+    }
+}
+
 private enum class PickerType {
-    ACCOUNT, CATEGORY, COUNTERPARTY
+    ACCOUNT, CATEGORY, COUNTERPARTY, ON_BEHALF
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -627,6 +712,9 @@ data class TransactionUiState(
     val account: DropdownOption? = null,
     val counterparty: DropdownOption? = null,
     val category: DropdownOption? = null,
+    /** "Paid on behalf of someone" — expense stays on the merchant; the picked person owes you their share. */
+    val onBehalfOfEnabled: Boolean = false,
+    val onBehalfOf: DropdownOption? = null,
     val tags: List<TagUiModel> = emptyList(),
     val note: String = "",
     val source: String? = null,

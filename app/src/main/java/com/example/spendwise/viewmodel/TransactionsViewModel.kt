@@ -193,6 +193,15 @@ class TransactionsViewModel @Inject constructor(
         val timestamp = occurredOn
         val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
 
+        // "Paid on behalf of" labeling: the title names the merchant (who got
+        // the money); the subtitle gets the covered person appended so the row
+        // reads "Food • for Aasim".
+        val onBehalfOfName = onBehalfOfCounterpartyId?.let { parties[it] }
+        val categoryLabel = categoryId
+            ?.let { categories[it] }
+            ?.takeIf { it !in LedgerService.SYSTEM_CATEGORY_NAMES }
+            ?.let { if (onBehalfOfName != null) "$it • for $onBehalfOfName" else it }
+
         return TransactionUi(
             id = id,
             title = title,
@@ -204,9 +213,7 @@ class TransactionsViewModel @Inject constructor(
             time = timeFormat.format(Date(timestamp)),
             // The system contra category ("Unclassified") is bookkeeping
             // noise, not a category — hide it until a real one is assigned.
-            category = categoryId
-                ?.let { categories[it] }
-                ?.takeIf { it !in LedgerService.SYSTEM_CATEGORY_NAMES },
+            category = categoryLabel,
             direction = when (kind) {
                 TransactionKind.TRANSFER -> TransactionDirection.TRANSFER
                 else -> if (direction == Direction.IN) {

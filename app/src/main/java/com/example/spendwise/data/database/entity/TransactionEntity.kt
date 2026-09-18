@@ -15,6 +15,11 @@ import androidx.room.PrimaryKey
             childColumns = ["counterparty_id"]
         ),
         ForeignKey(
+            entity = CounterpartyEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["on_behalf_of"]
+        ),
+        ForeignKey(
             entity = GroupEntity::class,
             parentColumns = ["id"],
             childColumns = ["group_id"]
@@ -27,6 +32,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index("counterparty_id"),
+        Index("on_behalf_of"),
         Index("group_id"),
         Index("linked_transaction_id")
     ]
@@ -52,6 +58,15 @@ data class TransactionEntity(
 
     @ColumnInfo(name = "counterparty_id")
     val counterpartyId: Long? = null,
+
+    /**
+     * "Paid on behalf of" stamp — the person this expense covered. The
+     * counterparty stays whoever received the money (the merchant); the
+     * covered person's debt lives on their receivable pot (written by the
+     * on-behalf split), and this column is the display link back to them.
+     */
+    @ColumnInfo(name = "on_behalf_of")
+    val onBehalfOf: Long? = null,
 
     @ColumnInfo(name = "group_id")
     val groupId: Long? = null,
