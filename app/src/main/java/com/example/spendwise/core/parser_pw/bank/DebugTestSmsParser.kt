@@ -25,7 +25,7 @@ import java.math.BigDecimal
  */
 class DebugTestSmsParser : BankParser() {
 
-    override fun getBankName() = "DEBUG"
+    override fun getBankName() = BANK_NAME
 
     override fun canHandle(sender: String): Boolean {
         if (!BuildConfig.DEBUG) return false
@@ -60,6 +60,9 @@ class DebugTestSmsParser : BankParser() {
             ?: message.trim().take(64).takeIf { it.isNotBlank() }
 
     companion object {
+        /** Bank name stamped on test-parsed transactions. */
+        const val BANK_NAME = "DEBUG"
+
         /** Last-10-digits allowlist from BuildConfig (tolerates +91/spaces). */
         private val testSenders: Set<String> =
             BuildConfig.TEST_SENDERS.split(",")

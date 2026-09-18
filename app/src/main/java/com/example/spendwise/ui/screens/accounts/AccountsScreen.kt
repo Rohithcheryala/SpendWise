@@ -10,12 +10,15 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -676,9 +679,13 @@ fun DetectedAccountsSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        // Full-height sheet: the detected-accounts list gets a bounded
+        // viewport so it scrolls, and Import/Cancel stay pinned at the bottom
+        // instead of being pushed off-screen by a long list.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -725,6 +732,15 @@ fun DetectedAccountsSheet(
                         )
                     }
 
+                    // The scrollable middle: takes all leftover height and
+                    // scrolls when the list exceeds it, leaving the buttons
+                    // below always visible.
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                     state.detected.forEach { account ->
                         val selected = account.key in state.selectedKeys
                         Row(
@@ -757,14 +773,14 @@ fun DetectedAccountsSheet(
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        // Optional initial balance — pre-filled from the
-                        // SMS running balance when the bank quoted one,
-                        // editable so the user can confirm or adjust.
+                        // What the bank shows today — the window's SMS
+                        // transactions are counted on top of it when the
+                        // opening balance is derived.
                         OutlinedTextField(
                             value = state.initialBalances[account.key] ?: "",
                             onValueChange = { onInitialBalanceChange(account.key, it) },
-                            label = { Text("Initial Balance (₹)") },
-                            placeholder = { Text("e.g. 5000") },
+                            label = { Text("Current Balance (₹)") },
+                            supportingText = { Text("Balance today — past SMS activity is included on top") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             enabled = selected,
@@ -772,6 +788,7 @@ fun DetectedAccountsSheet(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
                         )
+                    }
                     }
 
                     Button(

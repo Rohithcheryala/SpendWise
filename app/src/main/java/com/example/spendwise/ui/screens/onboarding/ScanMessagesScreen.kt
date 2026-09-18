@@ -59,15 +59,24 @@ fun ScanMessagesScreen(
 ) {
     val state by viewModel.scanState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     Surface(modifier = Modifier.fillMaxSize()) {
+        // Center the short phases (idle/scanning), but fall back to top-aligned
+        // the moment content overflows — Arrangement.Center combined with
+        // verticalScroll clips the top of overflowing content, and the clipped
+        // part can never be scrolled to.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = if (scrollState.maxValue == 0) {
+                Arrangement.Center
+            } else {
+                Arrangement.Top
+            }
         ) {
             when (state.phase) {
 
@@ -210,13 +219,14 @@ fun ScanMessagesScreen(
                                     }
                                 }
                             }
-                            // Optional initial balance — pre-filled from the
-                            // SMS running balance when the bank quoted one,
-                            // editable so the user can confirm or adjust.
+                            // What the bank shows today — the scan window's
+                            // SMS transactions are counted on top of it when
+                            // the opening balance is derived.
                             OutlinedTextField(
                                 value = state.initialBalances[account.key] ?: "",
                                 onValueChange = { viewModel.updateInitialBalance(account.key, it) },
-                                label = { Text("Initial Balance (₹)") },
+                                label = { Text("Current Balance (₹)") },
+                                supportingText = { Text("Balance today — past SMS activity is included on top") },
                                 placeholder = { Text("e.g. 5000") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,

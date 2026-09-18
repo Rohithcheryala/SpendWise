@@ -11,6 +11,7 @@ import com.example.spendwise.core.messages.MessageReader
 import com.example.spendwise.core.notifications.TransactionNotifier
 import com.example.spendwise.core.parser_pw.TransactionType
 import com.example.spendwise.core.parser_pw.bank.BankParserFactory
+import com.example.spendwise.core.parser_pw.bank.DebugTestSmsParser
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.database.dao.AccountIdentifierDao
 import com.example.spendwise.data.database.dao.CounterpartyDao
@@ -389,6 +390,13 @@ class InboxRepository @Inject constructor(
             if (ingest) {
                 ingestRawSms(sender = sender, body = body, timestamp = message.date)
             }
+
+            // Test-hook messages (DebugTestSmsParser — senders configured in
+            // TEST_SENDERS, e.g. your own number) exist to exercise the live
+            // pipeline, not to describe a bank account. They are still
+            // ingested above, but never offered as a detected account —
+            // otherwise the scan creates a phantom "DEBUG a/c".
+            if (parsed.bankName == DebugTestSmsParser.BANK_NAME) continue
 
             val last4 = parsed.accountLast4
             if (last4.isNullOrBlank() || last4 in existingLast4) continue
