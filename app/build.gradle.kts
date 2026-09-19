@@ -38,9 +38,9 @@ android {
         applicationId = "com.example.spendwise"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
+        versionCode = 3
         // X.Y.Z form so scripts/release.sh can auto-bump the patch segment.
-        versionName = "1.0.1"
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
