@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -222,7 +223,16 @@ fun MainScaffold(
                 onOpenTransaction = { transactionId ->
                     rootNavController.navigate("transaction?transactionId=$transactionId")
                 },
-                modifier = Modifier.padding(padding)
+                modifier = Modifier
+                    .padding(padding)
+                    // The bottom bar already reserved the nav-bar strip (and,
+                    // behind the open keyboard, the bar sits under it anyway).
+                    // Without consuming that, any child that honours
+                    // WindowInsets.ime — the Scan & Pay payment overlay —
+                    // subtracted the FULL keyboard height from an area that was
+                    // already shortened by the bar, leaving a dead band exactly
+                    // the height of the bottom bar above the keys.
+                    .consumeWindowInsets(padding)
             )
         }
     }

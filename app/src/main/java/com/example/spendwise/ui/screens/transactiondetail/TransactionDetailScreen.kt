@@ -666,6 +666,13 @@ private fun TransactionDetailScreenPreview() {
 @Composable
 private fun BackingSmsSection(sms: String) {
     var expanded by remember { mutableStateOf(false) }
+    // QR-scan entries store the UPI deep link they were launched with, not a
+    // bank SMS — label it honestly instead of claiming SMS evidence.
+    val title = if (sms.trimStart().startsWith("upi:", ignoreCase = true)) {
+        "UPI payment link"
+    } else {
+        "Backing SMS"
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
@@ -677,7 +684,7 @@ private fun BackingSmsSection(sms: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Backing SMS",
+                    text = title,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
@@ -690,6 +697,8 @@ private fun BackingSmsSection(sms: String) {
                 )
             }
             if (expanded) {
+                // Not always an SMS: QR-scan entries back onto the UPI deep
+                // link that was handed to the payment app.
                 Text(
                     text = sms,
                     style = MaterialTheme.typography.bodySmall,

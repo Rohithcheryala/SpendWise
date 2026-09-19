@@ -2,6 +2,7 @@ package com.example.spendwise.ui.screens.scanner
 
 import androidx.compose.material.icons.Icons
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -198,15 +199,44 @@ fun ScannerScreen(
     }
 
     /**
+     * The NPCI UPI result contract: apps report the payment outcome either as
+     * a direct `Status` string extra, or url-encoded inside the `response`
+     * extra. Absent extras (common) are deliberately treated as unknown —
+     * the bank SMS merge stays the source of truth.
+     */
+    fun upiResultStatus(result: androidx.activity.result.ActivityResult): String? {
+        val data = result.data ?: return null
+        data.getStringExtra("Status")?.let { return it }
+        val response = data.getStringExtra("response") ?: return null
+        return android.net.Uri.parse("upi://result?$response").getQueryParameter("Status")
+    }
+
+    /**
      * Fire the UPI intent (the user's chosen UPI app completes the payment),
-     * then — regardless of result, since UPI result payloads are unreliable —
-     * record the user's entered intent as a buffer entry. The bank SMS either
-     * merges + auto-confirms it, or the user reviews it in the inbox.
+     * then — only when the flow wasn't cancelled or explicitly failed — record
+     * the user's entered intent as a buffer entry. The bank SMS either merges
+     * + auto-confirms it, or the user reviews it in the inbox. A payment that
+     * never left the app must never become a ledger entry.
      */
     val payLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) {
+    ) { result ->
         val target = payTarget ?: return@rememberLauncherForActivityResult
+        // A payment is only recorded when the UPI flow actually went out and
+        // came back without an explicit cancel or failure: the system chooser
+        // reports RESULT_CANCELED when the user backed out before any UPI app
+        // opened, and well-behaved UPI apps carry Status=FAILURE in their
+        // result extras. Payloads without a status are unreliable (several
+        // apps return OK even when the user backs out inside the app), so a
+        // real bank SMS merge stays the source of truth — but a definite
+        // failure must never produce a buffer entry.
+        val status = upiResultStatus(result)
+        if (result.resultCode == android.app.Activity.RESULT_CANCELED ||
+            status.equals("FAILURE", ignoreCase = true)
+        ) {
+            sheetError = "Payment didn't go through — nothing was recorded."
+            return@rememberLauncherForActivityResult
+        }
         lastPayee = target.name.ifBlank { target.vpa }
         viewModel.recordQrPayment(
             payeeName = target.name,
@@ -245,16 +275,50 @@ fun ScannerScreen(
         // No account requirement here: a payment can fail at the last step and
         // be retried from a different account, so the landing bank SMS — which
         // names the account that actually paid — decides on merge.
-        val intent = Intent(ACTION_UPI_PAY).also {
-            it.data = buildUpiUri(target.vpa, target.name, amount, note)
+        val uri = buildUpiUri(target.vpa, target.name, amount, note)
+        // NPCI defines two launch shapes: the dedicated UPI_PAY action and the
+        // VIEW + upi:// scheme. Current GPay/PhonePe/Paytm builds commonly
+        // register only the VIEW shape, so BOTH must be resolved and merged —
+        // querying just UPI_PAY finds no apps on many devices.
+        val resolver = context.packageManager
+        val candidates = LinkedHashMap<ComponentName, Intent>()
+        for (action in listOf(ACTION_UPI_PAY, Intent.ACTION_VIEW)) {
+            val probe = Intent(action).setData(uri)
+            for (info in resolver.queryIntentActivities(probe, 0)) {
+                val component = ComponentName(info.activityInfo.packageName, info.activityInfo.name)
+                // A fresh copy per candidate — setPackage mutates its receiver,
+                // and sharing one instance across candidates would leave every
+                // extra intent pinned to the last package.
+                candidates[component] = Intent(probe).setPackage(info.activityInfo.packageName)
+            }
         }
-        // Chooser + NO resolveActivity() pre-check (naa's UpiPayPlugin): on
-        // Android 11+ package visibility makes resolveActivity return null even
-        // with GPay/PhonePe/Paytm installed, which wrongly hard-failed every
-        // payment. The chooser is system-mediated; a genuine absence surfaces
-        // as ActivityNotFoundException.
+        if (candidates.isEmpty()) {
+            // The pre-check can under-report (OEM package-visibility quirks),
+            // so never hard-block on it: the system chooser resolves with FULL
+            // package visibility and either lists the UPI apps or reports the
+            // absence itself. Both NPCI shapes are offered to the resolver.
+            val primary = Intent(Intent.ACTION_VIEW).setData(uri)
+            val alternate = Intent(ACTION_UPI_PAY).setData(uri)
+            try {
+                payLauncher.launch(
+                    Intent.createChooser(primary, "Pay with").apply {
+                        putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(alternate))
+                    }
+                )
+            } catch (_: android.content.ActivityNotFoundException) {
+                sheetError = "No UPI app found on this device"
+            }
+            return
+        }
+        // Targeted chooser: only apps that actually registered a UPI handler
+        // appear, and the system can't fall back to a browser.
+        val primary = candidates.values.first()
+        val extras = candidates.values.drop(1).toTypedArray()
+        val chooser = Intent.createChooser(primary, "Pay with").apply {
+            if (extras.isNotEmpty()) putExtra(Intent.EXTRA_INITIAL_INTENTS, extras)
+        }
         try {
-            payLauncher.launch(Intent.createChooser(intent, "Pay with"))
+            payLauncher.launch(chooser)
         } catch (_: android.content.ActivityNotFoundException) {
             sheetError = "No UPI app found on this device"
         }
@@ -283,8 +347,13 @@ fun ScannerScreen(
                     .onSizeChanged { viewSizePx = it },
                 contentAlignment = Alignment.Center
             ) {
-                if (hasCameraPermission) {
-                    CameraPreviewWithQrAnalysis(
+                when {
+                    // The payment overlay covers the screen; keeping the camera
+                    // bound behind it only wastes it (and its surface can bleed
+                    // artifacts through window churn). It rebinds on dismissal.
+                    payTarget != null -> Unit
+
+                    hasCameraPermission -> CameraPreviewWithQrAnalysis(
                         viewSizePx = viewSizePx,
                         onCameraBound = { camera = it },
                         scanningPaused = payTarget != null,
@@ -303,8 +372,8 @@ fun ScannerScreen(
                             }
                         }
                     )
-                } else {
-                    Column(
+
+                    else -> Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(24.dp)
@@ -520,6 +589,12 @@ private fun CameraPreviewWithQrAnalysis(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
+            // TextureView instead of the default SurfaceView: a SurfaceView is
+            // composited out-of-band and punched through the view hierarchy,
+            // which can leave black rectangles bleeding over content whenever
+            // the window churns (e.g. the keyboard animating under the payment
+            // form). TextureView composites in-band — no punch-through.
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
     // Tap anywhere to focus + meter there, pinch to zoom — the gestures
@@ -537,6 +612,13 @@ private fun CameraPreviewWithQrAnalysis(
 
     DisposableEffect(Unit) {
         onDispose {
+            // Release the camera binding: when the payment overlay replaces
+            // this composable, a still-bound camera would keep feeding a
+            // detached surface (and drain battery). The provider future is
+            // already resolved by binding time, so get() returns immediately.
+            runCatching {
+                ProcessCameraProvider.getInstance(context).get().unbindAll()
+            }
             barcodeScanner.close()
             analysisExecutor.shutdown()
         }

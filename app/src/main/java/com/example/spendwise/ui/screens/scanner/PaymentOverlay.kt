@@ -12,11 +12,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -88,6 +92,11 @@ internal fun PaymentOverlay(
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        // Bottom insets are applied EXACTLY ONCE on the content column below
+        // (as a union of IME + navigation bar). Scaffold's own default bottom
+        // inset stacked with imePadding() double-counted the keyboard area —
+        // that double-count was the dead black band between form and keys.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -114,7 +123,10 @@ internal fun PaymentOverlay(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
+                // union = max, never a sum: the IME already covers the nav-bar
+                // strip while it is open, so the form sits flush on the keys
+                // (and on the nav bar when the keyboard is closed).
+                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)

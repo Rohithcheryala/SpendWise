@@ -19,6 +19,19 @@
     <!-- In-app updater: launches the package installer for downloaded APKs. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Android 11+ package visibility: without this, intent resolution to UPI
+         apps is filtered and "Pay via UPI app" finds nothing on-device. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.UPI_PAY" />
+            <data android:scheme="upi" />
+        </intent>
+    </queries>
+
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -38,7 +51,8 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop"
-            android:theme="@style/Theme.Spendwise">
+            android:theme="@style/Theme.Spendwise"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

@@ -22,8 +22,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.ZoneId
 import javax.inject.Inject
 
 /**
@@ -117,9 +115,9 @@ class ScannerViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true, error = null) }
             try {
                 val now = System.currentTimeMillis()
-                val occurredOn = LocalDate.now()
-                    .atStartOfDay(ZoneId.systemDefault())
-                    .toInstant().toEpochMilli()
+                // Real wall-clock timestamp (matches SMS ingestion): the inbox
+                // shows this, so a 10:24 payment must not read "12:00 am".
+                val occurredOn = now
 
                 // The VPA is the strongest cross-source key: resolve against
                 // existing aliases (a previous SMS from this payee matches),
