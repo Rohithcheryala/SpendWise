@@ -10,6 +10,9 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material.icons.rounded.Storage
@@ -66,6 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.spendwise.core.upi.UpiApp
+import com.example.spendwise.core.upi.listUpiApps
 import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.data.repository.ThemeMode
 import com.example.spendwise.viewmodel.SettingsViewModel
@@ -93,6 +99,16 @@ fun SettingsScreen(
     var showCurrencyDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showTrackingInfo by remember { mutableStateOf(false) }
+    var showUpiPicker by remember { mutableStateOf(false) }
+
+    // Resolved once per composition — the picker and the row's value text
+    // both read this. Re-composed on return from backgrounding.
+    val upiApps = remember { listUpiApps(context.packageManager) }
+    val defaultUpiLabel = when {
+        settings.defaultUpiApp == null -> "Ask every time"
+        else -> upiApps.firstOrNull { it.packageName == settings.defaultUpiApp }?.label
+            ?: "Not installed"
+    }
 
     // SMS auto-detection needs READ_SMS + RECEIVE_SMS; asking for them is
     // part of flipping the toggle on.
@@ -254,6 +270,16 @@ fun SettingsScreen(
                             },
                             onClick = { showThemeDialog = true }
                         )
+
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
+
+                        SettingsClickItem(
+                            icon = Icons.Rounded.QrCodeScanner,
+                            title = "Default UPI app",
+                            subtitle = "Used by Scan & Pay — skips the chooser",
+                            value = defaultUpiLabel,
+                            onClick = { showUpiPicker = true }
+                        )
                     }
                 }
             }
@@ -379,12 +405,18 @@ fun SettingsScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = Dimens.screenGutter))
 
-                    SettingsClickItem(
-                        icon = Icons.Rounded.SystemUpdate,
-                        title = "App update",
-                        subtitle = "Check for and install the latest release",
-                        onClick = onNavigateToUpdate
-                    )
+                    // The in-app updater hands out the release-signed APK; it
+                    // can never update a debug-signed build (signature
+                    // mismatch → "App not installed"). Hide the entry from
+                    // debug builds so nobody goes down that dead end.
+                    if (!com.example.spendwise.BuildConfig.DEBUG) {
+                        SettingsClickItem(
+                            icon = Icons.Rounded.SystemUpdate,
+                            title = "App update",
+                            subtitle = "Check for and install the latest release",
+                            onClick = onNavigateToUpdate
+                        )
+                    }
                 }
             }
         }
@@ -409,6 +441,18 @@ fun SettingsScreen(
                 showCurrencyDialog = false
             },
             onDismiss = { showCurrencyDialog = false }
+        )
+    }
+
+    if (showUpiPicker) {
+        DefaultUpiAppDialog(
+            installed = upiApps,
+            current = settings.defaultUpiApp,
+            onSelect = { packageName ->
+                viewModel.setDefaultUpiApp(packageName)
+                showUpiPicker = false
+            },
+            onDismiss = { showUpiPicker = false }
         )
     }
 
@@ -474,6 +518,79 @@ private fun openAppPermissionSettings(context: Context) {
 }
 
 // ── dialogs & row widgets ──
+
+/**
+ * Picks the app Scan & Pay opens when "Pay" is tapped. List is the device's
+ * live, UPI-capable apps (both NPCI launch shapes probed — many apps
+ * register only one). "Ask every time" clears the default.
+ */
+@Composable
+private fun DefaultUpiAppDialog(
+    installed: List<UpiApp>,
+    current: String?,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Default UPI app") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                if (installed.isEmpty()) {
+                    Text(
+                        "No UPI apps found on this device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(null) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = current == null,
+                        onClick = { onSelect(null) }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Ask every time")
+                }
+                installed.forEach { app ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(app.packageName) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = app.packageName == current,
+                            onClick = { onSelect(app.packageName) }
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(app.label)
+                            Text(
+                                app.packageName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
 
 @Composable
 private fun ThemeDialog(

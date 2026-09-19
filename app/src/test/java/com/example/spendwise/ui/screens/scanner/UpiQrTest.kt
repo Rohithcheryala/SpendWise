@@ -62,16 +62,50 @@ class UpiQrTest {
     }
 
     @Test
-    fun `builds a deep link that round-trips through the parser`() {
-        val uri = buildUpiUri(
-            vpa = "merchant@okhdfcbank",
-            name = "Cotton Dhora",
-            amount = "250.00",
-            note = "Order 12"
-        )
+    fun `launch uri keeps a signed merchant qr byte-identical and only appends`() {
+        // A dynamic merchant QR: signed (`sign=`) over the exact text, odd
+        // param order, params SpendWise doesn't understand. Rebuilding it
+        // (the old buildUpiUri) dropped `sign`/`tr`/`mid` and re-ordered the
+        // rest — BHIM then rejected the payment with "Receiver bank failure".
+        val raw = "upi://pay?cu=INR&pa=chaihub@ybl&pn=Chai%20Hub&tr=TXN889&mid=UKHSBX&sign=Zk9wA=="
+        val uri = buildUpiLaunchUri(raw, amount = "15", note = "")
 
-        assertEquals("upi", uri.scheme)
-        val roundTripped = parseUpiQr(uri.toString())
+        assertEquals(
+            "upi://pay?cu=INR&pa=chaihub@ybl&pn=Chai%20Hub&tr=TXN889&mid=UKHSBX&sign=Zk9wA==&am=15.00",
+            uri,
+        )
+    }
+
+    @Test
+    fun `a locked qr amount is never overridden`() {
+        val raw = "upi://pay?pa=shop@ybl&am=250.00&cu=INR"
+
+        assertEquals(raw, buildUpiLaunchUri(raw, amount = "10", note = ""))
+    }
+
+    @Test
+    fun `the user note replaces the qr note in place`() {
+        val raw = "upi://pay?pa=shop@ybl&am=250.00&cu=INR&tn=merchant-phonepe"
+
+        assertEquals(
+            "upi://pay?pa=shop@ybl&am=250.00&cu=INR&tn=Dinner%20split",
+            buildUpiLaunchUri(raw, amount = "250.00", note = "Dinner split"),
+        )
+    }
+
+    @Test
+    fun `an open qr gets the user amount and currency appended`() {
+        val uri = buildUpiLaunchUri("upi://pay?pa=friend@ybl&pn=Rahul", amount = "15.5", note = "chai")
+
+        assertEquals("upi://pay?pa=friend@ybl&pn=Rahul&am=15.50&cu=INR&tn=chai", uri)
+    }
+
+    @Test
+    fun `launch uri round-trips through the parser`() {
+        val raw = "upi://pay?pa=merchant@okhdfcbank&pn=Cotton%20Dhora&am=250.00"
+        val uri = buildUpiLaunchUri(raw, amount = "250.00", note = "Order 12")
+        val roundTripped = parseUpiQr(uri)
+
         assertNotNull(roundTripped)
         assertEquals("merchant@okhdfcbank", roundTripped!!.vpa)
         assertEquals("Cotton Dhora", roundTripped.name)
@@ -80,9 +114,10 @@ class UpiQrTest {
     }
 
     @Test
-    fun `falls back to the vpa as the payee name when none was given`() {
-        val uri = buildUpiUri(vpa = "shop@ybl", name = "", amount = "10", note = "")
+    fun `manual vpa without note stays launchable`() {
+        val raw = "upi://pay?pa=9876543210@upi"
+        val uri = buildUpiLaunchUri(raw, amount = "", note = "")
 
-        assertEquals("shop@ybl", parseUpiQr(uri.toString())!!.name)
+        assertEquals("upi://pay?pa=9876543210@upi&cu=INR", uri)
     }
 }

@@ -18,6 +18,12 @@ data class UpiTarget(
     val qrAmount: String?,
     /** Note pre-encoded in the QR ("tn=" param). */
     val qrNote: String?,
+    /**
+     * The raw scanned URI, byte-for-byte. The launch URI handed to the UPI
+     * app is derived from THIS — never re-encoded from the parsed fields
+     * (see [buildUpiLaunchUri] for why).
+     */
+    val raw: String,
 )
 
 /** `upi://pay?pa=...&pn=...&am=...&tn=...` -> [UpiTarget], null for non-UPI QRs. */
@@ -30,14 +36,59 @@ fun parseUpiQr(raw: String): UpiTarget? {
         vpa = payeeAddress,
         qrAmount = parsed.getQueryParameter("am")?.takeIf { it.toDoubleOrNull() != null },
         qrNote = parsed.getQueryParameter("tn")?.takeIf { it.isNotBlank() },
+        raw = raw,
     )
 }
 
-internal fun buildUpiUri(vpa: String, name: String, amount: String, note: String): Uri =
-    Uri.parse("upi://pay").buildUpon()
-        .appendQueryParameter("pa", vpa)
-        .appendQueryParameter("pn", name.ifBlank { vpa })
-        .appendQueryParameter("am", amount)
-        .appendQueryParameter("cu", "INR")
-        .apply { if (note.isNotBlank()) appendQueryParameter("tn", note) }
-        .build()
+/**
+ * The launch URI handed to the user's UPI app. The scanned string passes
+ * through BYTE-IDENTICAL except for three controlled edits.
+ *
+ * Why not rebuild from the parsed fields (`Uri.buildUpon() +
+ * appendQueryParameter`)? Merchant QRs are frequently signed — `sign=` and
+ * `tr=` are computed over the QR's exact text — and re-encoding or
+ * reordering params invalidates the signature. NPCI-side validation then
+ * fails and the UPI app reports "Receiver bank failure", even though the
+ * payee VPA is fine. This exact bug was hit (and solved) in naa-accounting's
+ * scan page; the logic below is its port.
+ *
+ *  - `am` (amount): appended ONLY when the QR didn't fix one — a dynamic QR's
+ *    amount is authoritative, never overridden (the form locks it too).
+ *  - `cu` (currency): appended when missing.
+ *  - `tn` (note): payer-editable per the UPI spec, so the user's note wins —
+ *    replaced in place, or appended when the QR had none.
+ *
+ * Everything else — param order, percent-encoding, unknown fields (`sign`,
+ * `tr`, `mc`, `mid`, …) — stays untouched.
+ */
+internal fun buildUpiLaunchUri(raw: String, amount: String, note: String): String {
+    val base = raw.substringBefore('?')
+    var query = raw.substringAfter('?', "")
+
+    fun has(key: String): Boolean =
+        Regex("(^|&)$key=", RegexOption.IGNORE_CASE).containsMatchIn(query)
+
+    // Replace a single param's value IN PLACE (leaving every other byte of
+    // the query untouched), or append it if absent.
+    fun set(key: String, value: String) {
+        val re = Regex("(^|&)$key=[^&]*", RegexOption.IGNORE_CASE)
+        query = if (re.containsMatchIn(query)) {
+            re.replace(query) { match -> "${match.groupValues[1]}$key=$value" }
+        } else if (query.isBlank()) {
+            "$key=$value"
+        } else {
+            "$query&$key=$value"
+        }
+    }
+
+    // NPCI apps expect two decimals; format explicitly so no locale gives
+    // us a comma decimal separator.
+    val rupees = amount.toDoubleOrNull()
+    if (!has("am") && rupees != null && rupees > 0) {
+        set("am", String.format(java.util.Locale.US, "%.2f", rupees))
+    }
+    if (!has("cu")) set("cu", "INR")
+    if (note.isNotBlank()) set("tn", Uri.encode(note))
+
+    return if (query.isBlank()) base else "$base?$query"
+}

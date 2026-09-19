@@ -77,6 +77,17 @@ android {
             )
             signingConfig = signingConfigs.getByName("release")
         }
+        debug {
+            // Side-by-side install: the debug build gets its own applicationId
+            // (own data dir, own signature slot), so it coexists with the
+            // release-signed APK ("Spendwise") instead of colliding with it.
+            // Without this, `installDebug` and the in-app updater fight over
+            // com.example.spendwise and Android answers "App not installed"
+            // because the signatures differ.
+            applicationIdSuffix = ".debug"
+            // Distinct launcher name so the two icons are tellable apart.
+            resValue("string", "app_name", "SpendWise Debug")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

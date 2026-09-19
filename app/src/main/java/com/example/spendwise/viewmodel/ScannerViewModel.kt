@@ -17,6 +17,7 @@ import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.parser_pw.md5Hex
 import com.example.spendwise.data.database.dao.AccountDao
 import com.example.spendwise.data.repository.InboxRepository
+import com.example.spendwise.data.repository.SettingsRepository
 import com.example.spendwise.ui.screens.transactiondetail.DropdownOption
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +43,7 @@ class ScannerViewModel @Inject constructor(
     private val accountDao: AccountDao,
     private val counterpartyService: CounterpartyService,
     private val inboxRepository: InboxRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     data class UiState(
@@ -51,6 +53,8 @@ class ScannerViewModel @Inject constructor(
         /** One-shot flag: the payment intent was recorded into the buffer. */
         val saved: Boolean = false,
         val error: String? = null,
+        /** Settings → Default UPI app: "Pay" goes straight here when set. */
+        val defaultUpiApp: String? = null,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -58,6 +62,11 @@ class ScannerViewModel @Inject constructor(
 
     init {
         loadOptions()
+        viewModelScope.launch {
+            settingsRepository.settings.collect { settings ->
+                _uiState.update { it.copy(defaultUpiApp = settings.defaultUpiApp) }
+            }
+        }
     }
 
     private fun loadOptions() {

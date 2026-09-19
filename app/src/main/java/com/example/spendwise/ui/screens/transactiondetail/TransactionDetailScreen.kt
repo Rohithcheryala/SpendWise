@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
@@ -25,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -479,6 +483,13 @@ private fun OptionPickerBottomSheet(
     onAddNew: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Search only earns its keep on longer lists — counterparties and the
+    // flattened category tree. 4 accounts don't need a filter box.
+    var query by remember { mutableStateOf("") }
+    val showSearch = options.size > 6
+    val visibleOptions = if (query.isBlank()) options else options.filter {
+        it.label.contains(query.trim(), ignoreCase = true)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -487,8 +498,10 @@ private fun OptionPickerBottomSheet(
         Column(
             modifier = Modifier
                 .padding(24.dp)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .fillMaxWidth()
+                // Keyboard space must come out of the sheet, or the IME
+                // covers the list with no way to scroll clear of it.
+                .imePadding()
         ) {
             Text(
                 title,
@@ -496,45 +509,69 @@ private fun OptionPickerBottomSheet(
                 fontWeight = FontWeight.Bold
             )
 
-            options.forEach { option ->
-                androidx.compose.material3.OutlinedCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(option) },
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        text = option.label,
-                        modifier = Modifier.padding(Dimens.cardPadding),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+            if (showSearch) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search…") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
-            if (onAddNew != null) {
-                androidx.compose.material3.OutlinedCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onAddNew() },
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(Dimens.cardPadding)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false),
+                contentPadding = PaddingValues(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(
+                    visibleOptions,
+                    key = { it.id }
+                ) { option ->
+                    androidx.compose.material3.OutlinedCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(option) },
+                        shape = MaterialTheme.shapes.small
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Add new",
+                            text = option.label,
+                            modifier = Modifier.padding(Dimens.cardPadding),
                             style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.primary
+                            fontWeight = FontWeight.Medium
                         )
+                    }
+                }
+
+                if (onAddNew != null) {
+                    item {
+                        androidx.compose.material3.OutlinedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onAddNew() },
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(Dimens.cardPadding)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Add new",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                     }
                 }
             }

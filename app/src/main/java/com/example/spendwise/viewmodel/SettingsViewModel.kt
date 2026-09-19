@@ -65,6 +65,10 @@ class SettingsViewModel @Inject constructor(
     fun setProfileName(name: String) =
         viewModelScope.launch { settingsRepository.setProfileName(name) }
 
+    /** Null clears the default — Scan & Pay shows the chooser again. */
+    fun setDefaultUpiApp(packageName: String?) =
+        viewModelScope.launch { settingsRepository.setDefaultUpiApp(packageName) }
+
     /** Wipes the Room database and re-seeds the base categories/metadata. */
     fun resetDatabase() {
         if (isResetting) return

@@ -100,6 +100,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.spendwise.core.upi.ACTION_UPI_PAY
+import com.example.spendwise.core.upi.listUpiApps
 import com.example.spendwise.ui.theme.Dimens
 import com.example.spendwise.ui.theme.SpendwiseTheme
 import com.example.spendwise.ui.components.DropdownField
@@ -122,7 +124,7 @@ import kotlin.math.hypot
 import com.example.spendwise.ui.components.SpendwiseCard
 
 /** The NPCI-standard UPI deep-link action — no SDK constant exists for it. */
-private const val ACTION_UPI_PAY = "android.intent.action.UPI_PAY"
+// (the dual-shape probe lives in `core.upi.listUpiApps`)
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,6 +154,7 @@ fun ScannerScreen(
     var torchOn by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var payTarget by remember { mutableStateOf<UpiTarget?>(null) }
+    var lastLaunchedUri by remember { mutableStateOf<String?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var lastScanAt by remember { mutableStateOf(0L) }
 
@@ -187,7 +190,10 @@ fun ScannerScreen(
     var lastPayee by remember { mutableStateOf("") }
 
     // A fresh target (QR or manual) prefills the sheet; the chosen account
-    // stays sticky — most payments leave the same account.
+    // sticks — most payments leave the same account.
+    // A dynamic QR that carries its own amount LOCKS the field: the amount is
+    // part of what the merchant signed, and the UPI app would reject a
+    // mismatch anyway. Open QRs and manual VPAs stay editable.
     LaunchedEffect(payTarget) {
         val target = payTarget ?: return@LaunchedEffect
         amount = target.qrAmount.orEmpty()
@@ -197,6 +203,7 @@ fun ScannerScreen(
         selectedCategory = null
         sheetError = null
     }
+    val amountLocked = payTarget?.qrAmount != null
 
     /**
      * The NPCI UPI result contract: apps report the payment outcome either as
@@ -246,7 +253,10 @@ fun ScannerScreen(
             categoryId = selectedCategory?.id?.toLongOrNull(),
             tags = tags.map { it.label },
             note = note,
-            upiUri = buildUpiUri(target.vpa, target.name, amount, note).toString(),
+            // The EXACT uri the UPI app was launched with — the provenance
+            // record must describe what actually left the app, so it is
+            // captured at launch time, not rebuilt on return.
+            upiUri = lastLaunchedUri,
         )
         payTarget = null
         torchOn = false
@@ -275,7 +285,12 @@ fun ScannerScreen(
         // No account requirement here: a payment can fail at the last step and
         // be retried from a different account, so the landing bank SMS — which
         // names the account that actually paid — decides on merge.
-        val uri = buildUpiUri(target.vpa, target.name, amount, note)
+        // Derived from the RAW scanned string (byte-identical passthrough) —
+        // never re-encoded from the parsed fields, which invalidates signed
+        // merchant QRs ("Receiver bank failure" in BHIM).
+        val uri = buildUpiLaunchUri(target.raw, amount, note)
+        lastLaunchedUri = uri
+        val launchUri = android.net.Uri.parse(uri)
         // NPCI defines two launch shapes: the dedicated UPI_PAY action and the
         // VIEW + upi:// scheme. Current GPay/PhonePe/Paytm builds commonly
         // register only the VIEW shape, so BOTH must be resolved and merged —
@@ -283,7 +298,7 @@ fun ScannerScreen(
         val resolver = context.packageManager
         val candidates = LinkedHashMap<ComponentName, Intent>()
         for (action in listOf(ACTION_UPI_PAY, Intent.ACTION_VIEW)) {
-            val probe = Intent(action).setData(uri)
+            val probe = Intent(action).setData(launchUri)
             for (info in resolver.queryIntentActivities(probe, 0)) {
                 val component = ComponentName(info.activityInfo.packageName, info.activityInfo.name)
                 // A fresh copy per candidate — setPackage mutates its receiver,
@@ -292,13 +307,27 @@ fun ScannerScreen(
                 candidates[component] = Intent(probe).setPackage(info.activityInfo.packageName)
             }
         }
+        // Settings → Default UPI app: skip the chooser and go straight in.
+        // The setting can go stale (app uninstalled since it was chosen), so
+        // it is resolved against the live candidate list on every launch and
+        // silently falls back to the chooser when it's no longer there.
+        uiState.defaultUpiApp?.let { pkg ->
+            candidates.entries.firstOrNull { it.key.packageName == pkg }?.let { (_, intent) ->
+                try {
+                    payLauncher.launch(intent)
+                } catch (_: android.content.ActivityNotFoundException) {
+                    sheetError = "No UPI app found on this device"
+                }
+                return
+            }
+        }
         if (candidates.isEmpty()) {
             // The pre-check can under-report (OEM package-visibility quirks),
             // so never hard-block on it: the system chooser resolves with FULL
             // package visibility and either lists the UPI apps or reports the
             // absence itself. Both NPCI shapes are offered to the resolver.
-            val primary = Intent(Intent.ACTION_VIEW).setData(uri)
-            val alternate = Intent(ACTION_UPI_PAY).setData(uri)
+            val primary = Intent(Intent.ACTION_VIEW).setData(launchUri)
+            val alternate = Intent(ACTION_UPI_PAY).setData(launchUri)
             try {
                 payLauncher.launch(
                     Intent.createChooser(primary, "Pay with").apply {
@@ -479,6 +508,7 @@ fun ScannerScreen(
                                         vpa = input,
                                         qrAmount = null,
                                         qrNote = null,
+                                        raw = "upi://pay?pa=" + android.net.Uri.encode(input),
                                     )
                                 }
                             },
@@ -499,6 +529,7 @@ fun ScannerScreen(
         PaymentOverlay(
             target = target,
             amount = amount,
+            amountLocked = amountLocked,
             onAmountChange = { amount = it.filter { ch -> ch.isDigit() || ch == '.' } },
             note = note,
             onNoteChange = { note = it },

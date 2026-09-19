@@ -60,7 +60,7 @@ interface AccountDao {
         """
         SELECT * FROM accounts
         WHERE account_class IN ('income', 'expense') AND is_system = 0 AND is_archived = 0
-        ORDER BY sort_order ASC, name ASC
+        ORDER BY COALESCE(parent_id, id) ASC, parent_id IS NOT NULL ASC, sort_order ASC, name ASC
     """
     )
     fun getCategoryAccounts(): Flow<List<AccountEntity>>

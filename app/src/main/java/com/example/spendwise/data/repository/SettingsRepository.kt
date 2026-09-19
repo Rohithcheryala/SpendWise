@@ -42,7 +42,12 @@ data class UserSettings(
     val notificationsEnabled: Boolean = true,
     /** When true, buffer transactions cannot be confirmed without a real category AND a tag. */
     val strictMode: Boolean = false,
-    val profileName: String = ""
+    val profileName: String = "",
+    /**
+     * Package name of the user's preferred UPI app for Scan & Pay — "Pay"
+     * skips the chooser and goes straight in. Null = ask every time.
+     */
+    val defaultUpiApp: String? = null,
 )
 
 /**
@@ -62,6 +67,7 @@ class SettingsRepository @Inject constructor(
         val NOTIFICATIONS_ENABLED = booleanPreferencesKey("notifications_enabled")
         val STRICT_MODE = booleanPreferencesKey("strict_mode")
         val PROFILE_NAME = stringPreferencesKey("profile_name")
+        val DEFAULT_UPI_APP = stringPreferencesKey("default_upi_app")
         val ACTIVE_CONTEXT_TAG = stringPreferencesKey("active_context_tag")
         val ACTIVE_CONTEXT_EXPIRES_AT = longPreferencesKey("active_context_expires_at")
     }
@@ -77,6 +83,8 @@ class SettingsRepository @Inject constructor(
             notificationsEnabled = prefs[Keys.NOTIFICATIONS_ENABLED] ?: true,
             strictMode = prefs[Keys.STRICT_MODE] ?: false,
             profileName = prefs[Keys.PROFILE_NAME].orEmpty(),
+            // Blank values (never persisted, but cheap to guard) mean "unset".
+            defaultUpiApp = prefs[Keys.DEFAULT_UPI_APP]?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -104,6 +112,14 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setProfileName(name: String) {
         context.settingsDataStore.edit { it[Keys.PROFILE_NAME] = name }
+    }
+
+    /** Null clears the default — the UPI chooser comes back. */
+    suspend fun setDefaultUpiApp(packageName: String?) {
+        context.settingsDataStore.edit {
+            if (packageName == null) it.remove(Keys.DEFAULT_UPI_APP)
+            else it[Keys.DEFAULT_UPI_APP] = packageName
+        }
     }
 
     /**

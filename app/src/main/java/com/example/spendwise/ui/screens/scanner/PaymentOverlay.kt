@@ -71,6 +71,8 @@ import com.example.spendwise.ui.theme.SpendwiseTheme
 internal fun PaymentOverlay(
     target: UpiTarget,
     amount: String,
+    /** True when the QR fixed the amount — the field is read-only (see call site). */
+    amountLocked: Boolean,
     onAmountChange: (String) -> Unit,
     note: String,
     onNoteChange: (String) -> Unit,
@@ -154,9 +156,21 @@ internal fun PaymentOverlay(
                 onValueChange = onAmountChange,
                 label = { Text("Amount (₹)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                // A dynamic QR's amount is part of what the merchant signed —
+                // the UPI app would reject a mismatch anyway, so editing here
+                // only sets the user up for a failed payment.
+                readOnly = amountLocked,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
+            if (amountLocked) {
+                Text(
+                    text = "Amount is fixed by the QR — the UPI app won't let you change it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 0.dp)
+                )
+            }
 
             DropdownField(
                 label = "Pay from account (optional)",
