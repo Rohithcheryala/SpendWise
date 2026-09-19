@@ -12,6 +12,7 @@ import com.example.spendwise.ledger.api.LedgerApi
 import com.example.spendwise.ledger.api.LineSpec
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.core.extensions.categoryLabel
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.parser_pw.md5Hex
 import com.example.spendwise.data.database.dao.AccountDao
@@ -73,8 +74,9 @@ class ScannerViewModel @Inject constructor(
         }
         viewModelScope.launch {
             accountDao.getCategoryAccounts().collect { list ->
+                val byId = list.associateBy { it.id }
                 _uiState.update { s ->
-                    s.copy(categories = list.map { DropdownOption(it.id.toString(), it.name) })
+                    s.copy(categories = list.map { DropdownOption(it.id.toString(), it.categoryLabel(byId)) })
                 }
             }
         }

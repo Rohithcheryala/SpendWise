@@ -1,5 +1,6 @@
 package com.example.spendwise.ui.screens.transactions
 
+import com.example.spendwise.core.extensions.categoryLabel
 import com.example.spendwise.data.database.entity.AccountEntity
 import com.example.spendwise.ledger.service.LedgerService
 import java.time.Instant
@@ -64,13 +65,14 @@ fun buildFilterOptions(
     tags: List<String>,
 ): TransactionFilterOptions {
     val pickable = accounts.filter { !it.isSystem && !it.isArchived }
+    val byId = pickable.associateBy { it.id }
     return TransactionFilterOptions(
         categories = pickable
             .filter {
                 it.accountClass == LedgerService.CLASS_EXPENSE ||
                     it.accountClass == LedgerService.CLASS_INCOME
             }
-            .map { FilterOption(it.id, it.name) },
+            .map { FilterOption(it.id, it.categoryLabel(byId)) },
         accounts = pickable
             .filter {
                 it.accountClass == LedgerService.CLASS_ASSET ||

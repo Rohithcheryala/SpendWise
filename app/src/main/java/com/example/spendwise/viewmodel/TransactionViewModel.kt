@@ -16,6 +16,7 @@ import com.example.spendwise.ledger.api.SplitRequest
 import com.example.spendwise.ledger.api.SplitShare
 import com.example.spendwise.ledger.service.CounterpartyService
 import com.example.spendwise.ledger.service.LedgerService
+import com.example.spendwise.core.extensions.categoryLabel
 import com.example.spendwise.core.extensions.toPaiseOrNull
 import com.example.spendwise.core.extensions.toRupeeInput
 import com.example.spendwise.data.database.dao.AccountDao
@@ -536,9 +537,10 @@ class TransactionViewModel @Inject constructor(
 
         viewModelScope.launch {
             accountDao.getCategoryAccounts().collect { list ->
+                val byId = list.associateBy { it.id }
                 _uiState.update { s ->
                     s.copy(categories = list.map {
-                        DropdownOption(it.id.toString(), it.name)
+                        DropdownOption(it.id.toString(), it.categoryLabel(byId))
                     })
                 }
             }
@@ -584,7 +586,9 @@ class TransactionViewModel @Inject constructor(
                     .toLocalDate(),
                 account = account?.let { DropdownOption(it.id.toString(), it.name) } ?: s.account,
                 counterparty = counterparty ?: s.counterparty,
-                category = category?.let { DropdownOption(it.id.toString(), it.name) },
+                category = category?.let {
+                    DropdownOption(it.id.toString(), it.categoryLabel { parentId -> accountDao.getById(parentId) })
+                },
                 tags = view.tags.map { TagUiModel(it, it) },
                 note = view.note.orEmpty(),
                 source = view.source,
