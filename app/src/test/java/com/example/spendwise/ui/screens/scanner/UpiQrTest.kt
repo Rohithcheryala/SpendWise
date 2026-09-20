@@ -62,18 +62,39 @@ class UpiQrTest {
     }
 
     @Test
-    fun `launch uri keeps a signed merchant qr byte-identical and only appends`() {
+    fun `a signed dynamic qr is launched byte-identical — no am even when the qr leaves it open`() {
         // A dynamic merchant QR: signed (`sign=`) over the exact text, odd
         // param order, params SpendWise doesn't understand. Rebuilding it
         // (the old buildUpiUri) dropped `sign`/`tr`/`mid` and re-ordered the
         // rest — BHIM then rejected the payment with "Receiver bank failure".
+        // And the v1.0.4 "passthrough" fix STILL appended `am`/`cu` to signed
+        // queries, which kept failing at NPCI's pay-time validation: the app
+        // shows the payee fine, then the transfer is rejected. A signed QR
+        // must go out byte-for-byte — the UPI app collects the amount itself.
         val raw = "upi://pay?cu=INR&pa=chaihub@ybl&pn=Chai%20Hub&tr=TXN889&mid=UKHSBX&sign=Zk9wA=="
-        val uri = buildUpiLaunchUri(raw, amount = "15", note = "")
 
-        assertEquals(
-            "upi://pay?cu=INR&pa=chaihub@ybl&pn=Chai%20Hub&tr=TXN889&mid=UKHSBX&sign=Zk9wA==&am=15.00",
-            uri,
-        )
+        assertEquals(raw, buildUpiLaunchUri(raw, amount = "15", note = ""))
+        assertEquals(raw, buildUpiLaunchUri(raw, amount = "15", note = "custom note"))
+    }
+
+    @Test
+    fun `tr alone also counts as an inviolable dynamic qr`() {
+        val raw = "upi://pay?pa=shop@ibl&pn=Shop&tr=BILL42&am=99.00"
+
+        assertEquals(raw, buildUpiLaunchUri(raw, amount = "99", note = "changed"))
+    }
+
+    @Test
+    fun `an unedited prefilled note does not touch the qr's tn`() {
+        // The overlay prefills the note field with the QR's decoded note.
+        // Re-encoding it through Uri.encode() is not byte-identical to the
+        // merchant's original (here: space left raw in the query), and on a
+        // signed QR that one byte breaks the signature. Unedited => no-op.
+        // Unsigned raw on purpose — the signed path returns early and is
+        // covered by the byte-identical tests above.
+        val raw = "upi://pay?pa=chaihub@ybl&am=15.00&cu=INR&tn=Chai Order"
+
+        assertEquals(raw, buildUpiLaunchUri(raw, amount = "15.00", note = "Chai Order"))
     }
 
     @Test

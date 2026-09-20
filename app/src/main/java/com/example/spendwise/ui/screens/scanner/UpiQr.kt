@@ -55,11 +55,23 @@ fun parseUpiQr(raw: String): UpiTarget? {
  *  - `am` (amount): appended ONLY when the QR didn't fix one — a dynamic QR's
  *    amount is authoritative, never overridden (the form locks it too).
  *  - `cu` (currency): appended when missing.
- *  - `tn` (note): payer-editable per the UPI spec, so the user's note wins —
- *    replaced in place, or appended when the QR had none.
+ *  - `tn` (note): replaced in place ONLY when the user actually edited it —
+ *    the overlay prefills the field from the QR's note, and re-encoding it
+ *    is not guaranteed byte-identical to what the merchant wrote.
  *
- * Everything else — param order, percent-encoding, unknown fields (`sign`,
- * `tr`, `mc`, `mid`, …) — stays untouched.
+ * Signed QRs (`sign=`, `tr=`, `trid=`) get NONE of these: they are launched
+ * byte-identical, full stop (see below). Everything else — param order,
+ * percent-encoding, unknown fields (`mc`, `mid`, …) — stays untouched.
+ *
+ * The hard rule: a SIGNED or dynamic QR is never edited, not even by
+ * appending a missing param. The signature covers the query's exact text;
+ * NPCI validates it at PAY time, so the UPI app happily displays the
+ * payee/amount and then rejects the transfer ("Receiver bank failure") —
+ * the worst failure shape because it looks like the bank's fault. The v1.0.4
+ * passthrough fix still appended `am`/`cu` and re-encoded `tn` on such QRs,
+ * which is why payments kept failing after it. The UPI apps' own scanners
+ * never edit either; when a signed QR leaves the amount open, the UPI app
+ * collects it — SpendWise's form value is then just the ledger record.
  */
 internal fun buildUpiLaunchUri(raw: String, amount: String, note: String): String {
     val base = raw.substringBefore('?')
@@ -67,6 +79,9 @@ internal fun buildUpiLaunchUri(raw: String, amount: String, note: String): Strin
 
     fun has(key: String): Boolean =
         Regex("(^|&)$key=", RegexOption.IGNORE_CASE).containsMatchIn(query)
+
+    // Signed / dynamic QRs: hands off, completely.
+    if (has("sign") || has("tr") || has("trid")) return raw
 
     // Replace a single param's value IN PLACE (leaving every other byte of
     // the query untouched), or append it if absent.
@@ -88,7 +103,13 @@ internal fun buildUpiLaunchUri(raw: String, amount: String, note: String): Strin
         set("am", String.format(java.util.Locale.US, "%.2f", rupees))
     }
     if (!has("cu")) set("cu", "INR")
-    if (note.isNotBlank()) set("tn", Uri.encode(note))
+    // Only touch `tn` when the user actually changed the note. The overlay
+    // prefills the field with the QR's note; an unedited note re-encoded
+    // through Uri.encode() is not guaranteed to match the merchant's
+    // original bytes, and one changed byte in a signed query is fatal.
+    if (note.isNotBlank() && note != Uri.parse(raw).getQueryParameter("tn")) {
+        set("tn", Uri.encode(note))
+    }
 
     return if (query.isBlank()) base else "$base?$query"
 }
